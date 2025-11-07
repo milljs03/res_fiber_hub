@@ -10,7 +10,8 @@ import {
     updateDoc,
     deleteDoc,
     onSnapshot,
-    query
+    query,
+    serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -24,6 +25,8 @@ let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
+let allCustomers = []; 
+let currentSort = 'name'; 
 
 // --- DOM Elements ---
 const el = {
@@ -54,6 +57,7 @@ const el = {
     customerListContainer: document.getElementById('customer-list-container'),
     listLoading: document.getElementById('list-loading'),
     searchBar: document.getElementById('search-bar'),
+    sortBy: document.getElementById('sort-by'), 
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
@@ -84,11 +88,9 @@ const el = {
 };
 
 // --- 1. AUTHENTICATION ---
-
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
-
 function handleAuthentication(user) {
     if (user && user.email && user.email.endsWith('@nptel.com')) {
         currentUserId = user.uid;
@@ -115,7 +117,6 @@ function handleAuthentication(user) {
         }
     }
 }
-
 el.signInBtn.addEventListener('click', () => {
     el.authError.textContent = ''; 
     signInWithPopup(auth, googleProvider)
@@ -129,7 +130,6 @@ el.signInBtn.addEventListener('click', () => {
             }
         });
 });
-
 el.signOutBtn.addEventListener('click', () => {
     signOut(auth).catch((error) => console.error("Sign-out error", error));
 });
@@ -158,6 +158,13 @@ function setupEventListeners() {
     // Search
     el.searchBar.addEventListener('input', (e) => {
         filterCustomerList(e.target.value.toLowerCase());
+    });
+
+    // Sort Listener
+    el.sortBy.addEventListener('change', (e) => {
+        currentSort = e.target.value;
+        renderCustomerList(allCustomers);
+        filterCustomerList(el.searchBar.value.toLowerCase());
     });
 
     // List clicks
@@ -197,17 +204,17 @@ function loadCustomers() {
     const q = query(customersCollectionRef);
     customerUnsubscribe = onSnapshot(q, (snapshot) => {
         el.listLoading.style.display = 'none';
-        const customers = [];
+        
+        allCustomers = []; 
         snapshot.forEach((doc) => {
-            customers.push({ id: doc.id, ...doc.data() });
+            allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
-        customers.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
-        renderCustomerList(customers);
+        renderCustomerList(allCustomers);
         filterCustomerList(el.searchBar.value.toLowerCase());
         
         if (selectedCustomerId) {
-            const freshData = customers.find(c => c.id === selectedCustomerId);
+            const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
                 populateDetailsForm(freshData);
                 syncPageToStatus(el.detailsForm['details-status'].value);
@@ -222,6 +229,7 @@ function loadCustomers() {
     });
 }
 
+// --- REVAMPED: renderCustomerList ---
 function renderCustomerList(customers) {
     el.customerListContainer.innerHTML = '';
     el.customerListContainer.appendChild(el.listLoading); 
@@ -233,7 +241,15 @@ function renderCustomerList(customers) {
     }
     el.listLoading.style.display = 'none'; 
 
-    customers.forEach(customer => {
+    const customersToRender = [...customers];
+
+    if (currentSort === 'name') {
+        customersToRender.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
+    } else if (currentSort === 'date') {
+        customersToRender.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    }
+
+    customersToRender.forEach(customer => {
         const item = document.createElement('div');
         item.className = 'customer-item';
         item.dataset.id = customer.id;
@@ -241,19 +257,31 @@ function renderCustomerList(customers) {
             item.classList.add('selected');
         }
 
-        // --- UPDATED: Added hidden <p> tag for address ---
+        const getStatusClass = (status) => {
+            if (!status) return 'status-default';
+            const statusSlug = status.toLowerCase().replace(/ /g, '-');
+            return `status-${statusSlug}`;
+        };
+
+        let createdDate = 'N/A';
+        if (customer.createdAt && customer.createdAt.seconds) {
+            createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
+        }
+
+        // --- UPDATED: New 2-line HTML structure ---
         item.innerHTML = `
-            <h3>${customer.customerName}</h3>
-            <p>A: ${customer.address}</p>
+            <div class="customer-item-header">
+                <h3 class="customer-item-name">${customer.customerName}</h3>
+                <span class="status-pill ${getStatusClass(customer.status)}">${customer.status}</span>
+            </div>
+            <div class="customer-item-footer">
+                <p class="customer-item-address">${customer.address || 'No address'}</p>
+                <p class="customer-item-date">${createdDate !== 'N/A' ? `Added: ${createdDate}` : ''}</p>
+            </div>
             <p class="search-address" style="display: none;">${customer.address || ''}</p>
-            <p>Status: <span>${customer.status}</span></p>
         `;
         el.customerListContainer.appendChild(item);
     });
-    
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
 }
 
 function filterCustomerList(searchTerm) {
@@ -261,13 +289,10 @@ function filterCustomerList(searchTerm) {
     let visibleCount = 0;
     
     items.forEach(item => {
-        // --- UPDATED: Search logic ---
-        const name = item.querySelector('h3').textContent.toLowerCase();
-        // Get the new hidden address element
+        const name = item.querySelector('.customer-item-name').textContent.toLowerCase();
         const addressElement = item.querySelector('.search-address');
         const address = addressElement ? addressElement.textContent.toLowerCase() : '';
         
-        // Check name OR address
         if (name.includes(searchTerm) || address.includes(searchTerm)) {
             item.style.display = 'block';
             visibleCount++;
@@ -317,6 +342,7 @@ async function handleAddCustomer(e) {
         secondaryContact: { name: "", phone: "" },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
+        createdAt: serverTimestamp(), // Add server timestamp
         preInstallChecklist: {
             welcomeEmailSent: false,
             addedToSiteSurvey: false,
@@ -350,7 +376,6 @@ async function handleAddCustomer(e) {
 
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
-
 async function handleSelectCustomer(customerId, customerItem) {
     if (selectedCustomerId === customerId) {
         handleDeselectCustomer();
@@ -549,13 +574,12 @@ async function handleDeleteCustomer(e) {
 }
 
 // --- 6. ACTIONS ---
-
 async function handleSendWelcomeEmail(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
     const toEmail = el.detailsEmail.textContent;
-    const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] h3`).textContent;
+    const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
@@ -593,7 +617,7 @@ async function handleCopyBilling(e) {
             return;
         }
         const data = docSnap.data();
-        const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] h3`).textContent;
+        const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
         const billingText = `
 Customer Name: ${customerName}
 Service Order: ${data.serviceOrderNumber}

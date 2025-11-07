@@ -50,15 +50,22 @@
             <div class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer List</h2>
-                    <button id="new-customer-btn" class="btn btn-secondary">
-                        <i data-lucide="plus" class="btn-icon" style="stroke-width: 3;"></i>
-                        New
+                    <button id="new-customer-btn" class="btn btn-primary">
+                        New Service Order
                     </button>
                 </div>
                 
                 <div class="search-bar-group">
                     <img src="search.png" alt="" class="search-icon" />
                     <input type="text" id="search-bar" class="form-input" placeholder="Search by name or address...">
+                </div>
+
+                <div class="form-group">
+                    <label for="sort-by" class="form-label">Sort by</label>
+                    <select id="sort-by" class="form-select">
+                        <option value="name">Name (A-Z)</option>
+                        <option value="date">Date Added (Newest)</option>
+                    </select>
                 </div>
 
                 <div id="customer-list-container" class="customer-list-container">
