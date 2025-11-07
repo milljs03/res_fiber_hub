@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Residential Install Tracker</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <!-- Simple loading spinner styles -->
+    <style>
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(4px);
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #0ea5e9;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased">
+    <!-- Full-screen Auth container -->
+    <div id="auth-screen" class="min-h-full h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
+                    Install Tracker
+                </h2>
+                <p class="mt-2 text-center text-sm text-gray-600">
+                    Please sign in with your @nptel.com account
+                </p>
+            </div>
+            <button id="sign-in-btn" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                Sign in with Google
+            </button>
+            <p id="auth-error" class="text-center text-sm text-red-600"></p>
+        </div>
+    </div>
+
+    <!-- Main App Screen (Hidden by default) -->
+    <div id="app-screen" class="p-4 md:p-8 max-w-7xl mx-auto hidden">
+        <!-- Loading Overlay -->
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Header -->
+        <header class="pb-4 border-b border-gray-200 mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Residential Install Tracker</h1>
+                <p class="mt-1 text-sm text-gray-600">Manage customer service orders from entry to completion.</p>
+                <p class="mt-2 text-xs text-gray-500">
+                    Your User ID: 
+                    <span id="user-id-display" class="font-medium text-gray-700">Not logged in</span>
+                </p>
+            </div>
+            <div class="text-right flex-shrink-0">
+                <p id="user-email-display" class="text-sm font-medium text-gray-800"></p>
+                <button id="sign-out-btn" class="text-sm text-sky-600 hover:text-sky-800 hover:underline focus:outline-none">
+                    Sign Out
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Column 1: Add Customer Form -->
+            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Add New Customer</h2>
+                <form id="add-customer-form" class="space-y-4">
+                    <div>
+                        <label for="so-number" class="block text-sm font-medium text-gray-700">Service Order #</label>
+                        <input type="text" id="so-number" name="so-number" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="customer-name" class="block text-sm font-medium text-gray-700">Customer Name</label>
+                        <input type="text" id="customer-name" name="customer-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="service-speed" class="block text-sm font-medium text-gray-700">Service Speed</label>
+                        <select id="service-speed" name="service-speed" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                            <option>200 Mbps</option>
+                            <option>500 Mbps</option>
+                            <option>1 Gbps</option>
+                        </select>
+                    </div>
+
+                    <h3 class="text-md font-semibold text-gray-700 pt-2">Primary Contact</h3>
+                    <div>
+                        <label for="primary-email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="primary-email" name="primary-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="primary-phone" class="block text-sm font-medium text-gray-700">Phone</label>
+                        <input type="tel" id="primary-phone" name="primary-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+
+                    <h3 class="text-md font-semibold text-gray-700 pt-2">Secondary Contact (Optional)</h3>
+                    <div>
+                        <label for="secondary-name" class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" id="secondary-name" name="secondary-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="secondary-phone" class="block text-sm font-medium text-gray-700">Phone</label>
+                        <input type="tel" id="secondary-phone" name="secondary-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    </div>
+
+                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                        Add Customer
+                    </button>
+                </form>
+            </div>
+
+            <!-- Column 2: Customer List -->
+            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Customer List</h2>
+                <div id="customer-list" class="space-y-3 max-h-[80vh] overflow-y-auto">
+                    <!-- Customer cards will be injected here by app.js -->
+                    <p id="customer-list-empty" class="text-sm text-gray-500">No customers added yet.</p>
+                </div>
+            </div>
+
+            <!-- Column 3: Customer Details -->
+            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
+                <div id="customer-details-container" class="sticky top-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Customer Details</h2>
+                    <div id="customer-details-content" class="hidden">
+                        <!-- This form is for displaying and updating customer data -->
+                        <form id="details-form" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
+                            <div class="flex justify-between items-center">
+                                <h3 id="details-customer-name" class="text-lg font-bold text-gray-900"></h3>
+                                <button type="button" id="btn-save-details" class="py-1 px-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                    Save Changes
+                                </button>
+                            </div>
+                            <p id="details-so-number" class="text-sm text-gray-600"></p>
+                            
+                            <!-- Status -->
+                            <div>
+                                <label for="details-status" class="block text-sm font-medium text-gray-700">Status</label>
+                                <select id="details-status" name="details-status" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                                    <option>New Order</option>
+                                    <option>Site Survey Pending</option>
+                                    <option>Install Scheduled</option>
+                                    <option>Completed</option>
+                                    <option>On Hold</option>
+                                </select>
+                            </div>
+
+                            <!-- Basic Info (from add form, now editable) -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="details-service-speed" class="block text-sm font-medium text-gray-700">Speed</label>
+                                    <input type="text" id="details-service-speed" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm">
+                                </div>
+                                <div>
+                                    <label for="details-primary-email" class="block text-sm font-medium text-gray-700">Email</label>
+                                    <input type="email" id="details-primary-email" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm">
+                                </div>
+                            </div>
+
+                            <!-- Pre-Install Checklist -->
+                            <fieldset class="mt-4">
+                                <legend class="text-md font-semibold text-gray-700">Pre-Install Checklist</legend>
+                                <div class="space-y-2 mt-2">
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="check-welcome-email" name="check-welcome-email" type="checkbox" disabled class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="check-welcome-email" class="font-medium text-gray-700">Welcome Email Sent</label>
+                                        </div>
+                                        <button type="button" id="btn-send-welcome" class="ml-auto text-xs py-1 px-2 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50">Send</button>
+                                    </div>
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="check-site-survey" name="check-site-survey" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="check-site-survey" class="font-medium text-gray-700">Added to Site Survey List</label>
+                                        </div>
+                                    </div>
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="check-fiber-list" class="font-medium text-gray-700">Added to Residential Fiber List</label>
+                                        </div>
+                                    </div>
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="check-repair-shoppr" class="font-medium text-gray-700">Added to Repair Shoppr</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <!-- Install Tab -->
+                            <fieldset class="mt-4">
+                                <legend class="text-md font-semibold text-gray-700">Install Details</legend>
+                                <div class="space-y-4 mt-2">
+                                    <div>
+                                        <label for="install-date" class="block text-sm font-medium text-gray-700">Install Date</label>
+                                        <input type="date" id="install-date" name="install-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="eero-info" class="block text-sm font-medium text-gray-700">Eero Insight Info</label>
+                                        <textarea id="eero-info" name="eero-info" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
+                                    </div>
+                                    <div>
+                                        <label for="nid-light" class="block text-sm font-medium text-gray-700">Light Reading at NID</label>
+                                        <input type="text" id="nid-light" name="nid-light" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                                    </div>
+                                    <div>
+                                        <label for="extra-equip" class="block text-sm font-medium text-gray-700">Additional Equipment Used</label>
+                                        <textarea id="extra-equip" name="extra-equip" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
+                                    </div>
+                                    <div>
+                                        <label for="general-notes" class="block text-sm font-medium text-gray-700">General Notes</label>
+                                        <textarea id="general-notes" name="general-notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <!-- Post-Install Checklist -->
+                            <fieldset class="mt-4">
+                                <legend class="text-md font-semibold text-gray-700">Post-Install Checklist</legend>
+                                <div class="space-y-2 mt-2">
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="post-check-fiber" class="font-medium text-gray-700">Removed from Residential Fiber List</label>
+                                        </div>
+                                    </div>
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="post-check-survey" name="post-check-survey" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="post-check-survey" class="font-medium text-gray-700">Removed from Site Survey List</label>
+                                        </div>
+                                    </div>
+                                    <div class="relative flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="post-check-repair" name="post-check-repair" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="post-check-repair" class="font-medium text-gray-700">Updated Repair Shoppr</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                            
+                            <!-- Billing Copy Button -->
+                            <div class="pt-4 border-t border-gray-200 mt-4">
+                                <button type="button" id="btn-copy-billing" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                                    Copy Info for Billing
+                                </button>
+                                <p id="copy-success" class="text-xs text-green-600 text-center mt-2 hidden">Copied to clipboard!</p>
+                            </div>
+                        </form>
+                    </div>
+                    <div id="customer-details-empty" class="text-center py-10">
+                        <p class="text-gray-500">Select a customer from the list to view their details.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div> <!-- /end main grid -->
+    </div> <!-- /end #app-screen -->
+
+    <!-- 
+      This script block is now empty on purpose.
+    -->
+    <script type="module">
+    </script>
+
+    <!-- Main Application Logic -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
