@@ -10,8 +10,7 @@ import {
     updateDoc,
     deleteDoc,
     onSnapshot,
-    query,
-    where
+    query
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -88,6 +87,7 @@ function handleAuthentication(user) {
 
         // --- This is where we define the user-specific database path ---
         currentAppId = 'cfn-install-tracker'; // Unique ID for this app
+        // This path matches the firestore.rules
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'customers');
         // --- End Database Path ---
 
@@ -166,6 +166,9 @@ function initializeApp() {
     
     // Start listening for customer data
     loadCustomers();
+    
+    // Hide details panel by default
+    handleDeselectCustomer();
 }
 
 function setupEventListeners() {
@@ -221,7 +224,11 @@ function loadCustomers() {
         });
         
         // Sort customers alphabetically by name
-        customers.sort((a, b) => a.customerName.localeCompare(b.customerName));
+        customers.sort((a, b) => {
+            const nameA = a.customerName || '';
+            const nameB = b.customerName || '';
+            return nameA.localeCompare(nameB);
+        });
 
         renderCustomerList(customers);
         
@@ -260,7 +267,7 @@ function renderCustomerList(customers) {
 
     customers.forEach(customer => {
         const item = document.createElement('div');
-        item.className = 'customer-item p-4 border border-gray-200 rounded-md shadow-sm hover:bg-gray-50';
+        item.className = 'customer-item'; // Styles are in style.css
         item.dataset.id = customer.id;
         
         // Add "selected" class if this is the currently selected customer
@@ -269,12 +276,17 @@ function renderCustomerList(customers) {
         }
 
         item.innerHTML = `
-            <h3 class="font-semibold text-lg text-gray-900">${customer.customerName}</h3>
-            <p class="text-sm text-gray-600">SO: ${customer.serviceOrderNumber}</p>
-            <p class="text-sm text-gray-600">Status: <span class="font-medium text-blue-600">${customer.status}</span></p>
+            <h3>${customer.customerName}</h3>
+            <p>SO: ${customer.serviceOrderNumber}</p>
+            <p>Status: <span>${customer.status}</span></p>
         `;
         el.customerListContainer.appendChild(item);
     });
+    
+    // Call lucide.createIcons() after adding new HTML
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 }
 
 function filterCustomerList(searchTerm) {
@@ -299,6 +311,10 @@ function filterCustomerList(searchTerm) {
         el.listLoading.style.display = 'block';
     } else if (visibleCount > 0) {
         el.listLoading.style.display = 'none';
+    } else if (visibleCount === 0 && items.length === 0) {
+        // This is handled by renderCustomerList, but good to be defensive
+        el.listLoading.textContent = 'No customers found. Add one to get started!';
+        el.listLoading.style.display = 'block';
     }
 }
 
@@ -357,7 +373,7 @@ async function handleAddCustomer(e) {
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
 
-function handleSelectCustomer(customerId, customerItem) {
+async function handleSelectCustomer(customerId, customerItem) {
     if (selectedCustomerId === customerId) {
         // If clicking the already selected customer, deselect them
         handleDeselectCustomer();
@@ -379,25 +395,26 @@ function handleSelectCustomer(customerId, customerItem) {
     el.loadingOverlay.style.display = 'flex'; // Show spinner
 
     // Fetch the single customer's data to populate the form
-    // This is redundant since onSnapshot holds the data, but
-    // it's a good pattern if the list query was limited.
-    // We'll just find it in the data we already have from onSnapshot.
-    
-    // We need to get the full data. Let's fetch it directly.
-    const docRef = doc(customersCollectionRef, customerId);
-    getDoc(docRef).then(docSnap => {
+    try {
+        const docRef = doc(customersCollectionRef, customerId);
+        const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             populateDetailsForm(docSnap.data());
         } else {
             showToast('Could not find customer data.', 'error');
             handleDeselectCustomer();
         }
-        el.loadingOverlay.style.display = 'none';
-    }).catch(error => {
+    } catch (error) {
         console.error("Error fetching document:", error);
         showToast('Error fetching customer details.', 'error');
+    } finally {
         el.loadingOverlay.style.display = 'none';
-    });
+        
+        // Call lucide.createIcons() after adding new HTML
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
 }
 
 function handleDeselectCustomer() {
@@ -412,6 +429,11 @@ function handleDeselectCustomer() {
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
     el.detailsContainer.dataset.id = '';
+    
+    // Call lucide.createIcons() after adding new HTML
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 }
 
 function populateDetailsForm(data) {
@@ -487,6 +509,11 @@ function handleDetailsFormClick(e) {
         
         // Show visual feedback on the button
         copyBtn.classList.add('copied');
+        // Reset all other copy buttons
+        el.detailsForm.querySelectorAll('.copy-btn').forEach(btn => {
+            if (btn !== copyBtn) btn.classList.remove('copied');
+        });
+
         setTimeout(() => {
             copyBtn.classList.remove('copied');
         }, 1500); // Show checkmark for 1.5 seconds
@@ -497,7 +524,8 @@ function handleDetailsFormClick(e) {
     }
 }
 
-async function handleUpdateCustomer() {
+async function handleUpdateCustomer(e) {
+    e.preventDefault(); // Prevent form from submitting
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
@@ -536,7 +564,8 @@ async function handleUpdateCustomer() {
     }
 }
 
-async function handleDeleteCustomer() {
+async function handleDeleteCustomer(e) {
+    e.preventDefault(); // Prevent form from submitting
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
@@ -561,7 +590,8 @@ async function handleDeleteCustomer() {
 
 // --- 6. ACTIONS ---
 
-async function handleSendWelcomeEmail() {
+async function handleSendWelcomeEmail(e) {
+    e.preventDefault(); // Prevent form from submitting
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
     
@@ -614,7 +644,8 @@ async function handleSendWelcomeEmail() {
     }
 }
 
-async function handleCopyBilling() {
+async function handleCopyBilling(e) {
+    e.preventDefault(); // Prevent form from submitting
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId) return;
 
@@ -628,10 +659,11 @@ async function handleCopyBilling() {
         }
         
         const data = docSnap.data();
+        const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] h3`).textContent;
 
         // Build the text block
         const billingText = `
-Customer Name: ${data.customerName}
+Customer Name: ${customerName}
 Service Order: ${data.serviceOrderNumber}
 Address: ${data.address || ''}
 Service: ${data.serviceSpeed}
@@ -653,6 +685,8 @@ Post-Install Checklist:
         // Copy to clipboard
         const ta = document.createElement('textarea');
         ta.value = billingText;
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');
@@ -672,10 +706,13 @@ Post-Install Checklist:
 function showToast(message, type = 'success') {
     el.toast.textContent = message;
     
+    // Reset classes
+    el.toast.classList.remove('success', 'error');
+    
     if (type === 'error') {
-        el.toast.className = 'error';
+        el.toast.classList.add('error');
     } else {
-        el.toast.className = 'success';
+        el.toast.classList.add('success');
     }
     el.toast.classList.add('show');
 

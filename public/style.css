@@ -90,6 +90,7 @@ body {
     padding: 0.5rem 0.75rem;
     font-size: 0.875rem; /* sm:text-sm */
     transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box; /* Ensures padding doesn't break width */
 }
 .form-input:focus,
 .form-select:focus,
@@ -105,6 +106,7 @@ body {
     border: 1px solid #d1d5db; /* border-gray-300 */
     color: #4f46e5; /* text-indigo-600 */
     transition: box-shadow 0.2s;
+    vertical-align: middle; /* Align checkbox */
 }
 .form-checkbox:focus {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3); /* focus:ring-indigo-500 */
@@ -288,6 +290,16 @@ body {
     color: #6b7280; /* text-gray-500 */
     padding: 4rem 0; /* pt-16 */
 }
+.details-placeholder svg { /* Style for the lucide icon */
+    width: 3rem; 
+    height: 3rem; 
+    color: #9ca3af; /* text-gray-400 */
+    margin: 0 auto;
+}
+.details-placeholder p {
+    margin-top: 0.5rem;
+}
+
 .static-field-group {
     position: relative;
 }
@@ -313,6 +325,7 @@ body {
     word-wrap: break-word;
     line-height: 1.5rem;
     padding-right: 2.5rem; /* Space for copy button */
+    box-sizing: border-box; /* Ensures padding doesn't break width */
 }
 
 .copy-btn {
@@ -368,6 +381,7 @@ body {
 .checklist-item-label {
     margin-left: 0.75rem; /* ml-3 */
     font-size: 0.875rem; /* text-sm */
+    padding-top: 1px; /* Align text better with checkbox */
 }
 .checklist-item-label label {
     font-weight: 500; /* font-medium */
