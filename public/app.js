@@ -263,12 +263,12 @@ function renderCustomerList(customers) {
             return `status-${statusSlug}`;
         };
 
-        let createdDate = 'N/A';
+        let createdDate = ''; // Default to empty string
         if (customer.createdAt && customer.createdAt.seconds) {
             createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
         }
 
-        // --- UPDATED: New 2-line HTML structure ---
+        // --- UPDATED: New 2-line HTML structure with .customer-item-footer ---
         item.innerHTML = `
             <div class="customer-item-header">
                 <h3 class="customer-item-name">${customer.customerName}</h3>
@@ -276,7 +276,7 @@ function renderCustomerList(customers) {
             </div>
             <div class="customer-item-footer">
                 <p class="customer-item-address">${customer.address || 'No address'}</p>
-                <p class="customer-item-date">${createdDate !== 'N/A' ? `Added: ${createdDate}` : ''}</p>
+                <p class="customer-item-date">${createdDate}</p>
             </div>
             <p class="search-address" style="display: none;">${customer.address || ''}</p>
         `;
@@ -311,6 +311,7 @@ function filterCustomerList(searchTerm) {
         el.listLoading.style.display = 'block';
     }
 }
+// --- End Revamp ---
 
 
 // --- 4. CUSTOMER (CREATE) ---
@@ -342,7 +343,7 @@ async function handleAddCustomer(e) {
         secondaryContact: { name: "", phone: "" },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
-        createdAt: serverTimestamp(), // Add server timestamp
+        createdAt: serverTimestamp(), 
         preInstallChecklist: {
             welcomeEmailSent: false,
             addedToSiteSurvey: false,
