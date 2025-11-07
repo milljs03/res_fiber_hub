@@ -13,6 +13,7 @@
 
 <body>
 
+    <!-- ... [Auth Screen HTML remains unchanged] ... -->
     <div id="auth-screen" class="auth-screen">
         <div class="auth-box">
             <i data-lucide="list-checks" class="auth-logo"></i>
@@ -61,27 +62,27 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="sort-by" class="form-label">Sort by</label>
-                    <select id="sort-by" class="form-select">
-                        <option value="name">Name (A-Z)</option>
-                        <option value="date">Date Added (Newest)</option>
-                        <option value="date-oldest">Date Added (Oldest)</option>
-                    </select>
-                </div>
-
-                <!-- === NEW FILTER PILLS === -->
-                <div class="form-group">
                     <label class="form-label">Filter by Stage</label>
-                    <div id="filter-pills" class="filter-pills">
-                        <button type="button" class="filter-pill active" data-filter="All">All</button>
-                        <button type="button" class="filter-pill" data-filter="New Order">New Order</button>
-                        <button type="button" class="filter-pill" data-filter="Site Survey">Site Survey</button>
-                        <button type="button" class="filter-pill" data-filter="Install">Install</button>
-                        <button type="button" class="filter-pill" data-filter="Completed">Completed</button>
-                        <button type="button" class="filter-pill" data-filter="On Hold">On Hold</button>
+                    <div id="filter-pills-container" class="filter-pills">
+                        <button class="filter-pill active" data-status="All">All</button>
+                        <button class="filter-pill" data-status="New Order">New Order</button>
+                        <button class="filter-pill" data-status="Site Survey">Site Survey</button>
+                        <button class="filter-pill" data-status="NID">NID</button>
+                        <button class="filter-pill" data-status="Install Scheduled">Install</button>
+                        <button class="filter-pill" data-status="Completed">Completed</button>
+                        <button class="filter-pill" data-status="On Hold">On Hold</button>
                     </div>
                 </div>
-                <!-- === END FILTER PILLS === -->
+
+                <div class="form-group">
+                    <label for="sort-by" class="form-label">Sort by</label>
+                    <select id="sort-by" class="form-select">
+                        <option value="name-asc">Name (A-Z)</option>
+                        <option value="name-desc">Name (Z-A)</option>
+                        <option value="date-desc">Date Added (Newest)</option>
+                        <option value="date-asc">Date Added (Oldest)</option>
+                    </select>
+                </div>
 
                 <div id="customer-list-container" class="customer-list-container">
                     <p id="list-loading" class="text-gray-500">Loading customers...</p>
@@ -89,7 +90,8 @@
             </div>
 
             <div class="card">
-                <h2 class="card-title">Customer Details</h2>
+                <h2 id="details-title" class="card-title">Customer Details</h2>
+                
                 <div id="details-container" data-id="">
                     <div id="loading-overlay">
                         <div id="loading-spinner"></div>
@@ -97,11 +99,9 @@
 
                     <form id="details-form" class="card-content">
 
-                        <!-- === START: NEW STATUS STEPPER === -->
                         <div class="form-group">
                             <label class="form-label">Status</label>
                             <div id="status-stepper" class="status-stepper">
-                                <!-- Main Progression -->
                                 <button type="button" class="step" data-status="New Order" data-page="page-pre-install">
                                     <div class="step-circle">1</div>
                                     <div class="step-label">New Order</div>
@@ -112,77 +112,49 @@
                                     <div class="step-label">Site Survey</div>
                                 </button>
                                 <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Install" data-page="page-install">
+                                <button type="button" class="step" data-status="NID" data-page="page-nid">
                                     <div class="step-circle">3</div>
+                                    <div class="step-label">NID</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="Install Scheduled" data-page="page-install">
+                                    <div class="step-circle">4</div>
                                     <div class="step-label">Install</div>
                                 </button>
                                 <div class="step-connector"></div>
                                 <button type="button" class="step" data-status="Completed" data-page="page-post-install">
-                                    <div class="step-circle">4</div>
+                                    <div class="step-circle">5</div>
                                     <div class="step-label">Completed</div>
                                 </button>
-                                
-                                <!-- Special "On Hold" button - REMOVED FROM HERE -->
                             </div>
-                            <!-- This hidden input will store the actual status value for the form -->
                             <input type="hidden" id="details-status" name="details-status" />
                         </div>
-                        <!-- === END: NEW STATUS STEPPER === -->
-
-
-                        <!-- === REMOVED old status dropdown === -->
-                        <!-- === REMOVED old details-tabs === -->
 
                         <div id="page-pre-install" class="details-page active">
+                            <!-- UPDATED: Core fields are now editable inputs -->
                             <div class="form-group">
                                 <label class="form-label" for="details-so-number">Service Order #</label>
-                                <div class="field-wrapper">
-                                    <span id="details-so-number" class="static-field"></span>
-                                    <button type="button" class="copy-btn" data-target="details-so-number">
-                                        <img src="copy.png" alt="Copy" class="icon-copy" />
-                                        <img src="check.png" alt="Copied" class="icon-check" />
-                                    </button>
-                                </div>
+                                <input type="text" id="details-so-number" class="form-input">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="details-address">Address</label>
-                                <div class="field-wrapper">
-                                    <span id="details-address" class="static-field"></span>
-                                    <button type="button" class="copy-btn" data-target="details-address">
-                                        <img src="copy.png" alt="Copy" class="icon-copy" />
-                                        <img src="check.png" alt="Copied" class="icon-check" />
-                                    </button>
-                                </div>
+                                <textarea id="details-address" rows="3" class="form-textarea"></textarea>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="details-speed">Service Speed</label>
-                                <div class="field-wrapper">
-                                    <span id="details-speed" class="static-field"></span>
-                                    <button type="button" class="copy-btn" data-target="details-speed">
-                                        <img src="copy.png" alt="Copy" class="icon-copy" />
-                                        <img src="check.png" alt="Copied" class="icon-check" />
-                                    </button>
-                                </div>
+                                <select id="details-speed" class="form-select">
+                                    <option>200 Mbps</option>
+                                    <option>500 Mbps</option>
+                                    <option>1 Gbps</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="details-email">Primary Email</label>
-                                <div class="field-wrapper">
-                                    <span id="details-email" class="static-field"></span>
-                                    <button type="button" class="copy-btn" data-target="details-email">
-                                        <img src="copy.png" alt="Copy" class="icon-copy" />
-                                        <img src="check.png" alt="Copied" class="icon-check" />
-                                    </button>
-                                </div>
+                                <input type="email" id="details-email" class="form-input">
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="details-phone">Primary Phone</label>
-                                <div class="field-wrapper">
-                                    <span id="details-phone" class="static-field"></span>
-                                    <button type="button" class="copy-btn" data-target="details-phone">
-                                        <img src="copy.png" alt="Copy" class="icon-copy" />
-                                        <img src="check.png" alt="Copied" class="icon-check" />
-                                    </button>
-                                </div>
+                                <input type="tel" id="details-phone" class="form-input">
                             </div>
                             
                             <fieldset class="checklist-group">
@@ -225,93 +197,75 @@
                                     </div>
                                 </div>
                             </fieldset>
-                        </div> <div id="page-site-survey" class="details-page">
+                        </div> 
+                        
+                        <div id="page-site-survey" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Site Survey</legend>
                                 <div class="checklist-content">
                                     <div class="form-group">
-                                        <label for="site-survey-notes" class="form-label">Site Survey Notes</label>
+                                        <label for="site-survey-date" class="form-label">Site Survey Date</label>
                                         <div class="field-wrapper">
-                                            <textarea id="site-survey-notes" rows="8" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="site-survey-notes">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <input type="date" id="site-survey-date" class="form-input">
                                         </div>
                                     </div>
                                 </div>
                             </fieldset>
-                        </div> <div id="page-install" class="details-page">
+                        </div> 
+
+                        <div id="page-nid" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">NID Installation</legend>
+                                <div class="checklist-content">
+                                    <div class="form-group">
+                                        <label for="nid-light" class="form-label">Light Reading @ NID</label>
+                                        <div class="field-wrapper">
+                                            <input type="text" id="nid-light" class="form-input">
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div>
+
+                        <div id="page-install" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Install Details</legend>
                                 <div class="checklist-content">
                                     <div class="form-group">
                                         <label for="install-date" class="form-label">Install Date</label>
                                         <div class="field-wrapper">
-                                            <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
-                                            <button type="button" class="copy-btn" data-target="install-date">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <input type="date" id="install-date" class="form-input">
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="eero-info" class="form-label">Eero Insight Info</label>
                                         <div class="field-wrapper">
-                                            <textarea id="eero-info" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="eero-info">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <textarea id="eero-info" rows="2" class="form-textarea"></textarea>
                                         </div>
                                     </div>
                                     <div class="form-group">
-                                        <label for="nid-light" class="form-label">Light Reading @ NID</label>
+                                        <label for="install-notes" class="form-label">Install Notes</label>
                                         <div class="field-wrapper">
-                                            <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
-                                            <button type="button" class="copy-btn" data-target="nid-light">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <textarea id="install-notes" rows="3" class="form-textarea"></textarea>
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="extra-equip" class="form-label">Additional Equipment</label>
                                         <div class="field-wrapper">
-                                            <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="extra-equip">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <textarea id="extra-equip" rows="2" class="form-textarea"></textarea>
                                         </div>
                                     </div>
-
-                                    <!-- === NEW INSTALL NOTES FIELD === -->
-                                    <div class="form-group">
-                                        <label for="install-notes" class="form-label">Install Notes</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="install-notes" rows="5" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="install-notes">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <!-- === END NEW FIELD === -->
-
                                     <div class="form-group">
                                         <label for="general-notes" class="form-label">General Notes</label>
                                         <div class="field-wrapper">
-                                            <textarea id="general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="general-notes">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
+                                            <textarea id="general-notes" rows="3" class="form-textarea"></textarea>
                                         </div>
                                     </div>
                                 </div>
                             </fieldset>
-                        </div> <div id="page-post-install" class="details-page">
+                        </div> 
+                        
+                        <div id="page-post-install" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Post-Install Checklist</legend>
                                 <div class="checklist-content">
@@ -348,18 +302,15 @@
                                     Copy Info for Billing
                                 </button>
                             </div>
-                        </div> <div class="action-buttons">
-                            <button type="button" id="update-customer-btn" class="btn btn-primary">
-                                <i data-lucide="save" class="btn-icon"></i>
-                                Save Changes
-                            </button>
-                            
-                            <!-- MOVED AND RESTYLED "ON HOLD" BUTTON HERE -->
+                        </div> 
+
+                        <!-- UPDATED: Action Buttons Area -->
+                        <div class="action-buttons">
+                            <!-- REMOVED: Advance Stage Button -->
                             <button type="button" id="on-hold-btn" class="btn btn-warning">
                                 <i data-lucide="pause-circle" class="btn-icon"></i>
-                                <span>Toggle On Hold</span>
+                                Place On Hold
                             </button>
-
                             <button type="button" id="delete-customer-btn" class="btn btn-danger">
                                 <i data-lucide="trash-2" class="btn-icon"></i>
                                 Delete Customer
@@ -379,6 +330,7 @@
     
     <div id="toast-notification"></div>
 
+    <!-- ... [Add Customer Modal HTML remains unchanged] ... -->
     <div id="add-customer-modal" class="modal-container">
         <div class="modal-backdrop"></div>
         <div class="modal-panel">

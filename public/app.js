@@ -11,7 +11,8 @@ import {
     deleteDoc,
     onSnapshot,
     query,
-    serverTimestamp 
+    serverTimestamp,
+    writeBatch
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -26,8 +27,12 @@ let customersCollectionRef = null;
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
-let currentSort = 'name'; 
-let currentFilter = 'All'; // --- ADDED ---
+let currentSort = 'name-asc'; 
+let currentFilter = 'All';
+let previousOnHoldStatus = 'New Order'; 
+let autoSaveTimer = null; // For debouncing auto-save
+
+const STATUS_STEPS = ['New Order', 'Site Survey', 'NID', 'Install Scheduled', 'Completed'];
 
 // --- DOM Elements ---
 const el = {
@@ -59,15 +64,16 @@ const el = {
     listLoading: document.getElementById('list-loading'),
     searchBar: document.getElementById('search-bar'),
     sortBy: document.getElementById('sort-by'), 
-    filterPillsContainer: document.getElementById('filter-pills'), // --- ADDED ---
+    filterPillsContainer: document.getElementById('filter-pills-container'),
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
+    detailsTitle: document.getElementById('details-title'),
     detailsForm: document.getElementById('details-form'),
     detailsPlaceholder: document.getElementById('details-placeholder'),
     loadingOverlay: document.getElementById('loading-overlay'),
     
-    // Copyable Static Fields
+    // UPDATED: Editable Core Fields
     detailsSoNumber: document.getElementById('details-so-number'),
     detailsAddress: document.getElementById('details-address'),
     detailsSpeed: document.getElementById('details-speed'),
@@ -76,14 +82,17 @@ const el = {
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
-    updateCustomerBtn: document.getElementById('update-customer-btn'),
+    // REMOVED: advanceStageBtn: document.getElementById('advance-stage-btn'),
+    onHoldBtn: document.getElementById('on-hold-btn'),
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
-    onHoldButton: document.getElementById('on-hold-btn'), 
 
-    // --- UPDATED: Stepper and Pages ---
+    // Stepper
     statusStepper: document.getElementById('status-stepper'),
+    
+    // Detail Pages
     detailsPages: document.querySelectorAll('.details-page'),
+    pageNid: document.getElementById('page-nid'),
     
     // Toast
     toast: document.getElementById('toast-notification')
@@ -93,6 +102,7 @@ const el = {
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
+
 function handleAuthentication(user) {
     if (user && user.email && user.email.endsWith('@nptel.com')) {
         currentUserId = user.uid;
@@ -119,6 +129,7 @@ function handleAuthentication(user) {
         }
     }
 }
+
 el.signInBtn.addEventListener('click', () => {
     el.authError.textContent = ''; 
     signInWithPopup(auth, googleProvider)
@@ -132,7 +143,9 @@ el.signInBtn.addEventListener('click', () => {
             }
         });
 });
+
 el.signOutBtn.addEventListener('click', () => {
+    handleAutoUpdate(false); // false = no toast
     signOut(auth).catch((error) => console.error("Sign-out error", error));
 });
 
@@ -148,6 +161,23 @@ function initializeApp() {
     handleDeselectCustomer();
 }
 
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+const triggerAutoSave = debounce(() => {
+    handleAutoUpdate(true); // true = show toast
+}, 2000); // 2-second delay
+
+
 function setupEventListeners() {
     // Modal Listeners
     el.newCustomerBtn.addEventListener('click', openAddCustomerModal);
@@ -157,34 +187,17 @@ function setupEventListeners() {
     // Form submission
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // Search
-    el.searchBar.addEventListener('input', (e) => {
-        // --- MODIFIED ---
-        displayCustomers();
-    });
-
-    // Sort Listener
-    el.sortBy.addEventListener('change', (e) => {
-        currentSort = e.target.value;
-        // --- MODIFIED ---
-        displayCustomers();
-    });
-
-    // --- ADDED ---
-    // Filter Pill Listener
+    // List Filtering & Sorting
+    el.searchBar.addEventListener('input', () => displayCustomers());
+    el.sortBy.addEventListener('change', () => displayCustomers());
     el.filterPillsContainer.addEventListener('click', (e) => {
         const pill = e.target.closest('.filter-pill');
-        if (!pill) return;
-
-        // Update active class
-        el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => {
-            p.classList.remove('active');
-        });
-        pill.classList.add('active');
-
-        // Update state and re-render
-        currentFilter = pill.dataset.filter;
-        displayCustomers();
+        if (pill) {
+            el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            currentFilter = pill.dataset.status;
+            displayCustomers();
+        }
     });
 
     // List clicks
@@ -195,37 +208,32 @@ function setupEventListeners() {
         }
     });
 
-    // Details panel
+    // Details Panel Auto-Save
+    el.detailsForm.addEventListener('input', (e) => {
+        if (e.target.id !== 'details-status') {
+             triggerAutoSave();
+        }
+    });
+    
+    // Details Panel Buttons
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.updateCustomerBtn.addEventListener('click', handleUpdateCustomer);
+    // REMOVED: el.advanceStageBtn.addEventListener('click', handleAdvanceStage);
+    el.onHoldBtn.addEventListener('click', handleOnHoldToggle);
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
-    el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
-    // --- NEW Stepper Click Listener ---
+    // Copy buttons
+    el.detailsForm.addEventListener('click', handleDetailsFormClick);
+
+    // NEW: Stepper click listener
     el.statusStepper.addEventListener('click', (e) => {
-        const stepButton = e.target.closest('.step'); 
+        const stepButton = e.target.closest('.step');
         if (!stepButton) return;
 
         e.preventDefault();
         const newStatus = stepButton.dataset.status;
-        const pageId = stepButton.dataset.page;
-
-        // Set the hidden input's value
-        el.detailsForm['details-status'].value = newStatus;
-
-        // Update the UI
-        updateStepperUI(newStatus);
-        showDetailsPage(pageId);
-        
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        handleStatusStepClick(newStatus);
     });
-
-    // --- ADDED ---
-    // New listener for the moved toggle button
-    el.onHoldButton.addEventListener('click', handleToggleOnHold);
 }
 
 // --- 3. CUSTOMER LIST (READ) ---
@@ -243,15 +251,12 @@ function loadCustomers() {
             allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
-        // --- MODIFIED ---
         displayCustomers();
         
         if (selectedCustomerId) {
             const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
                 populateDetailsForm(freshData);
-                // --- RENAMED FUNCTION CALL ---
-                setPageForStatus(el.detailsForm['details-status'].value);
             } else {
                 handleDeselectCustomer();
             }
@@ -263,59 +268,61 @@ function loadCustomers() {
     });
 }
 
-// --- NEW CENTRAL RENDER FUNCTION ---
 function displayCustomers() {
-    const searchTerm = el.searchBar.value.toLowerCase();
-    
-    let filteredCustomers = [...allCustomers];
-
-    // 1. Apply Stage Filter
+    let filteredCustomers = allCustomers;
     if (currentFilter !== 'All') {
-        filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
+        filteredCustomers = allCustomers.filter(c => c.status === currentFilter);
     }
-
-    // 2. Apply Search Filter
+    
+    const searchTerm = el.searchBar.value.toLowerCase();
     if (searchTerm) {
         filteredCustomers = filteredCustomers.filter(c => 
-            (c.customerName || '').toLowerCase().includes(searchTerm) || 
+            (c.customerName || '').toLowerCase().includes(searchTerm) ||
             (c.address || '').toLowerCase().includes(searchTerm)
         );
     }
 
-    // 3. Apply Sort
-    if (currentSort === 'name') {
-        filteredCustomers.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
-    } else if (currentSort === 'date') {
-        filteredCustomers.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    } else if (currentSort === 'date-oldest') { // --- ADDED ---
-        filteredCustomers.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
-    }
+    currentSort = el.sortBy.value;
+    filteredCustomers.sort((a, b) => {
+        const createdA = a.createdAt?.seconds || 0;
+        const createdB = b.createdAt?.seconds || 0;
+        const nameA = a.customerName || '';
+        const nameB = b.customerName || '';
 
-    // 4. Render the final list
-    renderCustomerList(filteredCustomers, searchTerm);
+        switch (currentSort) {
+            case 'name-asc':
+                return nameA.localeCompare(nameB);
+            case 'name-desc':
+                return nameB.localeCompare(nameA);
+            case 'date-desc':
+                return createdB - createdA;
+            case 'date-asc':
+                return createdA - createdB;
+            default:
+                return 0;
+        }
+    });
+
+    renderCustomerList(filteredCustomers);
 }
 
-// --- MODIFIED: renderCustomerList (removed sorting, added searchterm) ---
-function renderCustomerList(customersToRender, searchTerm = '') {
-    el.customerListContainer.innerHTML = '';
+function renderCustomerList(customers) {
+    el.customerListContainer.innerHTML = ''; 
     el.customerListContainer.appendChild(el.listLoading); 
 
-    if (customersToRender.length === 0) {
-        if (searchTerm) {
-            el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
-        } else if (currentFilter !== 'All') {
-            el.listLoading.textContent = `No customers found in stage "${currentFilter}".`;
+    if (customers.length === 0) {
+        if (currentFilter !== 'All' || el.searchBar.value) {
+            el.listLoading.textContent = 'No customers match your filters.';
         } else {
             el.listLoading.textContent = 'No customers found. Add one to get started!';
         }
         el.listLoading.style.display = 'block';
         return;
     }
+    
     el.listLoading.style.display = 'none'; 
 
-    // --- REMOVED Sorting logic from here ---
-
-    customersToRender.forEach(customer => {
+    customers.forEach(customer => {
         const item = document.createElement('div');
         item.className = 'customer-item';
         item.dataset.id = customer.id;
@@ -329,7 +336,7 @@ function renderCustomerList(customersToRender, searchTerm = '') {
             return `status-${statusSlug}`;
         };
 
-        let createdDate = ''; // Default to empty string
+        let createdDate = '';
         if (customer.createdAt && customer.createdAt.seconds) {
             createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
         }
@@ -348,9 +355,6 @@ function renderCustomerList(customersToRender, searchTerm = '') {
         el.customerListContainer.appendChild(item);
     });
 }
-
-// --- REMOVED: filterCustomerList function ---
-// --- End Revamp ---
 
 
 // --- 4. CUSTOMER (CREATE) ---
@@ -379,9 +383,9 @@ async function handleAddCustomer(e) {
             email: el.customerEmailInput.value,
             phone: el.customerPhoneInput.value
         },
-        secondaryContact: { name: "", phone: "" },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
+        previousStatus: "New Order",
         createdAt: serverTimestamp(), 
         preInstallChecklist: {
             welcomeEmailSent: false,
@@ -390,13 +394,13 @@ async function handleAddCustomer(e) {
             addedToRepairShoppr: false
         },
         installDetails: {
+            siteSurveyDate: "",
+            nidLightReading: "",
             installDate: "",
             eeroInfo: "",
-            nidLightReading: "",
+            installNotes: "",
             additionalEquipment: "",
             generalNotes: "",
-            siteSurveyNotes: "",
-            installNotes: "" // --- ADDED ---
         },
         postInstallChecklist: {
             removedFromFiberList: false,
@@ -417,16 +421,78 @@ async function handleAddCustomer(e) {
 
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
+
+async function handleAutoUpdate(showToastNotification = false) {
+    clearTimeout(autoSaveTimer);
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId || !customersCollectionRef) {
+        return;
+    }
+    const docRef = doc(customersCollectionRef, customerId);
+    
+    try {
+        const updatedData = getFormData();
+        await updateDoc(docRef, updatedData);
+        if (showToastNotification) {
+            showToast('Changes saved!', 'autosave');
+        }
+    } catch (error) {
+        console.error("Error auto-updating customer: ", error);
+        if (showToastNotification) {
+            showToast('Error saving changes.', 'error');
+        }
+    }
+}
+
+function getFormData() {
+    // UPDATED: Now includes core customer info
+    return {
+        // Core Info
+        serviceOrderNumber: el.detailsSoNumber.value,
+        customerName: el.detailsTitle.textContent, // Title is updated on input
+        address: el.detailsAddress.value,
+        serviceSpeed: el.detailsSpeed.value,
+        'primaryContact.email': el.detailsEmail.value,
+        'primaryContact.phone': el.detailsPhone.value,
+
+        // Checklists
+        'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
+        'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
+        'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
+        'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
+        
+        'installDetails.siteSurveyDate': el.detailsForm['site-survey-date'].value,
+        'installDetails.nidLightReading': el.detailsForm['nid-light'].value,
+        
+        'installDetails.installDate': el.detailsForm['install-date'].value,
+        'installDetails.eeroInfo': el.detailsForm['eero-info'].value,
+        'installDetails.installNotes': el.detailsForm['install-notes'].value,
+        'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
+        'installDetails.generalNotes': el.detailsForm['general-notes'].value,
+        
+        'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
+        'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
+        'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked,
+    };
+}
+
+
 async function handleSelectCustomer(customerId, customerItem) {
+    if (selectedCustomerId && selectedCustomerId !== customerId) {
+        await handleAutoUpdate(false); // Save without toast
+    }
+
     if (selectedCustomerId === customerId) {
         handleDeselectCustomer();
         return;
     }
+    
     selectedCustomerId = customerId;
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
     });
     customerItem.classList.add('selected');
+    
     el.detailsPlaceholder.style.display = 'none';
     el.detailsContainer.style.display = 'block';
     el.detailsContainer.dataset.id = customerId; 
@@ -436,9 +502,9 @@ async function handleSelectCustomer(customerId, customerItem) {
         const docRef = doc(customersCollectionRef, customerId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            populateDetailsForm(docSnap.data());
-            // --- RENAMED FUNCTION CALL ---
-            setPageForStatus(docSnap.data().status);
+            const data = docSnap.data();
+            populateDetailsForm(data);
+            previousOnHoldStatus = data.previousStatus || 'New Order';
         } else {
             showToast('Could not find customer data.', 'error');
             handleDeselectCustomer();
@@ -454,167 +520,151 @@ async function handleSelectCustomer(customerId, customerItem) {
     }
 }
 
-function handleDeselectCustomer() {
+async function handleDeselectCustomer() {
+    if (selectedCustomerId) {
+        await handleAutoUpdate(false); // Save without toast
+    }
+
     selectedCustomerId = null;
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
     });
+    
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
     el.detailsContainer.dataset.id = '';
+    el.detailsTitle.textContent = 'Customer Details'; // Reset title
+    
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
 }
 
 function populateDetailsForm(data) {
-    // Static fields
-    el.detailsSoNumber.textContent = data.serviceOrderNumber || '';
-    el.detailsAddress.textContent = data.address || '';
-    el.detailsSpeed.textContent = data.serviceSpeed || '';
-    el.detailsEmail.textContent = data.primaryContact?.email || '';
-    el.detailsPhone.textContent = data.primaryContact?.phone || '';
-    // Status
-    el.detailsForm['details-status'].value = data.status || 'New Order';
-    // Pre-Install
+    // UPDATED: Set values of inputs, not textContent
+    el.detailsTitle.textContent = data.customerName || 'Customer Details';
+    el.detailsSoNumber.value = data.serviceOrderNumber || '';
+    el.detailsAddress.value = data.address || '';
+    el.detailsSpeed.value = data.serviceSpeed || '200 Mbps';
+    el.detailsEmail.value = data.primaryContact?.email || '';
+    el.detailsPhone.value = data.primaryContact?.phone || '';
+    
+    const currentStatus = data.status || 'New Order';
+    el.detailsForm['details-status'].value = currentStatus;
+    
+    // Checklists
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
     el.detailsForm['check-fiber-list'].checked = data.preInstallChecklist?.addedToFiberList || false;
     el.detailsForm['check-repair-shoppr'].checked = data.preInstallChecklist?.addedToRepairShoppr || false;
-    // Site Survey
-    el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
-    // Install
+    
+    el.detailsForm['site-survey-date'].value = data.installDetails?.siteSurveyDate || '';
+    el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
+    
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].value = data.installDetails?.eeroInfo || '';
-    el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
+    el.detailsForm['install-notes'].value = data.installDetails?.installNotes || '';
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsForm['general-notes'].value = data.installDetails?.generalNotes || '';
-    el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; // --- ADDED ---
-    // Post-Install
+    
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
 
-    // --- ADDED ---
-    // This will style the stepper correctly when a customer is loaded
-    updateStepperUI(data.status || 'New Order');
+    updateStepperUI(currentStatus);
+    setPageForStatus(currentStatus);
 }
 
 function showDetailsPage(pageId) {
     el.detailsPages.forEach(page => page.classList.remove('active'));
-    // --- REMOVED tab link logic ---
-    
     const targetPage = document.getElementById(pageId);
-    if (targetPage) targetPage.classList.add('active');
-    
-    // --- REMOVED tab link logic ---
+    if (targetPage) {
+        targetPage.classList.add('active');
+    } else {
+        document.getElementById('page-pre-install').classList.add('active');
+    }
 }
 
-// --- RENAMED and UPDATED ---
 function setPageForStatus(status) {
     switch (status) {
+        case 'New Order':
+            showDetailsPage('page-pre-install');
+            break;
         case 'Site Survey':
             showDetailsPage('page-site-survey');
             break;
-        case 'Install':
+        case 'NID': 
+            showDetailsPage('page-nid');
+            break;
+        case 'Install Scheduled':
             showDetailsPage('page-install');
             break;
         case 'Completed':
             showDetailsPage('page-post-install');
             break;
-        case 'New Order':
         case 'On Hold':
+            setPageForStatus(previousOnHoldStatus);
+            break;
         default:
             showDetailsPage('page-pre-install');
     }
 }
 
-// --- NEW FUNCTION ---
-function handleToggleOnHold(e) {
-    e.preventDefault(); // It's in a form
-    const currentStatus = el.detailsForm['details-status'].value;
+function updateStepperUI(currentStatus) {
+    const allStepButtons = el.statusStepper.querySelectorAll('.step');
+    
+    allStepButtons.forEach(btn => btn.classList.remove('active', 'completed'));
+    el.statusStepper.classList.remove('is-on-hold');
+    el.onHoldBtn.classList.remove('active');
+    el.onHoldBtn.innerHTML = '<i data-lucide="pause-circle" class="btn-icon"></i>Place On Hold';
 
     if (currentStatus === 'On Hold') {
-        // TOGGLE OFF
-        // Get the status we saved, or default to 'New Order'
-        const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-        el.detailsForm['details-status'].value = statusToRestore;
-        updateStepperUI(statusToRestore);
-        setPageForStatus(statusToRestore);
+        el.statusStepper.classList.add('is-on-hold');
+        el.onHoldBtn.classList.add('active');
+        el.onHoldBtn.innerHTML = '<i data-lucide="play-circle" class="btn-icon"></i>Remove from Hold';
+        
+        const statusIndex = STATUS_STEPS.indexOf(previousOnHoldStatus);
+        updateStepperProgress(statusIndex);
+        
     } else {
-        // TOGGLE ON
-        // Save the current status before setting to "On Hold"
-        el.detailsForm.dataset.statusBeforeHold = currentStatus;
-        el.detailsForm['details-status'].value = 'On Hold';
-        updateStepperUI('On Hold');
-        setPageForStatus('On Hold'); // Shows pre-install page
+        const statusIndex = STATUS_STEPS.indexOf(currentStatus);
+        updateStepperProgress(statusIndex);
     }
     
-    // Refresh lucide icons
+    // REMOVED: Advance Stage Button logic
+    
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
 }
 
-// --- MODIFIED FUNCTION ---
-function updateStepperUI(currentStatus) {
-    const steps = ['New Order', 'Site Survey', 'Install', 'Completed'];
+function updateStepperProgress(activeIndex) {
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
-
-    // Reset all styles
-    allStepButtons.forEach(btn => {
-        btn.classList.remove('active', 'completed');
-    });
-
-    // --- NEW LOGIC for the moved button ---
-    const onHoldBtnText = el.onHoldButton.querySelector('span');
-
-    if (currentStatus === 'On Hold') {
-        // Handle "On Hold" state
-        el.onHoldButton.classList.add('active');
-        if (onHoldBtnText) onHoldBtnText.textContent = 'Status: On Hold';
-        el.statusStepper.classList.add('is-on-hold'); // Keep this style to dim stepper
-        
-    } else {
-        // Handle main progression states
-        el.onHoldButton.classList.remove('active');
-        if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
-        el.statusStepper.classList.remove('is-on-hold'); // Remove dimming
-
-        const statusIndex = steps.indexOf(currentStatus);
-        if (statusIndex !== -1) {
-            for (let i = 0; i < allStepButtons.length; i++) {
-                const stepButton = allStepButtons[i];
-                if (i < statusIndex) {
-                    stepButton.classList.add('completed');
-                } else if (i === statusIndex) {
-                    stepButton.classList.add('active');
-                }
-            }
-        } else {
-            // Default to New Order if status is unknown (e.g., null)
-            const newOrderButton = el.statusStepper.querySelector('.step[data-status="New Order"]');
-            if (newOrderButton) {
-                newOrderButton.classList.add('active');
-            }
+    allStepButtons.forEach((btn, index) => {
+        if (index < activeIndex) {
+            btn.classList.add('completed');
+        } else if (index === activeIndex) {
+            btn.classList.add('active');
         }
-    }
+    });
 }
-// --- END MODIFIED FUNCTION ---
-
 
 function handleDetailsFormClick(e) {
     const copyBtn = e.target.closest('.copy-btn');
     if (!copyBtn) return; 
+    
     const targetId = copyBtn.dataset.target;
     if (!targetId) return;
+    
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
+    
     const textToCopy = (targetElement.tagName === 'SPAN') ? targetElement.textContent : targetElement.value;
     if (!textToCopy) {
         showToast('Nothing to copy.', 'error');
         return;
     }
+    
     try {
         const ta = document.createElement('textarea');
         ta.value = textToCopy;
@@ -624,6 +674,7 @@ function handleDetailsFormClick(e) {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
+        
         copyBtn.classList.add('copied');
         el.detailsForm.querySelectorAll('.copy-btn').forEach(btn => {
             if (btn !== copyBtn) btn.classList.remove('copied');
@@ -635,57 +686,22 @@ function handleDetailsFormClick(e) {
     }
 }
 
-async function handleUpdateCustomer(e) {
-    e.preventDefault();
-    const customerId = el.detailsContainer.dataset.id;
-    if (!customerId || !customersCollectionRef) return;
-
-    const updatedData = {
-        // --- UPDATED to use the hidden input ---
-        'status': el.detailsForm['details-status'].value,
-        'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
-        'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
-        'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
-        'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
-        'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
-        'installDetails.installDate': el.detailsForm['install-date'].value,
-        'installDetails.eeroInfo': el.detailsForm['eero-info'].value,
-        'installDetails.nidLightReading': el.detailsForm['nid-light'].value,
-        'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
-        'installDetails.generalNotes': el.detailsForm['general-notes'].value,
-        'installDetails.installNotes': el.detailsForm['install-notes'].value, // --- ADDED ---
-        'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
-        'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
-        'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked
-    };
-
-    try {
-        el.loadingOverlay.style.display = 'flex';
-        const docRef = doc(customersCollectionRef, customerId);
-        await updateDoc(docRef, updatedData);
-        showToast('Customer updated!', 'success');
-    } catch (error) {
-        console.error("Error updating customer: ", error);
-        showToast('Error updating customer.', 'error');
-    } finally {
-        el.loadingOverlay.style.display = 'none';
-    }
-}
 
 async function handleDeleteCustomer(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
-    const customerName = el.detailsSoNumber.textContent;
     
-    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
+    const customerName = el.detailsTitle.textContent;
+    
+    // Create a custom modal for confirmation
     if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
             await deleteDoc(docRef);
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer();
+            handleDeselectCustomer(); // This will clear the panel
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -696,35 +712,113 @@ async function handleDeleteCustomer(e) {
 }
 
 // --- 6. ACTIONS ---
+
+/**
+ * NEW: Stepper click handler
+ */
+async function handleStatusStepClick(newStatus) {
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId) return;
+
+    // Prevent changing stage while on hold
+    const currentStatus = el.detailsForm['details-status'].value;
+    if (currentStatus === 'On Hold') {
+        showToast("Remove customer from 'On Hold' to change stages.", 'error');
+        return;
+    }
+
+    // 1. Save all pending changes first
+    await handleAutoUpdate(false); // Save without toast
+
+    // 2. Update the status in Firestore
+    try {
+        el.loadingOverlay.style.display = 'flex';
+        const docRef = doc(customersCollectionRef, customerId);
+        await updateDoc(docRef, {
+            status: newStatus,
+            previousStatus: currentStatus // Store this for 'On Hold' logic
+        });
+        showToast(`Status updated to ${newStatus}!`, 'success');
+    } catch (error) {
+        console.error("Error updating stage: ", error);
+        showToast('Error updating stage.', 'error');
+    } finally {
+        el.loadingOverlay.style.display = 'none';
+    }
+}
+
+
+async function handleOnHoldToggle() {
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId) return;
+
+    await handleAutoUpdate(false); // Save without toast
+
+    const docRef = doc(customersCollectionRef, customerId);
+    const currentStatus = el.detailsForm['details-status'].value;
+    let newStatus, newPreviousStatus;
+
+    if (currentStatus === 'On Hold') {
+        newStatus = previousOnHoldStatus; // Restore previous status
+        newPreviousStatus = previousOnHoldStatus; 
+    } else {
+        newStatus = 'On Hold';
+        newPreviousStatus = currentStatus; // Remember where we were
+        previousOnHoldStatus = currentStatus; // Update global state immediately
+    }
+
+    try {
+        el.loadingOverlay.style.display = 'flex';
+        await updateDoc(docRef, {
+            status: newStatus,
+            previousStatus: newPreviousStatus
+        });
+        showToast(`Customer status updated to ${newStatus}.`, 'success');
+    } catch (error) {
+        console.error("Error toggling 'On Hold': ", error);
+        showToast('Error updating status.', 'error');
+    } finally {
+        el.loadingOverlay.style.display = 'none';
+    }
+}
+
+
 async function handleSendWelcomeEmail(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
-    const toEmail = el.detailsEmail.textContent;
-    const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
+    
+    // UPDATED: Read from input values
+    const toEmail = el.detailsEmail.value;
+    const customerName = el.detailsTitle.textContent; 
+    
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
     }
-    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
-    if (!confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
-        return;
-    }
-    el.loadingOverlay.style.display = 'flex';
-    try {
-        const mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
-        await addDoc(mailCollectionRef, {
-            to: [toEmail],
-            template: { name: "cfnWelcome", data: { customerName: customerName } },
-        });
-        const docRef = doc(customersCollectionRef, customerId);
-        await updateDoc(docRef, { "preInstallChecklist.welcomeEmailSent": true });
-        showToast('Welcome email sent!', 'success');
-    } catch (error) {
-        console.error("Error sending welcome email: ", error);
-        showToast('Error sending email. Check console.', 'error');
-    } finally {
-        el.loadingOverlay.style.display = 'none';
+    
+    if (confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
+        el.loadingOverlay.style.display = 'flex';
+        try {
+            const mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
+            await addDoc(mailCollectionRef, { // Corrected variable name
+                to: [toEmail],
+                template: { 
+                    name: "cfnWelcome", 
+                    data: { customerName: customerName } 
+                },
+            });
+
+            el.detailsForm['check-welcome-email'].checked = true;
+            await handleAutoUpdate(false); // Save without toast
+
+            showToast('Welcome email sent!', 'success');
+        } catch (error) {
+            console.error("Error sending welcome email: ", error);
+            showToast('Error sending email. Check console.', 'error');
+        } finally {
+            el.loadingOverlay.style.display = 'none';
+        }
     }
 }
 
@@ -732,24 +826,22 @@ async function handleCopyBilling(e) {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId) return;
+
     try {
-        const docRef = doc(customersCollectionRef, customerId);
-        const docSnap = await getDoc(docRef);
-        if (!docSnap.exists()) {
-            showToast('Could not find customer data to copy.', 'error');
-            return;
-        }
-        const data = docSnap.data();
-        const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
+        // UPDATED: Read directly from the form fields
+        const customerName = el.detailsTitle.textContent;
+        const serviceOrder = el.detailsSoNumber.value;
+        const address = el.detailsAddress.value;
+        const installDate = el.detailsForm['install-date'].value;
+        const additionalEquipment = el.detailsForm['extra-equip'].value;
         
-        // --- MODIFIED BILLING TEXT ---
         const billingText = `
 Customer Name: ${customerName}
-Address: ${data.address || 'N/A'}
-Service Order: ${data.serviceOrderNumber || 'N/A'}
-Date Installed: ${data.installDetails.installDate || 'N/A'}
-Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
-        `.trim().replace(/^\s+\n/gm, '\n'); // Clean up whitespace
+Service Order: ${serviceOrder}
+Address: ${address || ''}
+Install Date: ${installDate || 'N/A'}
+Additional Equipment: ${additionalEquipment || 'N/A'}
+        `.trim().replace(/^\s+/gm, ''); // Cleans up indentation
 
         const ta = document.createElement('textarea');
         ta.value = billingText;
@@ -759,6 +851,7 @@ Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
+        
         showToast('Billing info copied to clipboard!', 'success');
     } catch (error) {
         console.error("Error copying billing info: ", error);
@@ -768,10 +861,16 @@ Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
 
 // --- 7. UTILITIES ---
 
+let toastTimer = null;
 function showToast(message, type = 'success') {
+    clearTimeout(toastTimer);
+    
     el.toast.textContent = message;
-    el.toast.classList.remove('success', 'error');
-    el.toast.classList.add(type === 'error' ? 'error' : 'success');
+    el.toast.classList.remove('success', 'error', 'autosave');
+    el.toast.classList.add(type);
     el.toast.classList.add('show');
-    setTimeout(() => el.toast.classList.remove('show'), 3000);
+    
+    toastTimer = setTimeout(() => {
+        el.toast.classList.remove('show');
+    }, 3000);
 }
