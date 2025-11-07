@@ -6,7 +6,6 @@ body {
     margin: 0;
 }
 
-/* --- UPDATED: Utility class for JS to hide/show elements --- */
 .hidden {
     display: none !important;
 }
@@ -305,17 +304,11 @@ body {
     margin-top: 0.5rem;
 }
 
-.static-field-group {
+/* --- Field & Copy Button Styles --- */
+.field-wrapper {
     position: relative;
 }
-.static-field-group .form-label {
-    margin-bottom: 0.25rem;
-}
-.static-field-group .copy-btn {
-    position: absolute;
-    top: 26px; /* Position next to the field */
-    right: 6px;
-}
+
 .static-field {
     display: block;
     width: 100%;
@@ -334,6 +327,11 @@ body {
 }
 
 .copy-btn {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -343,21 +341,31 @@ body {
     border-radius: 0.375rem;
     cursor: pointer;
     transition: all 0.2s;
+    /* Prevent default button borders */
+    border: none; 
 }
 .copy-btn:hover {
     color: #4f46e5; /* indigo-600 */
     background-color: #eef2ff; /* indigo-50 */
 }
-.copy-btn svg {
+
+/* --- UPDATED: Swapped SVG selector for IMG --- */
+.copy-btn img {
     width: 1rem; /* h-4 */
     height: 1rem; /* w-4 */
 }
-.copy-btn svg.icon-copy { display: block; }
-.copy-btn svg.icon-check { display: none; }
-.copy-btn.copied { background-color: #ECFDF5; /* emerald-50 */ }
-.copy-btn.copied svg.icon-copy { display: none; }
-.copy-btn.copied svg.icon-check { display: block; color: #10B981; /* emerald-500 */ }
 
+/* --- UPDATED: Icon visibility rules for <img> tags --- */
+/* Now selecting the .icon-copy and .icon-check classes */
+.copy-btn img.icon-copy { display: block; }
+.copy-btn img.icon-check { display: none; }
+.copy-btn.copied { background-color: #ECFDF5; /* emerald-50 */ }
+.copy-btn.copied img.icon-copy { display: none; }
+.copy-btn.copied img.icon-check { display: block; }
+/* --- End Image Icon Update --- */
+
+
+/* --- Checklist Styles --- */
 .checklist-group {
     border-top: 1px solid #e5e7eb; /* border-gray-200 */
     padding-top: 1.25rem;
@@ -366,13 +374,15 @@ body {
     font-size: 0.875rem; /* text-sm */
     font-weight: 500; /* font-medium */
     color: #111827; /* text-gray-900 */
+    margin-bottom: 0.75rem; 
 }
 .checklist-content {
-    margin-top: 0.5rem;
+    margin-top: 0;
     display: flex;
     flex-direction: column;
     gap: 0.5rem; /* space-y-2 */
 }
+
 .checklist-item {
     position: relative;
     display: flex;
