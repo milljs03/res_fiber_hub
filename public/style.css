@@ -6,6 +6,11 @@ body {
     margin: 0;
 }
 
+/* --- UPDATED: Utility class for JS to hide/show elements --- */
+.hidden {
+    display: none !important;
+}
+
 /* --- Reusable Components --- */
 .btn {
     display: inline-flex;
