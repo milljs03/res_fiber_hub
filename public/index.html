@@ -1,316 +1,340 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-50">
+<html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Residential Install Tracker</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                },
-            },
-        };
-    </script>
-    <!-- Simple loading spinner styles -->
-    <style>
-        #loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-            backdrop-filter: blur(4px);
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #0ea5e9;
-            animation: spin 1s ease infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    <title>CFN Install Tracker</title>
+    <!-- Link to the new stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide-icons@0.309.0"></script>
 </head>
-<body class="h-full font-sans antialiased">
-    <!-- Full-screen Auth container -->
-    <div id="auth-screen" class="min-h-full h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
-            <div>
-                <h2 class="mt-6 text-center text-3xl font-bold text-gray-900">
-                    Install Tracker
-                </h2>
-                <p class="mt-2 text-center text-sm text-gray-600">
-                    Please sign in with your @nptel.com account
-                </p>
-            </div>
-            <button id="sign-in-btn" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+
+<body>
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="auth-screen">
+        <div class="auth-box">
+            <svg class="auth-logo" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.092 1.21-.138 2.43-.138 3.662s.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.092-1.21.138-2.43.138-3.662zM12 15a3 3 0 100-6 3 3 0 000 6z" />
+            </svg>
+            <h1 class="auth-title">CFN Install Tracker</h1>
+            <p class="auth-text">Please sign in with your @nptel.com account.</p>
+            <button id="sign-in-btn" class="btn btn-primary btn-full-width">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 0C4.477 0 0 4.477 0 10c0 4.418 2.865 8.166 6.839 9.49.5.092.682-.217.682-.483 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.951 0-1.093.39-1.988 1.03-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 5.424c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.026 2.747-1.026.546 1.379.202 2.398.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.309.678.92.678 1.85 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.001 10.001 0 0020 10c0-5.523-4.477-10-10-10z" clip-rule="evenodd" />
+                </svg>
                 Sign in with Google
             </button>
-            <p id="auth-error" class="text-center text-sm text-red-600"></p>
+            <p id="auth-error"></p>
         </div>
     </div>
 
     <!-- Main App Screen (Hidden by default) -->
-    <div id="app-screen" class="p-4 md:p-8 max-w-7xl mx-auto hidden">
-        <!-- Loading Overlay -->
-        <div id="loading-overlay">
-            <div class="spinner"></div>
-        </div>
-
-        <!-- Header -->
-        <header class="pb-4 border-b border-gray-200 mb-6 flex justify-between items-center">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-900">Residential Install Tracker</h1>
-                <p class="mt-1 text-sm text-gray-600">Manage customer service orders from entry to completion.</p>
-                <p class="mt-2 text-xs text-gray-500">
-                    Your User ID: 
-                    <span id="user-id-display" class="font-medium text-gray-700">Not logged in</span>
-                </p>
-            </div>
-            <div class="text-right flex-shrink-0">
-                <p id="user-email-display" class="text-sm font-medium text-gray-800"></p>
-                <button id="sign-out-btn" class="text-sm text-sky-600 hover:text-sky-800 hover:underline focus:outline-none">
-                    Sign Out
-                </button>
+    <div id="app-screen" class="hidden">
+        <!-- Header Bar -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.092 1.21-.138 2.43-.138 3.662s.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.092-1.21.138-2.43.138-3.662zM12 15a3 3 0 100-6 3 3 0 000 6z" />
+                    </svg>
+                    <h1>CFN Install Tracker</h1>
+                </div>
+                <div class="user-info">
+                    <span id="user-email"></span>
+                    <button id="sign-out-btn">Sign Out</button>
+                </div>
             </div>
         </header>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="main-grid">
 
-            <!-- Column 1: Add Customer Form -->
-            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Add New Customer</h2>
-                <form id="add-customer-form" class="space-y-4">
-                    <div>
-                        <label for="so-number" class="block text-sm font-medium text-gray-700">Service Order #</label>
-                        <input type="text" id="so-number" name="so-number" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+            <!-- Column 1: Add New Customer -->
+            <div class="card">
+                <h2 class="card-title">Add New Customer</h2>
+                <form id="add-customer-form" class="card-content">
+                    <div class="form-group">
+                        <label for="so-number" class="form-label">Service Order #</label>
+                        <input type="text" id="so-number" class="form-input" required>
                     </div>
-                    <div>
-                        <label for="customer-name" class="block text-sm font-medium text-gray-700">Customer Name</label>
-                        <input type="text" id="customer-name" name="customer-name" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    <div class="form-group">
+                        <label for="customer-name" class="form-label">Customer Name</label>
+                        <input type="text" id="customer-name" class="form-input" required>
                     </div>
-                    <div>
-                        <label for="service-speed" class="block text-sm font-medium text-gray-700">Service Speed</label>
-                        <select id="service-speed" name="service-speed" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                    <div class="form-group">
+                        <label for="address" class="form-label">Address</label>
+                        <textarea id="address" rows="3" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-email" class="form-label">Primary Email</label>
+                        <input type="email" id="customer-email" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-phone" class="form-label">Primary Phone</label>
+                        <input type="tel" id="customer-phone" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="service-speed" class="form-label">Service Speed</label>
+                        <select id="service-speed" class="form-select">
                             <option>200 Mbps</option>
                             <option>500 Mbps</option>
                             <option>1 Gbps</option>
                         </select>
                     </div>
-
-                    <h3 class="text-md font-semibold text-gray-700 pt-2">Primary Contact</h3>
-                    <div>
-                        <label for="primary-email" class="block text-sm font-medium text-gray-700">Email</label>
-                        <input type="email" id="primary-email" name="primary-email" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="primary-phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                        <input type="tel" id="primary-phone" name="primary-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                    </div>
-
-                    <h3 class="text-md font-semibold text-gray-700 pt-2">Secondary Contact (Optional)</h3>
-                    <div>
-                        <label for="secondary-name" class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" id="secondary-name" name="secondary-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                    </div>
-                    <div>
-                        <label for="secondary-phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                        <input type="tel" id="secondary-phone" name="secondary-phone" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                    </div>
-
-                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                    <button type="submit" class="btn btn-primary btn-full-width">
+                        <i data-lucide="plus-circle" class="btn-icon"></i>
                         Add Customer
                     </button>
                 </form>
             </div>
 
             <!-- Column 2: Customer List -->
-            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4">Customer List</h2>
-                <div id="customer-list" class="space-y-3 max-h-[80vh] overflow-y-auto">
-                    <!-- Customer cards will be injected here by app.js -->
-                    <p id="customer-list-empty" class="text-sm text-gray-500">No customers added yet.</p>
+            <div class="card">
+                <h2 class="card-title">Customer List</h2>
+                <div class="form-group">
+                    <label for="search-bar" class="form-label">Search</label>
+                    <input type="text" id="search-bar" class="form-input" placeholder="Search by name or S.O. ...">
+                </div>
+                <div id="customer-list-container" class="customer-list-container">
+                    <!-- Customer items will be injected here by JS -->
+                    <p id="list-loading" class="text-gray-500">Loading customers...</p>
                 </div>
             </div>
 
             <!-- Column 3: Customer Details -->
-            <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow">
-                <div id="customer-details-container" class="sticky top-8">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Customer Details</h2>
-                    <div id="customer-details-content" class="hidden">
-                        <!-- This form is for displaying and updating customer data -->
-                        <form id="details-form" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
-                            <div class="flex justify-between items-center">
-                                <h3 id="details-customer-name" class="text-lg font-bold text-gray-900"></h3>
-                                <button type="button" id="btn-save-details" class="py-1 px-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                    Save Changes
-                                </button>
-                            </div>
-                            <p id="details-so-number" class="text-sm text-gray-600"></p>
-                            
-                            <!-- Status -->
-                            <div>
-                                <label for="details-status" class="block text-sm font-medium text-gray-700">Status</label>
-                                <select id="details-status" name="details-status" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                                    <option>New Order</option>
-                                    <option>Site Survey Pending</option>
-                                    <option>Install Scheduled</option>
-                                    <option>Completed</option>
-                                    <option>On Hold</option>
-                                </select>
-                            </div>
-
-                            <!-- Basic Info (from add form, now editable) -->
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="details-service-speed" class="block text-sm font-medium text-gray-700">Speed</label>
-                                    <input type="text" id="details-service-speed" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm">
-                                </div>
-                                <div>
-                                    <label for="details-primary-email" class="block text-sm font-medium text-gray-700">Email</label>
-                                    <input type="email" id="details-primary-email" readonly class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm">
-                                </div>
-                            </div>
-
-                            <!-- Pre-Install Checklist -->
-                            <fieldset class="mt-4">
-                                <legend class="text-md font-semibold text-gray-700">Pre-Install Checklist</legend>
-                                <div class="space-y-2 mt-2">
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="check-welcome-email" name="check-welcome-email" type="checkbox" disabled class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="check-welcome-email" class="font-medium text-gray-700">Welcome Email Sent</label>
-                                        </div>
-                                        <button type="button" id="btn-send-welcome" class="ml-auto text-xs py-1 px-2 rounded bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50">Send</button>
-                                    </div>
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="check-site-survey" name="check-site-survey" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="check-site-survey" class="font-medium text-gray-700">Added to Site Survey List</label>
-                                        </div>
-                                    </div>
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="check-fiber-list" class="font-medium text-gray-700">Added to Residential Fiber List</label>
-                                        </div>
-                                    </div>
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="check-repair-shoppr" class="font-medium text-gray-700">Added to Repair Shoppr</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-
-                            <!-- Install Tab -->
-                            <fieldset class="mt-4">
-                                <legend class="text-md font-semibold text-gray-700">Install Details</legend>
-                                <div class="space-y-4 mt-2">
-                                    <div>
-                                        <label for="install-date" class="block text-sm font-medium text-gray-700">Install Date</label>
-                                        <input type="date" id="install-date" name="install-date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                                    </div>
-                                    <div>
-                                        <label for="eero-info" class="block text-sm font-medium text-gray-700">Eero Insight Info</label>
-                                        <textarea id="eero-info" name="eero-info" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
-                                    </div>
-                                    <div>
-                                        <label for="nid-light" class="block text-sm font-medium text-gray-700">Light Reading at NID</label>
-                                        <input type="text" id="nid-light" name="nid-light" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
-                                    </div>
-                                    <div>
-                                        <label for="extra-equip" class="block text-sm font-medium text-gray-700">Additional Equipment Used</label>
-                                        <textarea id="extra-equip" name="extra-equip" rows="2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
-                                    </div>
-                                    <div>
-                                        <label for="general-notes" class="block text-sm font-medium text-gray-700">General Notes</label>
-                                        <textarea id="general-notes" name="general-notes" rows="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm"></textarea>
-                                    </div>
-                                </div>
-                            </fieldset>
-
-                            <!-- Post-Install Checklist -->
-                            <fieldset class="mt-4">
-                                <legend class="text-md font-semibold text-gray-700">Post-Install Checklist</legend>
-                                <div class="space-y-2 mt-2">
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="post-check-fiber" class="font-medium text-gray-700">Removed from Residential Fiber List</label>
-                                        </div>
-                                    </div>
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="post-check-survey" name="post-check-survey" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="post-check-survey" class="font-medium text-gray-700">Removed from Site Survey List</label>
-                                        </div>
-                                    </div>
-                                    <div class="relative flex items-start">
-                                        <div class="flex items-center h-5">
-                                            <input id="post-check-repair" name="post-check-repair" type="checkbox" class="focus:ring-sky-500 h-4 w-4 text-sky-600 border-gray-300 rounded">
-                                        </div>
-                                        <div class="ml-3 text-sm">
-                                            <label for="post-check-repair" class="font-medium text-gray-700">Updated Repair Shoppr</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                            
-                            <!-- Billing Copy Button -->
-                            <div class="pt-4 border-t border-gray-200 mt-4">
-                                <button type="button" id="btn-copy-billing" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                    Copy Info for Billing
-                                </button>
-                                <p id="copy-success" class="text-xs text-green-600 text-center mt-2 hidden">Copied to clipboard!</p>
-                            </div>
-                        </form>
+            <div class="card">
+                <h2 class="card-title">Customer Details</h2>
+                <div id="details-container" data-id="">
+                    <!-- Loading Overlay -->
+                    <div id="loading-overlay">
+                        <div id="loading-spinner"></div>
                     </div>
-                    <div id="customer-details-empty" class="text-center py-10">
-                        <p class="text-gray-500">Select a customer from the list to view their details.</p>
-                    </div>
+
+                    <!-- Details Form -->
+                    <form id="details-form" class="card-content">
+                        <!-- Static Info with Copy Buttons -->
+                        <div class="static-field-group">
+                            <label class="form-label">Service Order #</label>
+                            <span id="details-so-number" class="static-field"></span>
+                            <button type="button" class="copy-btn" data-target="details-so-number">
+                                <i data-lucide="copy" class="icon-copy"></i>
+                                <i data-lucide="check" class="icon-check"></i>
+                            </button>
+                        </div>
+
+                        <div class="static-field-group">
+                            <label class="form-label">Address</label>
+                            <span id="details-address" class="static-field"></span>
+                            <button type="button" class="copy-btn" data-target="details-address">
+                                <i data-lucide="copy" class="icon-copy"></i>
+                                <i data-lucide="check" class="icon-check"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="static-field-group">
+                            <label class="form-label">Service Speed</label>
+                            <span id="details-speed" class="static-field"></span>
+                            <button type="button" class="copy-btn" data-target="details-speed">
+                                <i data-lucide="copy" class="icon-copy"></i>
+                                <i data-lucide="check" class="icon-check"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="static-field-group">
+                            <label class="form-label">Primary Email</label>
+                            <span id="details-email" class="static-field"></span>
+                            <button type="button" class="copy-btn" data-target="details-email">
+                                <i data-lucide="copy" class="icon-copy"></i>
+                                <i data-lucide="check" class="icon-check"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="static-field-group">
+                            <label class="form-label">Primary Phone</label>
+                            <span id="details-phone" class="static-field"></span>
+                            <button type="button" class="copy-btn" data-target="details-phone">
+                                <i data-lucide="copy" class="icon-copy"></i>
+                                <i data-lucide="check" class="icon-check"></i>
+                            </button>
+                        </div>
+
+                        <!-- Editable Fields -->
+                        <div class="form-group">
+                            <label for="details-status" class="form-label">Status</label>
+                            <select id="details-status" class="form-select">
+                                <option>New Order</option>
+                                <option>Site Survey</option>
+                                <option>Install Scheduled</option>
+                                <option>Completed</option>
+                                <option>On Hold</option>
+                            </select>
+                        </div>
+
+                        <!-- Pre-Install Checklist -->
+                        <fieldset class="checklist-group">
+                            <legend class="checklist-title">Pre-Install Checklist</legend>
+                            <div class="checklist-content">
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="check-welcome-email" name="check-welcome-email" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="check-welcome-email">Welcome Email Sent</label>
+                                    </div>
+                                    <button type="button" id="send-welcome-email-btn">
+                                        Send Now
+                                    </button>
+                                </div>
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="check-site-survey" name="check-site-survey" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="check-site-survey">Added to Site Survey List</label>
+                                    </div>
+                                </div>
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="check-fiber-list">Added to Residential Fiber List</label>
+                                    </div>
+                                </div>
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="check-repair-shoppr">Added to Repair Shoppr</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Install Details -->
+                        <fieldset class="checklist-group">
+                            <legend class="checklist-title">Install Details</legend>
+                            <div class="checklist-content">
+                                <div class="form-group static-field-group"> <!-- Re-using for layout -->
+                                    <label for="install-date" class="form-label">Install Date</label>
+                                    <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
+                                    <button type="button" class="copy-btn" data-target="install-date">
+                                        <i data-lucide="copy" class="icon-copy"></i>
+                                        <i data-lucide="check" class="icon-check"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group static-field-group">
+                                    <label for="eero-info" class="form-label">Eero Insight Info</label>
+                                    <textarea id="eero-info" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                    <button type="button" class="copy-btn" data-target="eero-info">
+                                        <i data-lucide="copy" class="icon-copy"></i>
+                                        <i data-lucide="check" class="icon-check"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group static-field-group">
+                                    <label for="nid-light" class="form-label">Light Reading @ NID</label>
+                                    <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
+                                    <button type="button" class="copy-btn" data-target="nid-light">
+                                        <i data-lucide="copy" class="icon-copy"></i>
+                                        <i data-lucide="check" class="icon-check"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group static-field-group">
+                                    <label for="extra-equip" class="form-label">Additional Equipment</label>
+                                    <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                    <button type="button" class="copy-btn" data-target="extra-equip">
+                                        <i data-lucide="copy" class="icon-copy"></i>
+                                        <i data-lucide="check" class="icon-check"></i>
+                                    </button>
+                                </div>
+                                <div class="form-group static-field-group">
+                                    <label for="general-notes" class="form-label">General Notes</label>
+                                    <textarea id="general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                    <button type="button" class="copy-btn" data-target="general-notes">
+                                        <i data-lucide="copy" class="icon-copy"></i>
+                                        <i data-lucide="check" class="icon-check"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Post-Install Checklist -->
+                        <fieldset class="checklist-group">
+                            <legend class="checklist-title">Post-Install Checklist</legend>
+                            <div class="checklist-content">
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="post-check-fiber">Removed from Residential Fiber List</label>
+                                    </div>
+                                </div>
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="post-check-survey" name="post-check-survey" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="post-check-survey">Removed from Site Survey List</label>
+                                    </div>
+                                </div>
+                                <div class="checklist-item">
+                                    <div class="checklist-item-box">
+                                        <input id="post-check-repair" name="post-check-repair" type="checkbox" class="form-checkbox">
+                                    </div>
+                                    <div class="checklist-item-label">
+                                        <label for="post-check-repair">Updated Repair Shoppr</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- Action Buttons -->
+                        <div class="action-buttons">
+                            <button type="button" id="update-customer-btn" class="btn btn-primary">
+                                <i data-lucide="save" class="btn-icon"></i>
+                                Save Changes
+                            </button>
+                            <button type="button" id="copy-billing-btn" class="btn btn-secondary">
+                                <i data-lucide="clipboard-list" class="btn-icon"></i>
+                                Copy Info for Billing
+                            </button>
+                            <button type="button" id="delete-customer-btn" class="btn btn-danger">
+                                <i data-lucide="trash-2" class="btn-icon"></i>
+                                Delete Customer
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+
+                <!-- Placeholder -->
+                <div id="details-placeholder" class="details-placeholder">
+                    <i data-lucide="mouse-pointer-square" class="h-12 w-12 text-gray-400 mx-auto"></i>
+                    <p class="mt-2">Select a customer from the list to view their details.</p>
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast-notification"></div>
 
-        </div> <!-- /end main grid -->
-    </div> <!-- /end #app-screen -->
-
-    <!-- 
-      This script block is now empty on purpose.
-    -->
-    <script type="module">
-    </script>
-
-    <!-- Main Application Logic -->
+    <!-- Import Firebase modules -->
+    <script type="module" src="firebase.js"></script>
+    
+    <!-- Import App Logic -->
     <script type="module" src="app.js"></script>
+
+    <!-- Script to render icons -->
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>
