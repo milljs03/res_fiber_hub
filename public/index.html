@@ -104,61 +104,6 @@
                     </div>
 
                     <form id="details-form" class="card-content">
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="details-so-number">Service Order #</label>
-                            <div class="field-wrapper">
-                                <span id="details-so-number" class="static-field"></span>
-                                <button type="button" class="copy-btn" data-target="details-so-number">
-                                    <img src="copy.png" alt="Copy" class="icon-copy" />
-                                    <img src="check.png" alt="Copied" class="icon-check" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label" for="details-address">Address</label>
-                            <div class="field-wrapper">
-                                <span id="details-address" class="static-field"></span>
-                                <button type="button" class="copy-btn" data-target="details-address">
-                                    <img src="copy.png" alt="Copy" class="icon-copy" />
-                                    <img src="check.png" alt="Copied" class="icon-check" />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="details-speed">Service Speed</label>
-                            <div class="field-wrapper">
-                                <span id="details-speed" class="static-field"></span>
-                                <button type="button" class="copy-btn" data-target="details-speed">
-                                    <img src="copy.png" alt="Copy" class="icon-copy" />
-                                    <img src="check.png" alt="Copied" class="icon-check" />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="details-email">Primary Email</label>
-                            <div class="field-wrapper">
-                                <span id="details-email" class="static-field"></span>
-                                <button type="button" class="copy-btn" data-target="details-email">
-                                    <img src="copy.png" alt="Copy" class="icon-copy" />
-                                    <img src="check.png" alt="Copied" class="icon-check" />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="details-phone">Primary Phone</label>
-                            <div class="field-wrapper">
-                                <span id="details-phone" class="static-field"></span>
-                                <button type="button" class="copy-btn" data-target="details-phone">
-                                    <img src="copy.png" alt="Copy" class="icon-copy" />
-                                    <img src="check.png" alt="Copied" class="icon-check" />
-                                </button>
-                            </div>
-                        </div>
 
                         <div class="form-group">
                             <label for="details-status" class="form-label">Status</label>
@@ -171,141 +116,218 @@
                             </select>
                         </div>
 
-                        <fieldset class="checklist-group">
-                            <legend class="checklist-title">Pre-Install Checklist</legend>
-                            <div class="checklist-content">
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="check-welcome-email" name="check-welcome-email" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="check-welcome-email">Welcome Email Sent</label>
-                                    </div>
-                                    <button type="button" id="send-welcome-email-btn">
-                                        Send Now
+                        <div id="details-tabs" class="details-tabs">
+                            <button type="button" class="tab-link active" data-page="page-pre-install">Pre-Install</button>
+                            <button type="button" class="tab-link" data-page="page-site-survey">Site Survey</button>
+                            <button type="button" class="tab-link" data-page="page-install">Install</button>
+                            <button type="button" class="tab-link" data-page="page-post-install">Post-Install</button>
+                        </div>
+
+                        <div id="page-pre-install" class="details-page active">
+                            <div class="form-group">
+                                <label class="form-label" for="details-so-number">Service Order #</label>
+                                <div class="field-wrapper">
+                                    <span id="details-so-number" class="static-field"></span>
+                                    <button type="button" class="copy-btn" data-target="details-so-number">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="check-site-survey" name="check-site-survey" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="check-site-survey">Added to Site Survey List</label>
-                                    </div>
-                                </div>
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="check-fiber-list">Added to Residential Fiber List</label>
-                                    </div>
-                                </div>
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="check-repair-shoppr">Added to Repair Shoppr</label>
-                                    </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="details-address">Address</label>
+                                <div class="field-wrapper">
+                                    <span id="details-address" class="static-field"></span>
+                                    <button type="button" class="copy-btn" data-target="details-address">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
+                                    </button>
                                 </div>
                             </div>
-                        </fieldset>
-
-                        <fieldset class="checklist-group">
-                            <legend class="checklist-title">Install Details</legend>
-                            <div class="checklist-content">
-                                <div class="form-group">
-                                    <label for="install-date" class="form-label">Install Date</label>
-                                    <div class="field-wrapper">
-                                        <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
-                                        <button type="button" class="copy-btn" data-target="install-date">
-                                            <img src="copy.png" alt="Copy" class="icon-copy" />
-                                            <img src="check.png" alt="Copied" class="icon-check" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="eero-info" class="form-label">Eero Insight Info</label>
-                                    <div class="field-wrapper">
-                                        <textarea id="eero-info" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                        <button type="button" class="copy-btn" data-target="eero-info">
-                                            <img src="copy.png" alt="Copy" class="icon-copy" />
-                                            <img src="check.png" alt="Copied" class="icon-check" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="nid-light" class="form-label">Light Reading @ NID</label>
-                                    <div class="field-wrapper">
-                                        <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
-                                        <button type="button" class="copy-btn" data-target="nid-light">
-                                            <img src="copy.png" alt="Copy" class="icon-copy" />
-                                            <img src="check.png" alt="Copied" class="icon-check" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="extra-equip" class="form-label">Additional Equipment</label>
-                                    <div class="field-wrapper">
-                                        <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                        <button type="button" class="copy-btn" data-target="extra-equip">
-                                            <img src="copy.png" alt="Copy" class="icon-copy" />
-                                            <img src="check.png" alt="Copied" class="icon-check" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label for="general-notes" class="form-label">General Notes</label>
-                                    <div class="field-wrapper">
-                                        <textarea id="general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                        <button type="button" class="copy-btn" data-target="general-notes">
-                                            <img src="copy.png" alt="Copy" class="icon-copy" />
-                                            <img src="check.png" alt="Copied" class="icon-check" />
-                                        </button>
-                                    </div>
+                            <div class="form-group">
+                                <label class="form-label" for="details-speed">Service Speed</label>
+                                <div class="field-wrapper">
+                                    <span id="details-speed" class="static-field"></span>
+                                    <button type="button" class="copy-btn" data-target="details-speed">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
+                                    </button>
                                 </div>
                             </div>
-                        </fieldset>
-
-                        <fieldset class="checklist-group">
-                            <legend class="checklist-title">Post-Install Checklist</legend>
-                            <div class="checklist-content">
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="post-check-fiber">Removed from Residential Fiber List</label>
-                                    </div>
-                                </div>
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="post-check-survey" name="post-check-survey" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="post-check-survey">Removed from Site Survey List</label>
-                                    </div>
-                                </div>
-                                <div class="checklist-item">
-                                    <div class="checklist-item-box">
-                                        <input id="post-check-repair" name="post-check-repair" type="checkbox" class="form-checkbox">
-                                    </div>
-                                    <div class="checklist-item-label">
-                                        <label for="post-check-repair">Updated Repair Shoppr</label>
-                                    </div>
+                            <div class="form-group">
+                                <label class="form-label" for="details-email">Primary Email</label>
+                                <div class="field-wrapper">
+                                    <span id="details-email" class="static-field"></span>
+                                    <button type="button" class="copy-btn" data-target="details-email">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
+                                    </button>
                                 </div>
                             </div>
-                        </fieldset>
+                            <div class="form-group">
+                                <label class="form-label" for="details-phone">Primary Phone</label>
+                                <div class="field-wrapper">
+                                    <span id="details-phone" class="static-field"></span>
+                                    <button type="button" class="copy-btn" data-target="details-phone">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <fieldset class="checklist-group">
+                                <legend class="checklist-title">Pre-Install Checklist</legend>
+                                <div class="checklist-content">
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-welcome-email" name="check-welcome-email" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-welcome-email">Welcome Email Sent</label>
+                                        </div>
+                                        <button type="button" id="send-welcome-email-btn">
+                                            Send Now
+                                        </button>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-site-survey" name="check-site-survey" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-site-survey">Added to Site Survey List</label>
+                                        </div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-fiber-list">Added to Residential Fiber List</label>
+                                        </div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-repair-shoppr">Added to Repair Shoppr</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div> <div id="page-site-survey" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">Site Survey</legend>
+                                <div class="checklist-content">
+                                    <div class="form-group">
+                                        <label for="site-survey-notes" class="form-label">Site Survey Notes</label>
+                                        <div class="field-wrapper">
+                                            <textarea id="site-survey-notes" rows="8" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                            <button type="button" class="copy-btn" data-target="site-survey-notes">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div> <div id="page-install" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">Install Details</legend>
+                                <div class="checklist-content">
+                                    <div class="form-group">
+                                        <label for="install-date" class="form-label">Install Date</label>
+                                        <div class="field-wrapper">
+                                            <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
+                                            <button type="button" class="copy-btn" data-target="install-date">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eero-info" class="form-label">Eero Insight Info</label>
+                                        <div class="field-wrapper">
+                                            <textarea id="eero-info" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                            <button type="button" class="copy-btn" data-target="eero-info">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nid-light" class="form-label">Light Reading @ NID</label>
+                                        <div class="field-wrapper">
+                                            <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
+                                            <button type="button" class="copy-btn" data-target="nid-light">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="extra-equip" class="form-label">Additional Equipment</label>
+                                        <div class="field-wrapper">
+                                            <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                            <button type="button" class="copy-btn" data-target="extra-equip">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="general-notes" class="form-label">General Notes</label>
+                                        <div class="field-wrapper">
+                                            <textarea id="general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                            <button type="button" class="copy-btn" data-target="general-notes">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div> <div id="page-post-install" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">Post-Install Checklist</legend>
+                                <div class="checklist-content">
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="post-check-fiber">Removed from Residential Fiber List</label>
+                                        </div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="post-check-survey" name="post-check-survey" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="post-check-survey">Removed from Site Survey List</label>
+                                        </div>
+                                    </div>
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="post-check-repair" name="post-check-repair" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="post-check-repair">Updated Repair Shoppr</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
 
-                        <div class="action-buttons">
+                            <div class="action-buttons" style="border-top: 1px solid #e5e7eb; margin-top: 1.25rem;">
+                                <button type="button" id="copy-billing-btn" class="btn btn-secondary">
+                                    <i data-lucide="clipboard-list" class="btn-icon"></i>
+                                    Copy Info for Billing
+                                </button>
+                            </div>
+                        </div> <div class="action-buttons">
                             <button type="button" id="update-customer-btn" class="btn btn-primary">
                                 <i data-lucide="save" class="btn-icon"></i>
                                 Save Changes
-                            </button>
-                            <button type="button" id="copy-billing-btn" class="btn btn-secondary">
-                                <i data-lucide="clipboard-list" class="btn-icon"></i>
-                                Copy Info for Billing
                             </button>
                             <button type="button" id="delete-customer-btn" class="btn btn-danger">
                                 <i data-lucide="trash-2" class="btn-icon"></i>

@@ -39,7 +39,7 @@ const el = {
     addForm: document.getElementById('add-customer-form'),
     soNumberInput: document.getElementById('so-number'),
     customerNameInput: document.getElementById('customer-name'),
-    addressInput: document.getElementById('address'), // <-- NEW
+    addressInput: document.getElementById('address'),
     customerEmailInput: document.getElementById('customer-email'),
     customerPhoneInput: document.getElementById('customer-phone'),
     serviceSpeedInput: document.getElementById('service-speed'),
@@ -55,7 +55,7 @@ const el = {
     detailsPlaceholder: document.getElementById('details-placeholder'),
     loadingOverlay: document.getElementById('loading-overlay'),
     
-    // Copyable Static Fields (NEW)
+    // Copyable Static Fields
     detailsSoNumber: document.getElementById('details-so-number'),
     detailsAddress: document.getElementById('details-address'),
     detailsSpeed: document.getElementById('details-speed'),
@@ -67,6 +67,11 @@ const el = {
     updateCustomerBtn: document.getElementById('update-customer-btn'),
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
+
+    // --- NEW: Tab Navigation Elements ---
+    detailsTabs: document.getElementById('details-tabs'),
+    tabLinks: document.querySelectorAll('.tab-link'),
+    detailsPages: document.querySelectorAll('.details-page'),
     
     // Toast
     toast: document.getElementById('toast-notification')
@@ -87,7 +92,6 @@ function handleAuthentication(user) {
 
         // --- This is where we define the user-specific database path ---
         currentAppId = 'cfn-install-tracker'; // Unique ID for this app
-        // This path matches the firestore.rules
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'customers');
         // --- End Database Path ---
 
@@ -103,41 +107,37 @@ function handleAuthentication(user) {
         currentUserId = null;
         customersCollectionRef = null;
         
-        // Detach any existing Firestore listener
         if (customerUnsubscribe) {
             customerUnsubscribe();
             customerUnsubscribe = null;
         }
 
-        // Show auth screen, hide app
         el.appScreen.classList.add('hidden');
         el.authScreen.classList.remove('hidden');
         
         if (user) {
-            // User is logged in but with wrong domain
             el.authError.textContent = 'Access restricted to @nptel.com accounts.';
-            signOut(auth); // Log them out
+            signOut(auth); 
         } else {
-            el.authError.textContent = ''; // Clear error on successful sign-out
+            el.authError.textContent = '';
         }
     }
 }
 
 // Handle Sign-In button click
 el.signInBtn.addEventListener('click', () => {
-    el.authError.textContent = ''; // Clear error on new attempt
+    el.authError.textContent = ''; 
     signInWithPopup(auth, googleProvider)
         .then((result) => {
             // onAuthStateChanged will handle the rest
             console.log("Sign-in successful", result.user.email);
         })
         .catch((error) => {
-            // Handle Errors here.
             console.error("Sign-in error", error);
             if (error.code === 'auth/popup-closed-by-user') {
                 el.authError.textContent = 'Sign-in cancelled.';
             } else if (error.code === 'auth/cancelled-popup-request') {
-                // Ignore this, it happens on rapid clicks
+                // Ignore
             } else {
                 el.authError.textContent = error.message;
             }
@@ -154,34 +154,26 @@ el.signOutBtn.addEventListener('click', () => {
 
 // --- 2. INITIALIZATION ---
 
-// This function is now called *after* successful login
 function initializeApp() {
     console.log(`App initialized for user ${currentUserId}.`);
     
-    // Ensure listeners are only set up once
     if (el.addForm.dataset.listenerAttached !== 'true') {
         setupEventListeners();
         el.addForm.dataset.listenerAttached = 'true';
     }
     
-    // Start listening for customer data
     loadCustomers();
-    
-    // Hide details panel by default
     handleDeselectCustomer();
 }
 
 function setupEventListeners() {
-    // Form submissions
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // Search
     el.searchBar.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
         filterCustomerList(searchTerm);
     });
 
-    // List clicks (using event delegation)
     el.customerListContainer.addEventListener('click', (e) => {
         const customerItem = e.target.closest('.customer-item');
         if (customerItem) {
@@ -195,9 +187,24 @@ function setupEventListeners() {
     el.updateCustomerBtn.addEventListener('click', handleUpdateCustomer);
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
-    
-    // NEW: Details form click handler for copy icons
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
+
+    // --- NEW: Tab and Status Listeners ---
+    
+    // Listen for clicks on the tab buttons
+    el.detailsTabs.addEventListener('click', (e) => {
+        const tabLink = e.target.closest('.tab-link');
+        if (tabLink) {
+            e.preventDefault();
+            const pageId = tabLink.dataset.page;
+            showDetailsPage(pageId);
+        }
+    });
+
+    // Listen for changes to the status dropdown
+    el.detailsForm['details-status'].addEventListener('change', (e) => {
+        syncPageToStatus(e.target.value);
+    });
 }
 
 // --- 3. CUSTOMER LIST (READ) ---
@@ -208,12 +215,10 @@ function loadCustomers() {
         return;
     }
 
-    // Detach old listener if it exists
     if (customerUnsubscribe) {
         customerUnsubscribe();
     }
 
-    // Query to get all customers, order by name
     const q = query(customersCollectionRef);
 
     customerUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -223,7 +228,6 @@ function loadCustomers() {
             customers.push({ id: doc.id, ...doc.data() });
         });
         
-        // Sort customers alphabetically by name
         customers.sort((a, b) => {
             const nameA = a.customerName || '';
             const nameB = b.customerName || '';
@@ -231,17 +235,15 @@ function loadCustomers() {
         });
 
         renderCustomerList(customers);
-        
-        // After rendering, re-apply the search filter if one exists
         filterCustomerList(el.searchBar.value.toLowerCase());
         
-        // If a customer was selected, refresh their details
         if (selectedCustomerId) {
             const freshData = customers.find(c => c.id === selectedCustomerId);
             if (freshData) {
                 populateDetailsForm(freshData);
+                // After re-populating, ensure the correct tab is still visible
+                syncPageToStatus(el.detailsForm['details-status'].value);
             } else {
-                // The selected customer was deleted
                 handleDeselectCustomer();
             }
         }
@@ -254,23 +256,21 @@ function loadCustomers() {
 }
 
 function renderCustomerList(customers) {
-    // Clear list, but keep the loading text element (it's hidden)
     el.customerListContainer.innerHTML = '';
-    el.customerListContainer.appendChild(el.listLoading); // Re-add hidden loading element
+    el.customerListContainer.appendChild(el.listLoading); 
 
     if (customers.length === 0) {
         el.listLoading.textContent = 'No customers found. Add one to get started!';
         el.listLoading.style.display = 'block';
         return;
     }
-    el.listLoading.style.display = 'none'; // Hide loading text
+    el.listLoading.style.display = 'none'; 
 
     customers.forEach(customer => {
         const item = document.createElement('div');
-        item.className = 'customer-item'; // Styles are in style.css
+        item.className = 'customer-item';
         item.dataset.id = customer.id;
         
-        // Add "selected" class if this is the currently selected customer
         if (customer.id === selectedCustomerId) {
             item.classList.add('selected');
         }
@@ -283,7 +283,6 @@ function renderCustomerList(customers) {
         el.customerListContainer.appendChild(item);
     });
     
-    // Call lucide.createIcons() after adding new HTML
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
@@ -305,14 +304,12 @@ function filterCustomerList(searchTerm) {
         }
     });
 
-    // Show "no results" message if search yields nothing
     if (visibleCount === 0 && items.length > 0) {
         el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
         el.listLoading.style.display = 'block';
     } else if (visibleCount > 0) {
         el.listLoading.style.display = 'none';
     } else if (visibleCount === 0 && items.length === 0) {
-        // This is handled by renderCustomerList, but good to be defensive
         el.listLoading.textContent = 'No customers found. Add one to get started!';
         el.listLoading.style.display = 'block';
     }
@@ -328,12 +325,12 @@ async function handleAddCustomer(e) {
     const newCustomer = {
         serviceOrderNumber: el.soNumberInput.value,
         customerName: el.customerNameInput.value,
-        address: el.addressInput.value, // <-- NEW
+        address: el.addressInput.value, 
         primaryContact: {
             email: el.customerEmailInput.value,
             phone: el.customerPhoneInput.value
         },
-        secondaryContact: { // Add empty secondary contact object
+        secondaryContact: { 
             name: "",
             phone: ""
         },
@@ -350,7 +347,8 @@ async function handleAddCustomer(e) {
             eeroInfo: "",
             nidLightReading: "",
             additionalEquipment: "",
-            generalNotes: ""
+            generalNotes: "",
+            siteSurveyNotes: "" // <-- NEW FIELD ADDED
         },
         postInstallChecklist: {
             removedFromFiberList: false,
@@ -363,7 +361,6 @@ async function handleAddCustomer(e) {
         await addDoc(customersCollectionRef, newCustomer);
         showToast('Customer added successfully!', 'success');
         el.addForm.reset();
-        // onSnapshot will automatically update the list
     } catch (error) {
         console.error("Error adding customer: ", error);
         showToast('Error adding customer.', 'error');
@@ -375,31 +372,31 @@ async function handleAddCustomer(e) {
 
 async function handleSelectCustomer(customerId, customerItem) {
     if (selectedCustomerId === customerId) {
-        // If clicking the already selected customer, deselect them
         handleDeselectCustomer();
         return;
     }
 
     selectedCustomerId = customerId;
 
-    // Update list item styles
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
     });
     customerItem.classList.add('selected');
 
-    // Show details panel, hide placeholder
     el.detailsPlaceholder.style.display = 'none';
     el.detailsContainer.style.display = 'block';
-    el.detailsContainer.dataset.id = customerId; // Store ID for update actions
-    el.loadingOverlay.style.display = 'flex'; // Show spinner
+    el.detailsContainer.dataset.id = customerId; 
+    el.loadingOverlay.style.display = 'flex'; 
 
-    // Fetch the single customer's data to populate the form
     try {
         const docRef = doc(customersCollectionRef, customerId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             populateDetailsForm(docSnap.data());
+            
+            // --- NEW: Sync tab to status on load ---
+            syncPageToStatus(docSnap.data().status);
+            
         } else {
             showToast('Could not find customer data.', 'error');
             handleDeselectCustomer();
@@ -410,7 +407,6 @@ async function handleSelectCustomer(customerId, customerItem) {
     } finally {
         el.loadingOverlay.style.display = 'none';
         
-        // Call lucide.createIcons() after adding new HTML
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
@@ -420,27 +416,21 @@ async function handleSelectCustomer(customerId, customerItem) {
 function handleDeselectCustomer() {
     selectedCustomerId = null;
     
-    // Remove "selected" from all list items
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
     });
     
-    // Hide details, show placeholder
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
     el.detailsContainer.dataset.id = '';
     
-    // Call lucide.createIcons() after adding new HTML
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
 }
 
 function populateDetailsForm(data) {
-    // This function now just populates the form
-    // The data is passed in from the onSnapshot listener or getDoc
-    
-    // --- Populate NEW static fields ---
+    // --- Populate static fields ---
     el.detailsSoNumber.textContent = data.serviceOrderNumber || '';
     el.detailsAddress.textContent = data.address || '';
     el.detailsSpeed.textContent = data.serviceSpeed || '';
@@ -456,6 +446,9 @@ function populateDetailsForm(data) {
     el.detailsForm['check-fiber-list'].checked = data.preInstallChecklist?.addedToFiberList || false;
     el.detailsForm['check-repair-shoppr'].checked = data.preInstallChecklist?.addedToRepairShoppr || false;
     
+    // --- NEW: Site Survey ---
+    el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
+
     // Install Details
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].value = data.installDetails?.eeroInfo || '';
@@ -469,21 +462,76 @@ function populateDetailsForm(data) {
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
 }
 
-// --- NEW: Click handler for all copy buttons ---
+// --- NEW: Tab/Page Control Functions ---
+
+/**
+ * Shows a specific details page and highlights the correct tab.
+ * @param {string} pageId The id of the page element to show (e.g., 'page-pre-install')
+ */
+function showDetailsPage(pageId) {
+    // Hide all pages
+    el.detailsPages.forEach(page => {
+        page.classList.remove('active');
+    });
+    // Deactivate all tab links
+    el.tabLinks.forEach(link => {
+        link.classList.remove('active');
+    });
+
+    // Show the target page
+    const targetPage = document.getElementById(pageId);
+    if (targetPage) {
+        targetPage.classList.add('active');
+    }
+
+    // Activate the target tab link
+    const targetLink = el.detailsTabs.querySelector(`.tab-link[data-page="${pageId}"]`);
+    if (targetLink) {
+        targetLink.classList.add('active');
+    }
+}
+
+/**
+ * Reads the customer status and shows the corresponding page.
+ * @param {string} status The value from the status dropdown
+ */
+function syncPageToStatus(status) {
+    switch (status) {
+        case 'New Order':
+            showDetailsPage('page-pre-install');
+            break;
+        case 'Site Survey':
+            showDetailsPage('page-site-survey');
+            break;
+        case 'Install Scheduled':
+            showDetailsPage('page-install');
+            break;
+        case 'Completed':
+            showDetailsPage('page-post-install');
+            break;
+        case 'On Hold':
+            // Default to pre-install page for 'On Hold'
+            showDetailsPage('page-pre-install');
+            break;
+        default:
+            showDetailsPage('page-pre-install');
+    }
+}
+
+// --- End Tab/Page Control Functions ---
+
+
 function handleDetailsFormClick(e) {
     const copyBtn = e.target.closest('.copy-btn');
-    if (!copyBtn) return; // Click wasn't on a copy button
+    if (!copyBtn) return; 
 
     const targetId = copyBtn.dataset.target;
     if (!targetId) return;
 
     let textToCopy = '';
-    
-    // Find the target element
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
 
-    // Get text from either a <span> or an <input>/<textarea>
     if (targetElement.tagName === 'SPAN') {
         textToCopy = targetElement.textContent;
     } else {
@@ -495,9 +543,7 @@ function handleDetailsFormClick(e) {
         return;
     }
 
-    // --- Clipboard Copy Logic ---
     try {
-        // Create a temporary textarea to securely copy
         const ta = document.createElement('textarea');
         ta.value = textToCopy;
         ta.style.position = 'absolute';
@@ -507,16 +553,14 @@ function handleDetailsFormClick(e) {
         document.execCommand('copy');
         document.body.removeChild(ta);
         
-        // Show visual feedback on the button
         copyBtn.classList.add('copied');
-        // Reset all other copy buttons
         el.detailsForm.querySelectorAll('.copy-btn').forEach(btn => {
             if (btn !== copyBtn) btn.classList.remove('copied');
         });
 
         setTimeout(() => {
             copyBtn.classList.remove('copied');
-        }, 1500); // Show checkmark for 1.5 seconds
+        }, 1500); 
 
     } catch (err) {
         console.error('Failed to copy text: ', err);
@@ -525,12 +569,11 @@ function handleDetailsFormClick(e) {
 }
 
 async function handleUpdateCustomer(e) {
-    e.preventDefault(); // Prevent form from submitting
+    e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
-    // Construct the update object using dot notation
-    // This is safer and prevents overwriting entire maps
+    // Construct the update object from ALL pages
     const updatedData = {
         'status': el.detailsForm['details-status'].value,
         
@@ -538,6 +581,9 @@ async function handleUpdateCustomer(e) {
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
         'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
         'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
+        
+        // --- NEW: Save Site Survey Notes ---
+        'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
         
         'installDetails.installDate': el.detailsForm['install-date'].value,
         'installDetails.eeroInfo': el.detailsForm['eero-info'].value,
@@ -560,16 +606,15 @@ async function handleUpdateCustomer(e) {
         showToast('Error updating customer.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
-        // onSnapshot will handle refreshing the data
     }
 }
 
 async function handleDeleteCustomer(e) {
-    e.preventDefault(); // Prevent form from submitting
+    e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
-    const customerName = el.detailsSoNumber.textContent; // Use SO# or name
+    const customerName = el.detailsSoNumber.textContent;
     
     if (window.confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
@@ -577,8 +622,7 @@ async function handleDeleteCustomer(e) {
             const docRef = doc(customersCollectionRef, customerId);
             await deleteDoc(docRef);
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer(); // Clear panel
-            // onSnapshot will update the list
+            handleDeselectCustomer();
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -591,11 +635,10 @@ async function handleDeleteCustomer(e) {
 // --- 6. ACTIONS ---
 
 async function handleSendWelcomeEmail(e) {
-    e.preventDefault(); // Prevent form from submitting
+    e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
     
-    // Get the email and name from the populated (but disabled) form fields
     const toEmail = el.detailsEmail.textContent;
     const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] h3`).textContent;
     
@@ -610,31 +653,25 @@ async function handleSendWelcomeEmail(e) {
 
     el.loadingOverlay.style.display = 'flex';
     
-    // 1. Create the email document in the 'mail' collection
     try {
-        // We use the *user's* UID path for the mail collection,
-        // which matches the new firestore.rules
         const mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
         
         await addDoc(mailCollectionRef, {
             to: [toEmail],
-            // cc: ["billing@example.com"], // Add CCs here if needed
             template: {
-                name: "cfnWelcome", // Use a template name
+                name: "cfnWelcome", 
                 data: {
                     customerName: customerName,
                 },
             },
         });
 
-        // 2. If email doc is created, update the customer's checklist
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, {
             "preInstallChecklist.welcomeEmailSent": true
         });
         
         showToast('Welcome email sent!', 'success');
-        // onSnapshot will update the checkbox
         
     } catch (error) {
         console.error("Error sending welcome email: ", error);
@@ -645,11 +682,10 @@ async function handleSendWelcomeEmail(e) {
 }
 
 async function handleCopyBilling(e) {
-    e.preventDefault(); // Prevent form from submitting
+    e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId) return;
 
-    // Fetch the latest data to ensure we copy the most up-to-date info
     try {
         const docRef = doc(customersCollectionRef, customerId);
         const docSnap = await getDoc(docRef);
@@ -661,12 +697,15 @@ async function handleCopyBilling(e) {
         const data = docSnap.data();
         const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] h3`).textContent;
 
-        // Build the text block
+        // --- UPDATED: Added Site Survey Notes ---
         const billingText = `
 Customer Name: ${customerName}
 Service Order: ${data.serviceOrderNumber}
 Address: ${data.address || ''}
 Service: ${data.serviceSpeed}
+
+Site Survey Notes:
+${data.installDetails.siteSurveyNotes || 'N/A'}
 
 Install Date: ${data.installDetails.installDate || 'N/A'}
 Eero Info: ${data.installDetails.eeroInfo || 'N/A'}
@@ -706,7 +745,6 @@ Post-Install Checklist:
 function showToast(message, type = 'success') {
     el.toast.textContent = message;
     
-    // Reset classes
     el.toast.classList.remove('success', 'error');
     
     if (type === 'error') {
@@ -716,7 +754,6 @@ function showToast(message, type = 'success') {
     }
     el.toast.classList.add('show');
 
-    // Hide after 3 seconds
     setTimeout(() => {
         el.toast.classList.remove('show');
     }, 3000);
