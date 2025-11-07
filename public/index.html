@@ -65,8 +65,23 @@
                     <select id="sort-by" class="form-select">
                         <option value="name">Name (A-Z)</option>
                         <option value="date">Date Added (Newest)</option>
+                        <option value="date-oldest">Date Added (Oldest)</option>
                     </select>
                 </div>
+
+                <!-- === NEW FILTER PILLS === -->
+                <div class="form-group">
+                    <label class="form-label">Filter by Stage</label>
+                    <div id="filter-pills" class="filter-pills">
+                        <button type="button" class="filter-pill active" data-filter="All">All</button>
+                        <button type="button" class="filter-pill" data-filter="New Order">New Order</button>
+                        <button type="button" class="filter-pill" data-filter="Site Survey">Site Survey</button>
+                        <button type="button" class="filter-pill" data-filter="Install">Install</button>
+                        <button type="button" class="filter-pill" data-filter="Completed">Completed</button>
+                        <button type="button" class="filter-pill" data-filter="On Hold">On Hold</button>
+                    </div>
+                </div>
+                <!-- === END FILTER PILLS === -->
 
                 <div id="customer-list-container" class="customer-list-container">
                     <p id="list-loading" class="text-gray-500">Loading customers...</p>
@@ -82,23 +97,41 @@
 
                     <form id="details-form" class="card-content">
 
+                        <!-- === START: NEW STATUS STEPPER === -->
                         <div class="form-group">
-                            <label for="details-status" class="form-label">Status</label>
-                            <select id="details-status" class="form-select">
-                                <option>New Order</option>
-                                <option>Site Survey</option>
-                                <option>Install Scheduled</option>
-                                <option>Completed</option>
-                                <option>On Hold</option>
-                            </select>
+                            <label class="form-label">Status</label>
+                            <div id="status-stepper" class="status-stepper">
+                                <!-- Main Progression -->
+                                <button type="button" class="step" data-status="New Order" data-page="page-pre-install">
+                                    <div class="step-circle">1</div>
+                                    <div class="step-label">New Order</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="Site Survey" data-page="page-site-survey">
+                                    <div class="step-circle">2</div>
+                                    <div class="step-label">Site Survey</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="Install" data-page="page-install">
+                                    <div class="step-circle">3</div>
+                                    <div class="step-label">Install</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="Completed" data-page="page-post-install">
+                                    <div class="step-circle">4</div>
+                                    <div class="step-label">Completed</div>
+                                </button>
+                                
+                                <!-- Special "On Hold" button - REMOVED FROM HERE -->
+                            </div>
+                            <!-- This hidden input will store the actual status value for the form -->
+                            <input type="hidden" id="details-status" name="details-status" />
                         </div>
+                        <!-- === END: NEW STATUS STEPPER === -->
 
-                        <div id="details-tabs" class="details-tabs">
-                            <button type="button" class="tab-link active" data-page="page-pre-install">Pre-Install</button>
-                            <button type="button" class="tab-link" data-page="page-site-survey">Site Survey</button>
-                            <button type="button" class="tab-link" data-page="page-install">Install</button>
-                            <button type="button" class="tab-link" data-page="page-post-install">Post-Install</button>
-                        </div>
+
+                        <!-- === REMOVED old status dropdown === -->
+                        <!-- === REMOVED old details-tabs === -->
 
                         <div id="page-pre-install" class="details-page active">
                             <div class="form-group">
@@ -252,6 +285,20 @@
                                             </button>
                                         </div>
                                     </div>
+
+                                    <!-- === NEW INSTALL NOTES FIELD === -->
+                                    <div class="form-group">
+                                        <label for="install-notes" class="form-label">Install Notes</label>
+                                        <div class="field-wrapper">
+                                            <textarea id="install-notes" rows="5" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                            <button type="button" class="copy-btn" data-target="install-notes">
+                                                <img src="copy.png" alt="Copy" class="icon-copy" />
+                                                <img src="check.png" alt="Copied" class="icon-check" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <!-- === END NEW FIELD === -->
+
                                     <div class="form-group">
                                         <label for="general-notes" class="form-label">General Notes</label>
                                         <div class="field-wrapper">
@@ -306,6 +353,13 @@
                                 <i data-lucide="save" class="btn-icon"></i>
                                 Save Changes
                             </button>
+                            
+                            <!-- MOVED AND RESTYLED "ON HOLD" BUTTON HERE -->
+                            <button type="button" id="on-hold-btn" class="btn btn-warning">
+                                <i data-lucide="pause-circle" class="btn-icon"></i>
+                                <span>Toggle On Hold</span>
+                            </button>
+
                             <button type="button" id="delete-customer-btn" class="btn btn-danger">
                                 <i data-lucide="trash-2" class="btn-icon"></i>
                                 Delete Customer

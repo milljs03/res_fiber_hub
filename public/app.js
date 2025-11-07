@@ -27,6 +27,7 @@ let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
 let currentSort = 'name'; 
+let currentFilter = 'All'; // --- ADDED ---
 
 // --- DOM Elements ---
 const el = {
@@ -58,6 +59,7 @@ const el = {
     listLoading: document.getElementById('list-loading'),
     searchBar: document.getElementById('search-bar'),
     sortBy: document.getElementById('sort-by'), 
+    filterPillsContainer: document.getElementById('filter-pills'), // --- ADDED ---
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
@@ -77,10 +79,10 @@ const el = {
     updateCustomerBtn: document.getElementById('update-customer-btn'),
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
+    onHoldButton: document.getElementById('on-hold-btn'), 
 
-    // Tab Navigation Elements
-    detailsTabs: document.getElementById('details-tabs'),
-    tabLinks: document.querySelectorAll('.tab-link'),
+    // --- UPDATED: Stepper and Pages ---
+    statusStepper: document.getElementById('status-stepper'),
     detailsPages: document.querySelectorAll('.details-page'),
     
     // Toast
@@ -157,14 +159,32 @@ function setupEventListeners() {
     
     // Search
     el.searchBar.addEventListener('input', (e) => {
-        filterCustomerList(e.target.value.toLowerCase());
+        // --- MODIFIED ---
+        displayCustomers();
     });
 
     // Sort Listener
     el.sortBy.addEventListener('change', (e) => {
         currentSort = e.target.value;
-        renderCustomerList(allCustomers);
-        filterCustomerList(el.searchBar.value.toLowerCase());
+        // --- MODIFIED ---
+        displayCustomers();
+    });
+
+    // --- ADDED ---
+    // Filter Pill Listener
+    el.filterPillsContainer.addEventListener('click', (e) => {
+        const pill = e.target.closest('.filter-pill');
+        if (!pill) return;
+
+        // Update active class
+        el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => {
+            p.classList.remove('active');
+        });
+        pill.classList.add('active');
+
+        // Update state and re-render
+        currentFilter = pill.dataset.filter;
+        displayCustomers();
     });
 
     // List clicks
@@ -182,17 +202,30 @@ function setupEventListeners() {
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
-    // Tab and Status Listeners
-    el.detailsTabs.addEventListener('click', (e) => {
-        const tabLink = e.target.closest('.tab-link');
-        if (tabLink) {
-            e.preventDefault();
-            showDetailsPage(tabLink.dataset.page);
+    // --- NEW Stepper Click Listener ---
+    el.statusStepper.addEventListener('click', (e) => {
+        const stepButton = e.target.closest('.step'); 
+        if (!stepButton) return;
+
+        e.preventDefault();
+        const newStatus = stepButton.dataset.status;
+        const pageId = stepButton.dataset.page;
+
+        // Set the hidden input's value
+        el.detailsForm['details-status'].value = newStatus;
+
+        // Update the UI
+        updateStepperUI(newStatus);
+        showDetailsPage(pageId);
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
         }
     });
-    el.detailsForm['details-status'].addEventListener('change', (e) => {
-        syncPageToStatus(e.target.value);
-    });
+
+    // --- ADDED ---
+    // New listener for the moved toggle button
+    el.onHoldButton.addEventListener('click', handleToggleOnHold);
 }
 
 // --- 3. CUSTOMER LIST (READ) ---
@@ -210,14 +243,15 @@ function loadCustomers() {
             allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
-        renderCustomerList(allCustomers);
-        filterCustomerList(el.searchBar.value.toLowerCase());
+        // --- MODIFIED ---
+        displayCustomers();
         
         if (selectedCustomerId) {
             const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
                 populateDetailsForm(freshData);
-                syncPageToStatus(el.detailsForm['details-status'].value);
+                // --- RENAMED FUNCTION CALL ---
+                setPageForStatus(el.detailsForm['details-status'].value);
             } else {
                 handleDeselectCustomer();
             }
@@ -229,25 +263,57 @@ function loadCustomers() {
     });
 }
 
-// --- REVAMPED: renderCustomerList ---
-function renderCustomerList(customers) {
+// --- NEW CENTRAL RENDER FUNCTION ---
+function displayCustomers() {
+    const searchTerm = el.searchBar.value.toLowerCase();
+    
+    let filteredCustomers = [...allCustomers];
+
+    // 1. Apply Stage Filter
+    if (currentFilter !== 'All') {
+        filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
+    }
+
+    // 2. Apply Search Filter
+    if (searchTerm) {
+        filteredCustomers = filteredCustomers.filter(c => 
+            (c.customerName || '').toLowerCase().includes(searchTerm) || 
+            (c.address || '').toLowerCase().includes(searchTerm)
+        );
+    }
+
+    // 3. Apply Sort
+    if (currentSort === 'name') {
+        filteredCustomers.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
+    } else if (currentSort === 'date') {
+        filteredCustomers.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    } else if (currentSort === 'date-oldest') { // --- ADDED ---
+        filteredCustomers.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    }
+
+    // 4. Render the final list
+    renderCustomerList(filteredCustomers, searchTerm);
+}
+
+// --- MODIFIED: renderCustomerList (removed sorting, added searchterm) ---
+function renderCustomerList(customersToRender, searchTerm = '') {
     el.customerListContainer.innerHTML = '';
     el.customerListContainer.appendChild(el.listLoading); 
 
-    if (customers.length === 0) {
-        el.listLoading.textContent = 'No customers found. Add one to get started!';
+    if (customersToRender.length === 0) {
+        if (searchTerm) {
+            el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
+        } else if (currentFilter !== 'All') {
+            el.listLoading.textContent = `No customers found in stage "${currentFilter}".`;
+        } else {
+            el.listLoading.textContent = 'No customers found. Add one to get started!';
+        }
         el.listLoading.style.display = 'block';
         return;
     }
     el.listLoading.style.display = 'none'; 
 
-    const customersToRender = [...customers];
-
-    if (currentSort === 'name') {
-        customersToRender.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
-    } else if (currentSort === 'date') {
-        customersToRender.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    }
+    // --- REMOVED Sorting logic from here ---
 
     customersToRender.forEach(customer => {
         const item = document.createElement('div');
@@ -268,7 +334,6 @@ function renderCustomerList(customers) {
             createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
         }
 
-        // --- UPDATED: New 2-line HTML structure with .customer-item-footer ---
         item.innerHTML = `
             <div class="customer-item-header">
                 <h3 class="customer-item-name">${customer.customerName}</h3>
@@ -284,33 +349,7 @@ function renderCustomerList(customers) {
     });
 }
 
-function filterCustomerList(searchTerm) {
-    const items = el.customerListContainer.querySelectorAll('.customer-item');
-    let visibleCount = 0;
-    
-    items.forEach(item => {
-        const name = item.querySelector('.customer-item-name').textContent.toLowerCase();
-        const addressElement = item.querySelector('.search-address');
-        const address = addressElement ? addressElement.textContent.toLowerCase() : '';
-        
-        if (name.includes(searchTerm) || address.includes(searchTerm)) {
-            item.style.display = 'block';
-            visibleCount++;
-        } else {
-            item.style.display = 'none';
-        }
-    });
-
-    if (visibleCount === 0 && items.length > 0) {
-        el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
-        el.listLoading.style.display = 'block';
-    } else if (visibleCount > 0) {
-        el.listLoading.style.display = 'none';
-    } else if (visibleCount === 0 && items.length === 0) {
-        el.listLoading.textContent = 'No customers found. Add one to get started!';
-        el.listLoading.style.display = 'block';
-    }
-}
+// --- REMOVED: filterCustomerList function ---
 // --- End Revamp ---
 
 
@@ -356,7 +395,8 @@ async function handleAddCustomer(e) {
             nidLightReading: "",
             additionalEquipment: "",
             generalNotes: "",
-            siteSurveyNotes: ""
+            siteSurveyNotes: "",
+            installNotes: "" // --- ADDED ---
         },
         postInstallChecklist: {
             removedFromFiberList: false,
@@ -397,7 +437,8 @@ async function handleSelectCustomer(customerId, customerItem) {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             populateDetailsForm(docSnap.data());
-            syncPageToStatus(docSnap.data().status);
+            // --- RENAMED FUNCTION CALL ---
+            setPageForStatus(docSnap.data().status);
         } else {
             showToast('Could not find customer data.', 'error');
             handleDeselectCustomer();
@@ -448,42 +489,119 @@ function populateDetailsForm(data) {
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsForm['general-notes'].value = data.installDetails?.generalNotes || '';
+    el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; // --- ADDED ---
     // Post-Install
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
+
+    // --- ADDED ---
+    // This will style the stepper correctly when a customer is loaded
+    updateStepperUI(data.status || 'New Order');
 }
 
 function showDetailsPage(pageId) {
     el.detailsPages.forEach(page => page.classList.remove('active'));
-    el.tabLinks.forEach(link => link.classList.remove('active'));
+    // --- REMOVED tab link logic ---
+    
     const targetPage = document.getElementById(pageId);
     if (targetPage) targetPage.classList.add('active');
-    const targetLink = el.detailsTabs.querySelector(`.tab-link[data-page="${pageId}"]`);
-    if (targetLink) targetLink.classList.add('active');
+    
+    // --- REMOVED tab link logic ---
 }
 
-function syncPageToStatus(status) {
+// --- RENAMED and UPDATED ---
+function setPageForStatus(status) {
     switch (status) {
-        case 'New Order':
-            showDetailsPage('page-pre-install');
-            break;
         case 'Site Survey':
             showDetailsPage('page-site-survey');
             break;
-        case 'Install Scheduled':
+        case 'Install':
             showDetailsPage('page-install');
             break;
         case 'Completed':
             showDetailsPage('page-post-install');
             break;
+        case 'New Order':
         case 'On Hold':
-            showDetailsPage('page-pre-install');
-            break;
         default:
             showDetailsPage('page-pre-install');
     }
 }
+
+// --- NEW FUNCTION ---
+function handleToggleOnHold(e) {
+    e.preventDefault(); // It's in a form
+    const currentStatus = el.detailsForm['details-status'].value;
+
+    if (currentStatus === 'On Hold') {
+        // TOGGLE OFF
+        // Get the status we saved, or default to 'New Order'
+        const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
+        el.detailsForm['details-status'].value = statusToRestore;
+        updateStepperUI(statusToRestore);
+        setPageForStatus(statusToRestore);
+    } else {
+        // TOGGLE ON
+        // Save the current status before setting to "On Hold"
+        el.detailsForm.dataset.statusBeforeHold = currentStatus;
+        el.detailsForm['details-status'].value = 'On Hold';
+        updateStepperUI('On Hold');
+        setPageForStatus('On Hold'); // Shows pre-install page
+    }
+    
+    // Refresh lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// --- MODIFIED FUNCTION ---
+function updateStepperUI(currentStatus) {
+    const steps = ['New Order', 'Site Survey', 'Install', 'Completed'];
+    const allStepButtons = el.statusStepper.querySelectorAll('.step');
+
+    // Reset all styles
+    allStepButtons.forEach(btn => {
+        btn.classList.remove('active', 'completed');
+    });
+
+    // --- NEW LOGIC for the moved button ---
+    const onHoldBtnText = el.onHoldButton.querySelector('span');
+
+    if (currentStatus === 'On Hold') {
+        // Handle "On Hold" state
+        el.onHoldButton.classList.add('active');
+        if (onHoldBtnText) onHoldBtnText.textContent = 'Status: On Hold';
+        el.statusStepper.classList.add('is-on-hold'); // Keep this style to dim stepper
+        
+    } else {
+        // Handle main progression states
+        el.onHoldButton.classList.remove('active');
+        if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
+        el.statusStepper.classList.remove('is-on-hold'); // Remove dimming
+
+        const statusIndex = steps.indexOf(currentStatus);
+        if (statusIndex !== -1) {
+            for (let i = 0; i < allStepButtons.length; i++) {
+                const stepButton = allStepButtons[i];
+                if (i < statusIndex) {
+                    stepButton.classList.add('completed');
+                } else if (i === statusIndex) {
+                    stepButton.classList.add('active');
+                }
+            }
+        } else {
+            // Default to New Order if status is unknown (e.g., null)
+            const newOrderButton = el.statusStepper.querySelector('.step[data-status="New Order"]');
+            if (newOrderButton) {
+                newOrderButton.classList.add('active');
+            }
+        }
+    }
+}
+// --- END MODIFIED FUNCTION ---
+
 
 function handleDetailsFormClick(e) {
     const copyBtn = e.target.closest('.copy-btn');
@@ -523,6 +641,7 @@ async function handleUpdateCustomer(e) {
     if (!customerId || !customersCollectionRef) return;
 
     const updatedData = {
+        // --- UPDATED to use the hidden input ---
         'status': el.detailsForm['details-status'].value,
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
@@ -534,6 +653,7 @@ async function handleUpdateCustomer(e) {
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value,
         'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
         'installDetails.generalNotes': el.detailsForm['general-notes'].value,
+        'installDetails.installNotes': el.detailsForm['install-notes'].value, // --- ADDED ---
         'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
         'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
         'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked
@@ -558,7 +678,8 @@ async function handleDeleteCustomer(e) {
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsSoNumber.textContent;
     
-    if (window.confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
+    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
+    if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
@@ -585,7 +706,8 @@ async function handleSendWelcomeEmail(e) {
         showToast('No customer email on file to send to.', 'error');
         return;
     }
-    if (!window.confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
+    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
+    if (!confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
         return;
     }
     el.loadingOverlay.style.display = 'flex';
@@ -619,28 +741,16 @@ async function handleCopyBilling(e) {
         }
         const data = docSnap.data();
         const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
+        
+        // --- MODIFIED BILLING TEXT ---
         const billingText = `
 Customer Name: ${customerName}
-Service Order: ${data.serviceOrderNumber}
-Address: ${data.address || ''}
-Service: ${data.serviceSpeed}
-
-Site Survey Notes:
-${data.installDetails.siteSurveyNotes || 'N/A'}
-
-Install Date: ${data.installDetails.installDate || 'N/A'}
-Eero Info: ${data.installDetails.eeroInfo || 'N/A'}
-NID Light Reading: ${data.installDetails.nidLightReading || 'N/A'}
+Address: ${data.address || 'N/A'}
+Service Order: ${data.serviceOrderNumber || 'N/A'}
+Date Installed: ${data.installDetails.installDate || 'N/A'}
 Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
+        `.trim().replace(/^\s+\n/gm, '\n'); // Clean up whitespace
 
-General Notes:
-${data.installDetails.generalNotes || 'N/A'}
-
-Post-Install Checklist:
-- Removed from Fiber List: ${data.postInstallChecklist.removedFromFiberList ? 'YES' : 'NO'}
-- Removed from Site Survey: ${data.postInstallChecklist.removedFromSiteSurvey ? 'YES' : 'NO'}
-- Updated Repair Shoppr: ${data.postInstallChecklist.updatedRepairShoppr ? 'YES' : 'NO'}
-        `.trim();
         const ta = document.createElement('textarea');
         ta.value = billingText;
         ta.style.position = 'absolute';

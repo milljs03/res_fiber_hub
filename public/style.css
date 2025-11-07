@@ -61,6 +61,22 @@ body {
     background-color: #fee2e2; /* hover:bg-red-200 */
 }
 
+/* --- ADD NEW BUTTON STYLE --- */
+.btn-warning {
+    background-color: #fef3c7; /* yellow-100 */
+    color: #b45309; /* yellow-700 */
+    border-color: #fde68a; /* yellow-200 */
+}
+.btn-warning:hover:not(:disabled) {
+    background-color: #fde68a; /* yellow-200 */
+}
+.btn-warning.active {
+    background-color: #d97706; /* yellow-600 */
+    color: white;
+    border-color: #b45309;
+}
+/* --- END NEW BUTTON STYLE --- */
+
 .btn-full-width {
     width: 100%;
 }
@@ -280,6 +296,34 @@ body {
     padding-left: 2.5rem; 
 }
 
+/* === NEW FILTER PILL STYLES === */
+.filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem; /* 8px */
+}
+.filter-pill {
+    font-family: 'Inter', sans-serif;
+    border: 1px solid #d1d5db; /* border-gray-300 */
+    background-color: white;
+    color: #374151; /* text-gray-700 */
+    padding: 0.25rem 0.75rem; /* py-1 px-3 */
+    border-radius: 9999px; /* rounded-full */
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.filter-pill:hover {
+    background-color: #f9fafb; /* hover:bg-gray-50 */
+}
+.filter-pill.active {
+    background-color: #4f46e5; /* bg-indigo-600 */
+    color: white;
+    border-color: #4f46e5;
+}
+/* === END FILTER PILL STYLES === */
+
 .customer-list-container {
     display: flex;
     flex-direction: column;
@@ -380,7 +424,7 @@ body {
     background-color: #FEF3C7; /* yellow-100 */
     color: #B45309; /* yellow-700 */
 }
-.status-install-scheduled {
+.status-install {
     background-color: #E0E7FF; /* indigo-100 */
     color: #3730A3; /* indigo-700 */
 }
@@ -389,8 +433,8 @@ body {
     color: #065F46; /* green-700 */
 }
 .status-on-hold {
-    background-color: #F3F4F6; /* gray-100 */
-    color: #374151; /* gray-700 */
+    background-color: #fd9898; /* gray-100 */
+    color: #7e1313; /* gray-700 */
 }
 .status-default {
     background-color: #F3F4F6; /* gray-100 */
@@ -415,7 +459,8 @@ body {
 }
 
 
-/* --- Tab Styles --- */
+/* --- REMOVED Tab Styles --- */
+/*
 .details-tabs {
     display: flex;
     border-bottom: 2px solid #e5e7eb; 
@@ -440,6 +485,101 @@ body {
     color: #4f46e5; 
     border-color: #4f46e5; 
 }
+*/
+
+/* --- NEW STATUS STEPPER STYLES --- */
+.status-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    /* flex-wrap: wrap; REMOVED - no longer needed */
+    margin-bottom: 1.25rem; /* Re-add margin from removed tabs */
+}
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    text-align: center;
+    flex: 1; /* Allow steps to take up space */
+    min-width: 60px; /* Prevent shrinking too much */
+}
+.step-circle {
+    width: 2rem; /* 32px */
+    height: 2rem;
+    border-radius: 9999px; /* rounded-full */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 600; /* font-semibold */
+    background-color: #f3f4f6; /* bg-gray-100 */
+    color: #6b7280; /* text-gray-500 */
+    border: 2px solid #e5e7eb; /* border-gray-200 */
+    transition: all 0.2s ease-in-out;
+}
+.step-label {
+    font-size: 0.75rem; /* text-xs */
+    font-weight: 500;
+    color: #6b7280; /* text-gray-500 */
+    transition: all 0.2s ease-in-out;
+}
+
+/* --- Connector Lines --- */
+.step-connector {
+    flex: 1;
+    height: 2px;
+    background-color: #e5e7eb; /* border-gray-200 */
+    margin: 0 0.5rem;
+    margin-bottom: 2rem; /* Align with bottom of circle */
+    min-width: 1rem;
+    transition: all 0.2s ease-in-out;
+}
+
+/* --- Step States (Active / Completed) --- */
+
+/* An active step (the current one) */
+.step.active .step-circle {
+    background-color: #eef2ff; /* bg-indigo-100 */
+    color: #4f46e5; /* text-indigo-600 */
+    border-color: #4f46e5; /* border-indigo-600 */
+}
+.step.active .step-label {
+    color: #4f46e5; /* text-indigo-600 */
+    font-weight: 600;
+}
+
+/* A completed step (previous steps) */
+.step.completed .step-circle {
+    background-color: #4f46e5; /* bg-indigo-600 */
+    color: #ffffff; /* text-white */
+    border-color: #4f46e5; /* border-indigo-600 */
+}
+.step.completed .step-label {
+    color: #374151; /* text-gray-700 */
+}
+.step.completed + .step-connector {
+    background-color: #4f46e5; /* bg-indigo-600 */
+}
+
+/* --- "On Hold" Button - REMOVED ALL .step-on-hold styles --- */
+
+
+/* When "On Hold" is active, dim the main stepper */
+.status-stepper.is-on-hold .step {
+    opacity: 0.6;
+}
+.status-stepper.is-on-hold .step-connector {
+    opacity: 0.6;
+}
+/* --- END: NEW STATUS STEPPER STYLES --- */
+
 .details-page {
     display: none; 
     flex-direction: column;
