@@ -52,44 +52,50 @@
                 <div class="dashboard-header-toggle">
                     <h2 class="card-title">At a Glance</h2>
                     <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
-                        <i data-lucide="chevron-down" class="toggle-icon" id="dashboard-toggle-icon"></i>
+                        <!-- UPDATED: Use IMG tag for PNG assets -->
+                        <img src="chevron_down.png" alt="Toggle" class="toggle-icon" id="dashboard-toggle-icon">
                     </button>
                 </div>
                 
                 <!-- Collapsible Content Wrapper -->
                 <div id="dashboard-content" class="dashboard-content-collapsible active">
-                    <!-- First Row: KPI Stats -->
+
                     <div id="dashboard-stats-grid" class="dashboard-stats-grid">
+                        <!-- 1. Active Stat Box (populated by JS into this container) -->
                         <div id="stats-summary-active-wrapper" class="stat-wrapper">
-                            <!-- Active Stats content goes here -->
+                            <!-- JS content for Active Stats goes here -->
                         </div>
+                        
+                        <!-- 2. Completed Stat Box (populated by JS into this container) -->
                         <div id="stats-summary-completed-wrapper" class="stat-wrapper">
-                            <!-- Completed Stats content goes here -->
+                            <!-- JS content for Completed Stats goes here -->
                         </div>
+
+                        <!-- 3. Overall Avg Install Time Stat Box (NEW KPI) -->
                         <div id="overall-install-time-wrapper" class="stat-wrapper">
-                            <!-- Overall Avg Time content goes here -->
+                            <!-- JS content for Avg Time Stat goes here -->
                         </div>
                     </div>
-                    
-                    <!-- Second Row: Charts -->
-                    <div id="dashboard-charts-grid" class="dashboard-stats-grid" style="margin-top: 1rem;">
+
+                    <!-- Chart Grid (3 columns) -->
+                    <div id="dashboard-chart-grid" class="dashboard-stats-grid" style="margin-top: 1.5rem;">
                         <!-- 1. YTD Installs Chart -->
-                        <div id="chart-area-box-installs" class="chart-area-box">
+                        <div id="chart-area-box-ytd" class="chart-area-box">
                             <h3 class="chart-title">YTD Installs</h3>
-                            <div id="chart-area-installs" class="chart-area">
+                            <div id="chart-area" class="chart-area">
                                 <canvas id="installations-chart"></canvas>
                             </div>
                         </div>
 
-                        <!-- 2. Monthly Avg Time Chart -->
+                        <!-- 2. Monthly Avg Install Time Chart -->
                         <div id="chart-area-box-monthly-avg" class="chart-area-box">
                             <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
                             <div id="chart-area-monthly-avg" class="chart-area">
                                 <canvas id="monthly-install-chart"></canvas>
                             </div>
                         </div>
-                        
-                        <!-- 3. Speed Breakdown Chart -->
+
+                        <!-- 3. Service Speed Breakdown Chart -->
                         <div id="chart-area-box-speed" class="chart-area-box">
                             <h3 class="chart-title">Service Speed Breakdown</h3>
                             <div id="chart-area-speed" class="chart-area">
@@ -97,6 +103,7 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -212,7 +219,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-customer-name">Customer Name</label>
                                 <div class="field-wrapper">
-                                    <input type="text" id="details-customer-name" class="form-input" required>
+                                    <input type="text" id="details-customer-name" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-customer-name">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -222,7 +229,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-so-number">Service Order #</label>
                                 <div class="field-wrapper">
-                                    <input type="text" id="details-so-number" class="form-input" required>
+                                    <input type="text" id="details-so-number" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-so-number">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -232,7 +239,8 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-address">Address</label>
                                 <div class="field-wrapper">
-                                    <textarea id="details-address" rows="3" class="form-textarea"></textarea>
+                                    <textarea id="details-address" rows="3" class="form-textarea" style="padding-right: 2.5rem;">
+                                    </textarea>
                                     <button type="button" class="copy-btn" data-target="details-address">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -242,8 +250,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-speed">Service Speed</label>
                                 <div class="field-wrapper">
-                                    <!-- Changed to input/text area to maintain flexibility if non-standard speeds are edited -->
-                                    <input type="text" id="details-speed" class="form-input"> 
+                                    <input type="text" id="details-speed" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-speed">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -253,7 +260,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-email">Primary Email</label>
                                 <div class="field-wrapper">
-                                    <input type="email" id="details-email" class="form-input">
+                                    <input type="email" id="details-email" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-email">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -263,7 +270,7 @@
                             <div class="form-group">
                                 <label class="form-label" for="details-phone">Primary Phone</label>
                                 <div class="field-wrapper">
-                                    <input type="tel" id="details-phone" class="form-input">
+                                    <input type="tel" id="details-phone" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-phone">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
@@ -553,7 +560,12 @@
     <script type="module" src="app.js"></script>
 
     <script>
-        lucide.createIcons();
+        // FIX: Ensure Lucide icons are created after the script is fully loaded.
+        window.onload = function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        };
     </script>
 </body>
 </html>
