@@ -89,7 +89,7 @@ const el = {
     // NEW KPIs
     overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
     monthlyInstallChart: document.getElementById('monthly-install-chart'), 
-    speedBreakdownChart: document.getElementById('speed-breakdown-chart'), // NEW REFERENCE
+    speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
     // --- END NEW ELEMENTS ---
 
     // Details Panel
@@ -100,7 +100,7 @@ const el = {
     
     // Copyable/Editable Fields (UPDATED REFERENCES)
     detailsSoNumberInput: document.getElementById('details-so-number'),
-    detailsCustomerNameInput: document.getElementById('details-customer-name'), // NEW: Add this to DOM
+    detailsCustomerNameInput: document.getElementById('details-customer-name'),
     detailsAddressInput: document.getElementById('details-address'),
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
@@ -415,23 +415,22 @@ function parseServiceOrderText(rawText) {
             
             // 2a. Construct the final customer name
             let combinedNames = '';
-            if (firstNames && firstNames.includes('&')) {
-                // Case 1: Joint name (HATFIELD in Line 1, SCOTT & ALYSSA in Line 2 prefix)
+            
+            // --- MANUAL TWEAK: Simplify and prioritize extracted names if present ---
+            if (firstNames.length > 0) {
+                // If we successfully extracted first names from the address prefix (e.g., "SCOTT & ALYSSA"),
+                // combine them with the last name (e.g., "HATFIELD") from Line 1.
                 combinedNames = `${firstNames} ${lastName}`;
-            } else if (lastName.includes(' ') && !lastName.includes('&')) {
-                // Case 2: Single name order (TY MILLER) where the full name is already in Line 1
-                 combinedNames = lastName;
-            } else if (firstNames.length > 0 && lastName.length > 0) {
-                 // Case 3: Names were successfully separated, but no '&' detected (e.g., John Smith on line 2, Doe on line 1)
-                 // Reorder back to First Last Doe or if it was just Doe Smith it goes back to Doe Smith
-                 combinedNames = `${firstNames} ${lastName}`;
-            } else if (lastName.length > 0) {
-                // Case 4: Single person, only last name found in Line 1 (HATFIELD) and no names extracted from address prefix.
+                
+            } else if (lastName.includes(' ')) {
+                // Case for single name orders like "TY MILLER" found entirely in Line 1.
+                // We trust this name format if no prefix extraction was needed.
                 combinedNames = lastName;
             } else {
-                 // Fallback for names in unknown format
-                 combinedNames = firstNames || lastName;
+                // Fallback: Use whatever we got in Line 1 (the single last name).
+                combinedNames = lastName;
             }
+            // --- END MANUAL TWEAK ---
             
             data.customerName = combinedNames; // Assign the correctly combined name
             
@@ -629,26 +628,33 @@ function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTi
         return order[a] - order[b];
     });
 
+    // --- UPDATED: Generate status pills for a clean grid view (Status - Count format) ---
     activeStatuses.forEach(status => {
-        if (statusCounts[status] > 0) {
-            breakdownHtml += `<span>${statusCounts[status]} in ${status}</span>, `;
+        const count = statusCounts[status] || 0;
+        // Only show stages that have at least one order
+        if (count > 0) {
+            const statusSlug = status.toLowerCase().replace(/ /g, '-');
+            breakdownHtml += `
+                <div class="active-breakdown-item">
+                    <span class="status-pill status-${statusSlug}">${status} - ${count}</span>
+                </div>
+            `;
         }
     });
 
-    // Clean up trailing comma and space
-    breakdownHtml = breakdownHtml.replace(/, $/, '');
     if (breakdownHtml === '') {
-         breakdownHtml = 'No orders currently in progress.';
+         breakdownHtml = '<p class="text-gray-500">No orders currently in progress.</p>';
     }
 
-    // --- RENDER ACTIVE STAT ---
+    // --- RENDER ACTIVE STAT (using the new breakdown grid) ---
     el.statsSummaryActiveWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #eef2ff; border: 1px solid #c7d2fe;">
             <div class="stat-main-title">Active Orders</div>
             <div class="stat-main-value" style="color: #4f46e5;">${totalActive}</div>
-            <p class="stat-breakdown">${breakdownHtml}</p>
+            <div class="active-breakdown-grid">${breakdownHtml}</div>
         </div>
     `;
+    // --- END UPDATED RENDER ---
 
     // --- RENDER COMPLETED STAT ---
     el.statsSummaryCompletedWrapper.innerHTML = `
@@ -739,14 +745,16 @@ function renderChart(ytdInstalls, currentYear) {
 let monthlyAvgChart = null; 
 
 function renderMonthlyAverageChart(monthlyAverages) {
-    const sortedKeys = Object.keys(monthlyAverages).sort((a, b) => a.localeCompare(b));
+    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
+    
     const chartLabels = sortedKeys.map(key => {
         const [year, month] = key.split('-');
         const date = new Date(year, month - 1);
-        return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
     });
-    const chartData = sortedKeys.map(key => parseFloat(monthlyAverages[key]));
-    
+
+    const chartData = sortedKeys.map(key => monthlyAverages[key]);
+
     if (monthlyAvgChart) {
         monthlyAvgChart.destroy();
     }
@@ -763,15 +771,13 @@ function renderMonthlyAverageChart(monthlyAverages) {
         data: {
             labels: chartLabels,
             datasets: [{
-                label: 'Avg Days (Order to Install)',
+                label: 'Avg Days',
                 data: chartData,
-                borderColor: '#dc2626', // Red color
-                backgroundColor: 'rgba(220, 38, 38, 0.1)', 
+                borderColor: '#ef4444', // Red color for attention
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
                 borderWidth: 2,
                 tension: 0.3,
-                fill: true,
-                pointRadius: 4,
-                pointBackgroundColor: '#dc2626'
+                pointRadius: 4
             }]
         },
         options: {
@@ -786,8 +792,7 @@ function renderMonthlyAverageChart(monthlyAverages) {
                 y: {
                     beginAtZero: true,
                     title: {
-                        display: true,
-                        text: 'Average Days'
+                        display: false
                     },
                     ticks: {
                         precision: 0
@@ -796,16 +801,7 @@ function renderMonthlyAverageChart(monthlyAverages) {
             },
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        boxWidth: 12
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: (context) => `Avg Time: ${context.raw} days`
-                    }
+                    display: false
                 }
             }
         }
@@ -813,54 +809,53 @@ function renderMonthlyAverageChart(monthlyAverages) {
 }
 
 // --- NEW FUNCTION: RENDER SPEED BREAKDOWN CHART ---
-let speedChart = null; 
+let speedBreakdownChart = null;
 
 function renderSpeedBreakdownChart(speedCounts) {
-    const speedLabels = Object.keys(speedCounts).sort();
-    const speedData = speedLabels.map(label => speedCounts[label]);
+    const speeds = Object.keys(speedCounts);
+    const counts = Object.values(speedCounts);
     
-    // Map speeds to colors for a better visual experience
-    const getSpeedColor = (label) => {
-        if (label.includes('1 Gbps')) return '#4f46e5';
-        if (label.includes('500 Mbps')) return '#10b981';
-        if (label.includes('200 Mbps')) return '#f59e0b';
-        return '#9ca3af';
-    };
-    
-    const chartColors = speedLabels.map(label => getSpeedColor(label));
+    const colors = [
+        '#065F46', // green-700 (200 Mbps)
+        '#FBBF24', // amber-400 (500 Mbps)
+        '#4F46E5', // indigo-600 (1 Gbps)
+        '#6B7280'  // gray-500 (Unknown)
+    ];
 
-    if (speedChart) {
-        speedChart.destroy();
+    if (speedBreakdownChart) {
+        speedBreakdownChart.destroy();
     }
-
+    
     if (!el.speedBreakdownChart) {
         console.error("Chart canvas (speed-breakdown-chart) not found.");
         return;
     }
-    
-    const Chart = window.Chart;
 
-    speedChart = new Chart(el.speedBreakdownChart, {
+    const Chart = window.Chart;
+    
+    speedBreakdownChart = new Chart(el.speedBreakdownChart, {
         type: 'doughnut',
         data: {
-            labels: speedLabels,
+            labels: speeds,
             datasets: [{
-                label: 'Customers',
-                data: speedData,
-                backgroundColor: chartColors,
-                hoverOffset: 4,
-                borderWidth: 1,
-                borderColor: '#ffffff'
+                label: 'Customer Count',
+                data: counts,
+                backgroundColor: colors.slice(0, speeds.length),
+                hoverOffset: 4
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false, // <-- FIX APPLIED HERE
+            maintainAspectRatio: false, // CRITICAL: Ensures chart respects container size
             plugins: {
                 legend: {
-                    position: 'bottom',
+                    position: 'right',
                     labels: {
-                        boxWidth: 5
+                        boxWidth: 10,
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
                     }
                 },
                 title: {
@@ -869,56 +864,6 @@ function renderSpeedBreakdownChart(speedCounts) {
             }
         }
     });
-}
-// --- END DASHBOARD FUNCTIONS ---
-
-
-// ... (rest of the file remains unchanged)
-function updateCompletedFilterOptions() {
-    // Filter down to only completed customers with an install date
-    const completedCustomers = allCustomers.filter(c => 
-        c.status === 'Completed' && c.installDetails?.installDate
-    );
-
-    // Get unique 'YYYY-MM' strings
-    const dateMap = new Map(); 
-    completedCustomers.forEach(c => {
-        const dateString = c.installDetails.installDate; // format: 'YYYY-MM-DD'
-        const date = new Date(dateString.replace(/-/g, '/')); // Use forward slashes for cross-browser compatibility
-        // Using 'en-US' or similar to get locale month name, and full year
-        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
-        const monthYearValue = dateString.substring(0, 7); // 'YYYY-MM'
-        
-        dateMap.set(monthYearValue, monthYearKey);
-    });
-
-    // Convert Map entries to a list of objects for sorting and rendering
-    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
-
-    // Sort newest to oldest (reverse alphabetical on YYYY-MM)
-    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
-    
-    // Render options
-    el.completedFilterSelect.innerHTML = '';
-    
-    // Add "All" option
-    const allOption = document.createElement('option');
-    allOption.value = 'All';
-    allOption.textContent = 'All Completed Orders';
-    el.completedFilterSelect.appendChild(allOption);
-
-    sortedDates.forEach(date => {
-        const option = document.createElement('option');
-        option.value = date.value;
-        option.textContent = date.text;
-        el.completedFilterSelect.appendChild(option);
-    });
-    
-    // Ensure the filter state is valid after update
-    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
-        currentCompletedFilter = 'All';
-    }
-    el.completedFilterSelect.value = currentCompletedFilter;
 }
 
 
@@ -982,7 +927,7 @@ function displayCustomers() {
 
     } else if (currentFilter !== 'All') {
         // Show only the selected active status (New Order, Site Survey, NID, On Hold)
-        filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed' && c.status === currentFilter);
+        filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
         
     } else {
         // 'All' filter selected: Show all EXCEPT 'Completed' (active list view)
@@ -1195,9 +1140,9 @@ function handleDeselectCustomer() {
 }
 
 function populateDetailsForm(data) {
-    // Editable fields (UPDATED TO USE .value)
+    // Editable Fields (Input/Textarea)
+    el.detailsCustomerNameInput.value = data.customerName || '';
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
-    el.detailsCustomerNameInput.value = data.customerName || ''; // NEW
     el.detailsAddressInput.value = data.address || '';
     el.detailsSpeedInput.value = data.serviceSpeed || '';
     el.detailsEmailInput.value = data.primaryContact?.email || '';
@@ -1339,8 +1284,9 @@ function handleDetailsFormClick(e) {
     if (!targetId) return;
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
-    // --- UPDATED: Check if the element is an input/textarea (value) or span (textContent) ---
-    const textToCopy = (targetElement.tagName === 'SPAN' || targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA') ? targetElement.value : targetElement.textContent;
+    // --- UPDATED: Use .value for inputs, .textContent for span fallback ---
+    const textToCopy = (targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.tagName === 'SELECT') ? targetElement.value : targetElement.textContent;
+    // --- END UPDATED ---
     if (!textToCopy) {
         showToast('Nothing to copy.', 'error');
         return;
@@ -1371,15 +1317,15 @@ async function handleUpdateCustomer(e) {
     if (!customerId || !customersCollectionRef) return;
 
     const updatedData = {
-        // Editable fields (UPDATED TO READ FROM INPUTS)
+        // --- UPDATED: Editable Input Fields ---
+        'customerName': el.detailsCustomerNameInput.value,
         'serviceOrderNumber': el.detailsSoNumberInput.value,
-        'customerName': el.detailsCustomerNameInput.value, // NEW
         'address': el.detailsAddressInput.value,
         'serviceSpeed': el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
+        // --- END UPDATED ---
         
-        // Checklist/Status fields (UNCHANGED)
         'status': el.detailsForm['details-status'].value,
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
@@ -1414,7 +1360,7 @@ async function handleDeleteCustomer(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
-    const customerName = el.detailsSoNumberInput.value; // UPDATED reference
+    const customerName = el.detailsCustomerNameInput.value;
     
     // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
     if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
@@ -1437,9 +1383,9 @@ async function handleDeleteCustomer(e) {
 async function handleSendWelcomeEmail(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
-    if (!customerId || !customersCollectionRef) return;
-    const toEmail = el.detailsEmailInput.value; // UPDATED reference
-    const customerName = el.detailsCustomerNameInput.value; // UPDATED reference
+    if (!customerId || !mailCollectionRef) return;
+    const toEmail = el.detailsEmailInput.value;
+    const customerName = el.detailsCustomerNameInput.value;
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
@@ -1450,7 +1396,6 @@ async function handleSendWelcomeEmail(e) {
     }
     el.loadingOverlay.style.display = 'flex';
     try {
-        // Use the dedicated mail collection reference
         await addDoc(mailCollectionRef, {
             to: [toEmail],
             template: { name: "cfnWelcome", data: { customerName: customerName } },
@@ -1478,16 +1423,13 @@ async function handleCopyBilling(e) {
             return;
         }
         const data = docSnap.data();
-        // Use current values from the form for billing info
-        const customerName = el.detailsCustomerNameInput.value; 
-        const address = el.detailsAddressInput.value;
-        const soNumber = el.detailsSoNumberInput.value;
-
+        const customerName = el.detailsCustomerNameInput.value;
+        
         // --- MODIFIED BILLING TEXT ---
         const billingText = `
-Customer Name: ${customerName || 'N/A'}
-Address: ${address || 'N/A'}
-Service Order: ${soNumber || 'N/A'}
+Customer Name: ${customerName}
+Address: ${data.address || 'N/A'}
+Service Order: ${data.serviceOrderNumber || 'N/A'}
 Date Installed: ${data.installDetails.installDate || 'N/A'}
 Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
         `.trim().replace(/^\s+\n/gm, '\n'); // Clean up whitespace

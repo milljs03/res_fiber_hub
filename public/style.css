@@ -278,27 +278,16 @@ body {
 }
 
 /* --- Dashboard Styles (UPDATED FOR 3-COLUMN LAYOUT) --- */
-/* NEW: Dashboard Grid for 3 equal columns */
+/* NEW: Dashboard Grid for 3 equal columns in the first row, 3 equal columns in the second row */
 .dashboard-stats-grid {
     display: grid;
     grid-template-columns: 1fr; /* Default: stack on mobile */
     gap: 1rem; /* Smaller gap for compactness */
     align-items: stretch; 
 }
-/* Now 3 stats across the top, and the charts span columns underneath */
 @media (min-width: 768px) {
     .dashboard-stats-grid {
-        grid-template-columns: 1fr 1fr 1fr; 
-    }
-    /* ENSURE ALL CHARTS TAKE ONLY ONE COLUMN NOW */
-    #chart-area-box {
-        grid-column: span 1; /* YTD installs */
-    }
-    #monthly-avg-time-box {
-        grid-column: span 1; /* Monthly Avg Time */
-    }
-    #speed-breakdown-box {
-        grid-column: span 1; /* Speed Breakdown (NEW) */
+        grid-template-columns: repeat(3, 1fr); /* 3 equal columns on tablet/desktop (Row 1) */
     }
 }
 
@@ -329,6 +318,21 @@ body {
     font-weight: 700;
     color: #111827;
 }
+
+/* --- NEW: Active Breakdown Grid (Replaces stat-breakdown) --- */
+.active-breakdown-grid {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem; /* Spacing between pills */
+}
+.active-breakdown-item {
+    flex-shrink: 0; /* Prevent items from squeezing */
+    /* No additional styling needed here, pills handle the rest */
+}
+/* --- END NEW --- */
+
+
 .stat-breakdown {
     margin-top: 0.5rem;
     font-size: 0.75rem; /* Made smaller */
@@ -340,19 +344,20 @@ body {
     color: #1f2937;
 }
 
-/* Chart Box Styling Adjustments (APPLYING FLEXBOX FIX) */
+
+/* Chart Box Styling Adjustments */
 .chart-area-box {
     background-color: white; 
     padding: 0.75rem 1rem; 
     border-radius: 0.5rem;
     border: 1px solid #e5e7eb; 
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    /* --- FIX: Use Flexbox to enforce child height --- */
-    display: flex; /* Makes direct children flexible */
-    flex-direction: column; /* Stacks children vertically */
-    min-height: 200px; 
-    max-height: 220px; 
+    min-height: 100px;
     box-sizing: border-box;
+    
+    /* NEW: Flex container to restrict chart growth */
+    display: flex;
+    flex-direction: column;
 }
 .chart-title {
     font-size: 0.75rem; /* Smaller title */
@@ -360,15 +365,22 @@ body {
     margin-bottom: 0.5rem; 
     color: #4b5563;
     text-transform: uppercase;
-    flex-shrink: 0; /* Ensures the title always takes its space */
 }
 .chart-area {
     min-height: 100px; 
     position: relative;
     padding: 0;
-    flex-grow: 1; /* Allows the chart area to fill the remaining height */
-    /* Add height 100% to ensure inner canvas uses all available flex space */
-    height: 100%; 
+    flex-grow: 1; /* Allow chart area to take available space */
+    
+    /* CRITICAL FIX: Ensure canvas respects vertical constraints */
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    height: 100%; /* Important for inner canvas sizing */
+}
+/* Force the canvas within the flex container to stretch but respect height */
+.chart-area canvas {
+    max-height: 200px; /* NEW: Max height to prevent vertical expansion */
 }
 
 
@@ -420,7 +432,7 @@ body {
 /* === END NEW PRIMARY TAB STYLES === */
 
 
-/* === REVERTED SECONDARY FILTER PILL STYLES (for active statuses) */
+/* === REVERTED SECONDARY FILTER PILL STYLES (for active statuses) === */
 .filter-pills {
     display: flex;
     flex-wrap: wrap;
@@ -601,34 +613,6 @@ body {
 }
 
 
-/* --- REMOVED Tab Styles --- */
-/*
-.details-tabs {
-    display: flex;
-    border-bottom: 2px solid #e5e7eb; 
-    margin-bottom: 1.25rem;
-}
-.tab-link {
-    font-size: 0.875rem; 
-    font-weight: 600; 
-    color: #6b7280; 
-    background-color: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 0.5rem 1rem;
-    margin-bottom: -2px; 
-    cursor: pointer;
-    transition: all 0.2s;
-}
-.tab-link:hover {
-    color: #374151; 
-}
-.tab-link.active {
-    color: #4f46e5; 
-    border-color: #4f46e5; 
-}
-*/
-
 /* --- NEW STATUS STEPPER STYLES --- */
 .status-stepper {
     display: flex;
@@ -703,12 +687,12 @@ body {
     color: #ffffff; /* text-white */
     border-color: #4f46e5; /* border-indigo-600 */
 }
+.step.completed .step-label {
+    color: #374151; /* text-gray-700 */
+}
 .step.completed + .step-connector {
     background-color: #4f46e5; /* bg-indigo-600 */
 }
-
-/* --- "On Hold" Button - REMOVED ALL .step-on-hold styles --- */
-
 
 /* When "On Hold" is active, dim the main stepper */
 .status-stepper.is-on-hold .step {
@@ -733,22 +717,13 @@ body {
 .field-wrapper {
     position: relative;
 }
-.static-field {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
-    font-family: 'Inter', sans-serif;
-    color: #1f2937; 
-    background-color: #f3f4f6; 
-    border: 1px solid #e5e7eb; 
-    border-radius: 0.375rem; 
-    min-height: 42px; 
-    word-wrap: break-word;
-    line-height: 1.5rem;
+/* Applied to inputs/textareas for editable fields */
+.form-input[id^="details-"],
+.form-textarea[id^="details-"] {
     padding-right: 2.5rem; 
-    box-sizing: border-box; 
 }
+/* Removed old .static-field styles */
+
 .copy-btn {
     position: absolute;
     top: 50%;
