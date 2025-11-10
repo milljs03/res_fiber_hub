@@ -93,12 +93,13 @@ const el = {
     detailsPlaceholder: document.getElementById('details-placeholder'),
     loadingOverlay: document.getElementById('loading-overlay'),
     
-    // Copyable Static Fields
-    detailsSoNumber: document.getElementById('details-so-number'),
-    detailsAddress: document.getElementById('details-address'),
-    detailsSpeed: document.getElementById('details-speed'),
-    detailsEmail: document.getElementById('details-email'),
-    detailsPhone: document.getElementById('details-phone'),
+    // Copyable/Editable Fields (UPDATED REFERENCES)
+    detailsSoNumberInput: document.getElementById('details-so-number'),
+    detailsCustomerNameInput: document.getElementById('details-customer-name'), // NEW: Add this to DOM
+    detailsAddressInput: document.getElementById('details-address'),
+    detailsSpeedInput: document.getElementById('details-speed'),
+    detailsEmailInput: document.getElementById('details-email'),
+    detailsPhoneInput: document.getElementById('details-phone'),
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
@@ -370,38 +371,59 @@ function parseServiceOrderText(rawText) {
         // Split the block into lines, filtering out empty lines
         const addressLines = addressBlockMatch[1].split('\n').map(line => line.trim()).filter(line => line.length > 0);
         
+        console.log("--- DEBUG PARSING START ---");
+        console.log("Address Lines (Cleaned/Trimmed):", addressLines);
+
+
         if (addressLines.length >= 2) {
-            // Name is explicitly the FIRST line of the block (e.g., HATFIELD SCOTT & ALYSSA)
-            let rawName = addressLines[0];
+            // Define all required variables in scope (FIX for ReferenceError)
+            let lastName = addressLines[0]; // e.g., HATFIELD or TY MILLER (Line 1)
+            let rawAddressAndNames = addressLines.slice(1).join(' '); // e.g., SCOTT & ALYSSA 5382 E CREEKSIDE... (Line 2+)
+            let firstNames = ''; 
+            let finalAddressString = rawAddressAndNames;
             
-            // --- CRITICAL FIX: Custom Name Reordering Logic for '&' ---
-            if (rawName.includes('&')) {
-                // Example: HATFIELD SCOTT & ALYSSA
-                const parts = rawName.split(' ');
-                // Assuming last name is the first word (HATFIELD)
-                const lastName = parts[0]; 
+            console.log("Last Name (Line 1):", lastName);
+            console.log("Raw Address/Names (Line 2+):", rawAddressAndNames);
+            
+            // --- CORE FIX: Extract names from address prefix based on street number anchor ---
+            // Regex: Match 1+ non-digit characters at the start (group 1), followed by 1+ digits (street number)
+            const prefixMatch = rawAddressAndNames.match(/^([^0-9]*?)\s*(\d.*)/);
+
+            if (prefixMatch) {
+                firstNames = prefixMatch[1].trim(); // e.g., "SCOTT & ALYSSA"
+                finalAddressString = prefixMatch[2].trim(); // e.g., "5382 E CREEKSIDE TRL SYRACUSE, IN 46567"
                 
-                // Get the rest of the names (SCOTT & ALYSSA)
-                const firstNames = parts.slice(1).join(' ');
-                
-                // Reconstruct as "SCOTT & ALYSSA HATFIELD"
-                data.customerName = `${firstNames} ${lastName}`;
+                console.log("Extracted First Names from Address Prefix:", firstNames);
+                console.log("Extracted Street Address Start:", finalAddressString);
+
             } else {
-                 // For single name orders (TY MILLER)
-                data.customerName = rawName;
+                console.log("No street number detected at address start. Keeping raw line for address.");
             }
             
-            // Address combines all subsequent lines (starting from index 1)
-            // Example: 5382 E CREEKSIDE TRL, SYRACUSE, IN 46567
-            // Join the address lines cleanly
-            data.address = addressLines.slice(1).join(', ').replace(/,(\s+)/g, ', ').replace(/\s+/g, ' ').trim();
-            
-            // Final Address Cleanup: Ensure no trailing commas
-            if (data.address.endsWith(',')) {
-                data.address = data.address.slice(0, -1).trim();
+            // 2a. Construct the final customer name
+            if (firstNames && firstNames.includes('&')) {
+                // Case 1: Joint name (HATFIELD in Line 1, SCOTT & ALYSSA in Line 2 prefix)
+                data.customerName = `${firstNames} ${lastName}`;
+            } else if (lastName.includes(' ') && !lastName.includes('&')) {
+                // Case 2: Single name order (TY MILLER) where the full name is already in Line 1
+                 data.customerName = lastName;
+            } else if (lastName.length > 0) {
+                // Case 3: Single person, only last name found in Line 1 (HATFIELD).
+                data.customerName = lastName;
+            } else {
+                 // Fallback for names in unknown format
+                 data.customerName = firstNames || lastName;
             }
+            
+            // 2c. Final Address Cleanup: Replace commas with spaces and collapse whitespace in the *final* address string.
+            data.address = finalAddressString
+                .replace(/,/g, ' ')        // 1. Replace all commas with space
+                .replace(/\s+/g, ' ')      // 2. Collapse multiple spaces to single space
+                .trim();                   // 3. Trim leading/trailing spaces
+            // --- END FIX ---
+
         } else if (addressLines.length === 1) {
-            // If only one line, assume it's the name
+            // Case where only the name is found in the block (TY MILLER or HATFIELD)
             data.customerName = addressLines[0];
             data.address = ""; 
         }
@@ -435,8 +457,9 @@ function parseServiceOrderText(rawText) {
     }
     
     // Log the final parsed data for confirmation
-    console.log("--- FINAL PARSED DATA ---");
-    console.log(data);
+    console.log("--- DEBUG PARSING END ---");
+    console.log("Final Parsed Data:", data);
+    console.log("---------------------------");
     
     return data;
 }
@@ -633,20 +656,6 @@ function renderChart(ytdInstalls, currentYear) {
                     ticks: {
                         precision: 0, // Ensure integer ticks
                         maxTicksLimit: 5 // Limit ticks for smaller view
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                title: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        title: (context) => `${context[0].label} ${currentYear}`,
-                        label: (context) => ` ${context.dataset.label}: ${context.raw}`
                     }
                 }
             }
@@ -977,12 +986,14 @@ function handleDeselectCustomer() {
 }
 
 function populateDetailsForm(data) {
-    // Static fields
-    el.detailsSoNumber.textContent = data.serviceOrderNumber || '';
-    el.detailsAddress.textContent = data.address || '';
-    el.detailsSpeed.textContent = data.serviceSpeed || '';
-    el.detailsEmail.textContent = data.primaryContact?.email || '';
-    el.detailsPhone.textContent = data.primaryContact?.phone || '';
+    // Editable fields (UPDATED TO USE .value)
+    el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
+    el.detailsCustomerNameInput.value = data.customerName || ''; // NEW
+    el.detailsAddressInput.value = data.address || '';
+    el.detailsSpeedInput.value = data.serviceSpeed || '';
+    el.detailsEmailInput.value = data.primaryContact?.email || '';
+    el.detailsPhoneInput.value = data.primaryContact?.phone || '';
+    
     // Status
     el.detailsForm['details-status'].value = data.status || 'New Order';
     // Pre-Install
@@ -1119,7 +1130,8 @@ function handleDetailsFormClick(e) {
     if (!targetId) return;
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
-    const textToCopy = (targetElement.tagName === 'SPAN') ? targetElement.textContent : targetElement.value;
+    // --- UPDATED: Check if the element is an input/textarea (value) or span (textContent) ---
+    const textToCopy = (targetElement.tagName === 'SPAN' || targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA') ? targetElement.value : targetElement.textContent;
     if (!textToCopy) {
         showToast('Nothing to copy.', 'error');
         return;
@@ -1150,7 +1162,15 @@ async function handleUpdateCustomer(e) {
     if (!customerId || !customersCollectionRef) return;
 
     const updatedData = {
-        // --- UPDATED to use the hidden input ---
+        // Editable fields (UPDATED TO READ FROM INPUTS)
+        'serviceOrderNumber': el.detailsSoNumberInput.value,
+        'customerName': el.detailsCustomerNameInput.value, // NEW
+        'address': el.detailsAddressInput.value,
+        'serviceSpeed': el.detailsSpeedInput.value,
+        'primaryContact.email': el.detailsEmailInput.value,
+        'primaryContact.phone': el.detailsPhoneInput.value,
+        
+        // Checklist/Status fields (UNCHANGED)
         'status': el.detailsForm['details-status'].value,
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
@@ -1185,7 +1205,7 @@ async function handleDeleteCustomer(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
-    const customerName = el.detailsSoNumber.textContent;
+    const customerName = el.detailsSoNumberInput.value; // UPDATED reference
     
     // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
     if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
@@ -1209,8 +1229,8 @@ async function handleSendWelcomeEmail(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
-    const toEmail = el.detailsEmail.textContent;
-    const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
+    const toEmail = el.detailsEmailInput.value; // UPDATED reference
+    const customerName = el.detailsCustomerNameInput.value; // UPDATED reference
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
@@ -1249,13 +1269,16 @@ async function handleCopyBilling(e) {
             return;
         }
         const data = docSnap.data();
-        const customerName = document.querySelector(`.customer-item[data-id="${customerId}"] .customer-item-name`).textContent; 
-        
+        // Use current values from the form for billing info
+        const customerName = el.detailsCustomerNameInput.value; 
+        const address = el.detailsAddressInput.value;
+        const soNumber = el.detailsSoNumberInput.value;
+
         // --- MODIFIED BILLING TEXT ---
         const billingText = `
-Customer Name: ${customerName}
-Address: ${data.address || 'N/A'}
-Service Order: ${data.serviceOrderNumber || 'N/A'}
+Customer Name: ${customerName || 'N/A'}
+Address: ${address || 'N/A'}
+Service Order: ${soNumber || 'N/A'}
 Date Installed: ${data.installDetails.installDate || 'N/A'}
 Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
         `.trim().replace(/^\s+\n/gm, '\n'); // Clean up whitespace

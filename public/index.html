@@ -179,56 +179,83 @@
                         <!-- === REMOVED old details-tabs === -->
 
                         <div id="page-pre-install" class="details-page active">
+                            <!-- === UPDATED: Customer Name Field (Editable) === -->
+                            <div class="form-group">
+                                <label class="form-label" for="details-customer-name">Customer Name</label>
+                                <div class="field-wrapper">
+                                    <input type="text" id="details-customer-name" class="form-input" required>
+                                    <button type="button" class="copy-btn" data-target="details-customer-name">
+                                        <img src="copy.png" alt="Copy" class="icon-copy" />
+                                        <img src="check.png" alt="Copied" class="icon-check" />
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- === END UPDATED === -->
+
+                            <!-- === UPDATED: Service Order # Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-so-number">Service Order #</label>
                                 <div class="field-wrapper">
-                                    <span id="details-so-number" class="static-field"></span>
+                                    <input type="text" id="details-so-number" class="form-input" required>
                                     <button type="button" class="copy-btn" data-target="details-so-number">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
+                            <!-- === END UPDATED === -->
+
+                            <!-- === UPDATED: Address Field (Editable Textarea) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-address">Address</label>
                                 <div class="field-wrapper">
-                                    <span id="details-address" class="static-field"></span>
+                                    <textarea id="details-address" rows="3" class="form-textarea"></textarea>
                                     <button type="button" class="copy-btn" data-target="details-address">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
+                            <!-- === END UPDATED === -->
+
+                            <!-- === UPDATED: Service Speed Field (Editable Input/Textarea) - Changed to Input to match dynamic logic -->
                             <div class="form-group">
                                 <label class="form-label" for="details-speed">Service Speed</label>
                                 <div class="field-wrapper">
-                                    <span id="details-speed" class="static-field"></span>
+                                    <input type="text" id="details-speed" class="form-input" required>
                                     <button type="button" class="copy-btn" data-target="details-speed">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
+                            <!-- === END UPDATED === -->
+
+                            <!-- === UPDATED: Primary Email Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-email">Primary Email</label>
                                 <div class="field-wrapper">
-                                    <span id="details-email" class="static-field"></span>
+                                    <input type="email" id="details-email" class="form-input">
                                     <button type="button" class="copy-btn" data-target="details-email">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
+                            <!-- === END UPDATED === -->
+
+                            <!-- === UPDATED: Primary Phone Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-phone">Primary Phone</label>
                                 <div class="field-wrapper">
-                                    <span id="details-phone" class="static-field"></span>
+                                    <input type="tel" id="details-phone" class="form-input">
                                     <button type="button" class="copy-btn" data-target="details-phone">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
+                            <!-- === END UPDATED === -->
                             
                             <fieldset class="checklist-group">
                                 <legend class="checklist-title">Pre-Install Checklist</legend>
