@@ -45,14 +45,13 @@
             </div>
         </header>
 
-        <!-- NEW: DASHBOARD CONTAINER (Full Width) -->
+        <!-- DASHBOARD CONTAINER -->
         <div class="dashboard-container">
             <div id="dashboard-card" class="card">
                 <!-- Dashboard Header with Toggle -->
                 <div class="dashboard-header-toggle">
                     <h2 class="card-title">At a Glance</h2>
                     <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
-                        <!-- UPDATED: Use IMG tag for PNG assets -->
                         <img src="chevron_down.png" alt="Toggle" class="toggle-icon" id="dashboard-toggle-icon">
                     </button>
                 </div>
@@ -61,20 +60,14 @@
                 <div id="dashboard-content" class="dashboard-content-collapsible active">
 
                     <div id="dashboard-stats-grid" class="dashboard-stats-grid">
-                        <!-- 1. Active Stat Box (populated by JS into this container) -->
-                        <div id="stats-summary-active-wrapper" class="stat-wrapper">
-                            <!-- JS content for Active Stats goes here -->
-                        </div>
+                        <!-- 1. Active Stat Box -->
+                        <div id="stats-summary-active-wrapper" class="stat-wrapper"></div>
                         
-                        <!-- 2. Completed Stat Box (populated by JS into this container) -->
-                        <div id="stats-summary-completed-wrapper" class="stat-wrapper">
-                            <!-- JS content for Completed Stats goes here -->
-                        </div>
+                        <!-- 2. Completed Stat Box -->
+                        <div id="stats-summary-completed-wrapper" class="stat-wrapper"></div>
 
-                        <!-- 3. Overall Avg Install Time Stat Box (NEW KPI) -->
-                        <div id="overall-install-time-wrapper" class="stat-wrapper">
-                            <!-- JS content for Avg Time Stat goes here -->
-                        </div>
+                        <!-- 3. Overall Avg Install Time Stat Box -->
+                        <div id="overall-install-time-wrapper" class="stat-wrapper"></div>
                     </div>
 
                     <!-- Chart Grid (3 columns) -->
@@ -124,7 +117,7 @@
                     <input type="text" id="search-bar" class="form-input" placeholder="Search by name or address...">
                 </div>
 
-                <!-- Primary Tab Bar (NEW ELEMENT) -->
+                <!-- Primary Tab Bar -->
                 <div id="main-list-tabs" class="main-list-tabs">
                     <button type="button" class="main-list-tab active" data-main-filter="Active">Active Orders</button>
                     <button type="button" class="main-list-tab" data-main-filter="Completed">Completed Orders</button>
@@ -156,7 +149,6 @@
 
                 <!-- Completed View Controls -->
                 <div id="completed-controls-group" class="hidden">
-                    <!-- Completed Sort/Filter Group (Month/Year dropdown) -->
                     <div id="completed-filter-group" class="form-group">
                         <label for="completed-filter-select" class="form-label">Completed Month</label>
                         <select id="completed-filter-select" class="form-select">
@@ -171,7 +163,13 @@
             </div>
 
             <div class="card">
-                <h2 class="card-title">Customer Details</h2>
+                <div class="card-title-header">
+                    <h2 class="card-title">Customer Details</h2>
+                    <!-- NEW TOP BUTTON (No Icon) -->
+                    <button type="button" id="header-save-btn" class="btn btn-primary">
+                        Save Changes
+                    </button>
+                </div>
                 <div id="details-container" data-id="">
                     <div id="loading-overlay">
                         <div id="loading-spinner"></div>
@@ -179,11 +177,10 @@
 
                     <form id="details-form" class="card-content">
 
-                        <!-- === START: NEW STATUS STEPPER === -->
+                        <!-- STATUS STEPPER -->
                         <div class="form-group">
                             <label class="form-label">Status</label>
                             <div id="status-stepper" class="status-stepper">
-                                <!-- Main Progression -->
                                 <button type="button" class="step" data-status="New Order" data-page="page-pre-install">
                                     <div class="step-circle">1</div>
                                     <div class="step-label">New Order</div>
@@ -203,17 +200,9 @@
                                     <div class="step-circle">4</div>
                                     <div class="step-label">Completed</div>
                                 </button>
-                                
-                                <!-- Special "On Hold" button - REMOVED FROM HERE -->
                             </div>
-                            <!-- This hidden input will store the actual status value for the form -->
                             <input type="hidden" id="details-status" name="details-status" />
                         </div>
-                        <!-- === END: NEW STATUS STEPPER === -->
-
-
-                        <!-- === REMOVED old status dropdown === -->
-                        <!-- === REMOVED old details-tabs === -->
 
                         <div id="page-pre-install" class="details-page active">
                             <div class="form-group">
@@ -305,7 +294,7 @@
                                             <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
                                         </div>
                                         <div class="checklist-item-label">
-                                            <label for="check-fiber-list">Added to Current Drops List</label>
+                                            <label for="check-fiber-list">Added to Residential Fiber List</label>
                                         </div>
                                     </div>
                                     <div class="checklist-item">
@@ -342,7 +331,6 @@
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">NID Work</legend>
                                 <div class="checklist-content">
-                                    <!-- MOVED: Light Reading @ NID to this new page -->
                                     <div class="form-group">
                                         <label for="nid-light" class="form-label">Light Reading @ NID</label>
                                         <div class="field-wrapper">
@@ -372,14 +360,7 @@
                                         </div>
                                     </div>
                                     
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="eero-info">Eero Insight Info Documented</label>
-                                        </div>
-                                    </div>
+
 
                                     <div class="form-group">
                                         <label for="extra-equip" class="form-label">Additional Equipment</label>
@@ -393,7 +374,6 @@
                                         </div>
                                     </div>
 
-                                    <!-- === NEW INSTALL NOTES FIELD === -->
                                     <div class="form-group">
                                         <label for="install-notes" class="form-label">Install Notes</label>
                                         <div class="field-wrapper">
@@ -405,7 +385,6 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <!-- === END NEW FIELD === -->
 
                                     <div class="form-group">
                                         <label for="general-notes" class="form-label">General Notes</label>
@@ -421,16 +400,23 @@
                                 </div>
                             </fieldset>
                             
-                            <!-- MOVED: Post-Install Checklist from page-post-install (now considered part of the final 'Install' stage) -->
                             <fieldset class="checklist-group" style="border-top: 1px solid #e5e7eb; padding-top: 1.25rem;">
                                 <legend class="checklist-title">Post-Install Checklist</legend>
                                 <div class="checklist-content">
+                                                                        <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="eero-info">Eero Insight Info Documented</label>
+                                        </div>
+                                    </div>
                                     <div class="checklist-item">
                                         <div class="checklist-item-box">
                                             <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
                                         </div>
                                         <div class="checklist-item-label">
-                                            <label for="post-check-fiber">Removed from Current Drops List</label>
+                                            <label for="post-check-fiber">Removed from Residential Fiber List</label>
                                         </div>
                                     </div>
                                     <div class="checklist-item">
@@ -458,16 +444,15 @@
                                     Copy Info for Billing
                                 </button>
                             </div>
-                            <!-- END MOVED CONTENT -->
 
                         </div> 
                         <div class="action-buttons">
+                            <!-- RESTORED ORIGINAL SAVE BUTTON (with icon) -->
                             <button type="button" id="update-customer-btn" class="btn btn-primary">
                                 <i data-lucide="save" class="btn-icon"></i>
                                 Save Changes
                             </button>
                             
-                            <!-- MOVED AND RESTYLED "ON HOLD" BUTTON HERE -->
                             <button type="button" id="on-hold-btn" class="btn btn-warning">
                                 <i data-lucide="pause-circle" class="btn-icon"></i>
                                 <span>Toggle On Hold</span>
@@ -507,9 +492,9 @@
                 <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 1.25rem;">
                     <label for="pdf-upload" class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
                     <input type="file" id="pdf-upload" accept=".pdf" class="form-input" style="padding: 0.5rem 0.75rem; border: 1px solid #d1d5db;">
-                    <button type="button" id="process-pdf-btn" class="btn btn-utility btn-full-width" style="margin-top: 0.75rem;">
+                    <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" style="margin-top: 0.75rem;">
                         <i data-lucide="file-text" class="btn-icon"></i>
-                        Process PDF & Autofill
+                        Process PDF & Autofill (Cost-Free)
                     </button>
                     <p id="pdf-status-msg" style="font-size: 0.75rem; color: #4b5563; margin-top: 0.5rem; text-align: center;"></p>
                 </div>
@@ -553,14 +538,12 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <!-- NEW: Include PDF.js Library for client-side reading -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <script type="module" src="firebase.js"></script>
     
     <script type="module" src="app.js"></script>
 
     <script>
-        // FIX: Ensure Lucide icons are created after the script is fully loaded.
         window.onload = function() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();

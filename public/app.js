@@ -20,23 +20,25 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; // MOVED TO TOP
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
 // --- END CONSTANTS ---
 
 // --- Global State ---
 let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
-let mailCollectionRef = null; // New reference for mail
+let mailCollectionRef = null;
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
 let currentSort = 'name'; 
 let currentFilter = 'All'; 
 let currentCompletedFilter = 'All'; 
+
+// Chart instances (declared at top level)
 let myChart = null; 
 let monthlyAvgChart = null; 
-let speedBreakdownChart = null; 
+let speedChart = null; 
 
 // --- DOM Elements ---
 const el = {
@@ -92,10 +94,9 @@ const el = {
     overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
     monthlyInstallChart: document.getElementById('monthly-install-chart'), 
     speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
-    // Toggle Elements
-    dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'),
-    dashboardContent: document.getElementById('dashboard-content'),
-    // --- END NEW ELEMENTS ---
+    dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'), 
+    dashboardContent: document.getElementById('dashboard-content'), 
+    dashboardToggleIcon: document.getElementById('dashboard-toggle-icon'), 
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
@@ -105,7 +106,7 @@ const el = {
     
     // Copyable/Editable Fields (UPDATED REFERENCES)
     detailsSoNumberInput: document.getElementById('details-so-number'),
-    detailsCustomerNameInput: document.getElementById('details-customer-name'),
+    detailsCustomerNameInput: document.getElementById('details-customer-name'), 
     detailsAddressInput: document.getElementById('details-address'),
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
@@ -113,7 +114,11 @@ const el = {
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
-    updateCustomerBtn: document.getElementById('update-customer-btn'),
+    
+    // MODIFIED: Both Save Buttons
+    headerSaveBtn: document.getElementById('header-save-btn'), 
+    updateCustomerBtn: document.getElementById('update-customer-btn'), // (Bottom one)
+    
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
@@ -130,15 +135,16 @@ const el = {
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
-function handleAuthentication(user) {
+
+const handleAuthentication = (user) => {
     if (user && user.email && user.email.endsWith('@nptel.com')) {
         currentUserId = user.uid;
         el.userEmailDisplay.textContent = user.email;
         currentAppId = 'cfn-install-tracker';
         
-        // --- CORE FIX: Use the shared, public data path ---
+        // Shared public data path
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
-        // Mail collection MUST remain user-specific for security/billing purposes (mail is triggered via function that bills per user)
+        // User-specific mail collection
         mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
         
         el.appScreen.classList.remove('hidden');
@@ -161,7 +167,8 @@ function handleAuthentication(user) {
             el.authError.textContent = '';
         }
     }
-}
+};
+
 el.signInBtn.addEventListener('click', () => {
     el.authError.textContent = ''; 
     signInWithPopup(auth, googleProvider)
@@ -175,15 +182,237 @@ el.signInBtn.addEventListener('click', () => {
             }
         });
 });
+
 el.signOutBtn.addEventListener('click', () => {
     signOut(auth).catch((error) => console.error("Sign-out error", error));
 });
 
 
-// --- 2. INITIALIZATION (Fixed ReferenceError) ---
+// --- DASHBOARD CHART FUNCTIONS ---
 
-function initializeApp() {
-    // FIX: PDFJS_WORKER_SRC is now defined globally, resolving the ReferenceError.
+const updateCompletedFilterOptions = (allCustomers) => {
+    const completedCustomers = allCustomers.filter(c => 
+        c.status === 'Completed' && c.installDetails?.installDate
+    );
+
+    const dateMap = new Map(); 
+    completedCustomers.forEach(c => {
+        const dateString = c.installDetails.installDate; 
+        const date = new Date(dateString.replace(/-/g, '/')); 
+        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
+        const monthYearValue = dateString.substring(0, 7); 
+        
+        dateMap.set(monthYearValue, monthYearKey);
+    });
+
+    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
+    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
+    
+    el.completedFilterSelect.innerHTML = '';
+    const allOption = document.createElement('option');
+    allOption.value = 'All';
+    allOption.textContent = 'All Completed Orders';
+    el.completedFilterSelect.appendChild(allOption);
+
+    sortedDates.forEach(date => {
+        const option = document.createElement('option');
+        option.value = date.value;
+        option.textContent = date.text;
+        el.completedFilterSelect.appendChild(option);
+    });
+    
+    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
+        currentCompletedFilter = 'All';
+    }
+    el.completedFilterSelect.value = currentCompletedFilter;
+};
+
+
+const renderSpeedBreakdownChart = (speedCounts) => {
+    const Chart = window.Chart;
+    if (speedChart) {
+        speedChart.destroy();
+    }
+    
+    const speedLabels = Object.keys(speedCounts);
+    const speedData = Object.values(speedCounts);
+    
+    const colors = [
+        '#4f46e5', // Indigo
+        '#065f46', // Green
+        '#d97706', // Yellow/Orange
+        '#9ca3af'  // Gray (for unknown)
+    ];
+
+    speedChart = new Chart(el.speedBreakdownChart, {
+        type: 'doughnut',
+        data: {
+            labels: speedLabels,
+            datasets: [{
+                data: speedData,
+                backgroundColor: speedLabels.map((_, i) => colors[i % colors.length]),
+                borderColor: 'white',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    align: 'middle',
+                    labels: {
+                        boxWidth: 10,
+                        padding: 10
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const label = context.label || '';
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+};
+
+const renderMonthlyAverageChart = (monthlyAverages) => {
+    const Chart = window.Chart;
+    if (monthlyAvgChart) {
+        monthlyAvgChart.destroy();
+    }
+    
+    const sortedKeys = Object.keys(monthlyAverages).sort();
+    const chartLabels = sortedKeys.map(key => new Date(key.replace(/-/g, '/')).toLocaleString('en-US', { month: 'short', year: '2-digit' }));
+    const chartData = sortedKeys.map(key => monthlyAverages[key]);
+    
+    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Avg Days to Install',
+                data: chartData,
+                backgroundColor: 'rgba(217, 119, 6, 0.5)',
+                borderColor: '#d97706',
+                borderWidth: 2,
+                tension: 0.2,
+                pointRadius: 4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0, maxTicksLimit: 5 },
+                    title: { display: false }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Avg: ${context.raw} days`
+                    }
+                }
+            }
+        }
+    });
+};
+
+const renderChart = (ytdInstalls, currentYear) => {
+    const monthNames = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+
+    const chartLabels = [];
+    const chartData = [];
+
+    for (let i = 1; i <= 12; i++) {
+        const monthKey = `${currentYear}-${String(i).padStart(2, '0')}`;
+        chartLabels.push(monthNames[i - 1]);
+        chartData.push(ytdInstalls[monthKey] || 0);
+    }
+    
+    if (myChart && myChart.canvas.id === 'installations-chart') {
+        myChart.destroy();
+    }
+
+    if (!el.installationsChart) {
+        console.error("Chart canvas (installations-chart) not found.");
+        return;
+    }
+
+    const Chart = window.Chart;
+
+    myChart = new Chart(el.installationsChart, {
+        type: 'bar',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Installs',
+                data: chartData,
+                backgroundColor: '#4f46e5',
+                borderColor: '#4f46e5',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false
+                    },
+                    ticks: {
+                        precision: 0,
+                        maxTicksLimit: 5
+                    }
+                }
+            }
+        }
+    });
+};
+
+
+// --- DASHBOARD TOGGLE FUNCTION ---
+const handleDashboardToggle = () => {
+    const isExpanded = el.dashboardContent.classList.contains('active');
+    
+    if (isExpanded) {
+        el.dashboardContent.classList.remove('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
+        el.dashboardToggleIcon.src = 'chevron_up.png';
+    } else {
+        el.dashboardContent.classList.add('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
+        el.dashboardToggleIcon.src = 'chevron_down.png';
+    }
+};
+
+
+// --- 2. INITIALIZATION ---
+const initializeApp = () => {
     if (window.pdfjsLib) {
          window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
     }
@@ -194,9 +423,9 @@ function initializeApp() {
     }
     loadCustomers();
     handleDeselectCustomer();
-}
+};
 
-function setupEventListeners() {
+const setupEventListeners = () => {
     // Modal Listeners
     el.newCustomerBtn.addEventListener('click', openAddCustomerModal);
     el.modalCloseBtn.addEventListener('click', closeAddCustomerModal);
@@ -205,9 +434,11 @@ function setupEventListeners() {
     // Form submission
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // --- PDF Processing Listener ---
+    // PDF Processing Listener
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
-    // --- END NEW LISTENER ---
+
+    // Dashboard Toggle Listener
+    el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle); 
 
     // Search
     el.searchBar.addEventListener('input', (e) => {
@@ -231,7 +462,6 @@ function setupEventListeners() {
         const tab = e.target.closest('.main-list-tab');
         if (!tab) return;
         
-        // Update active class
         el.mainListTabs.querySelectorAll('.main-list-tab').forEach(t => {
             t.classList.remove('active');
         });
@@ -239,7 +469,6 @@ function setupEventListeners() {
 
         const mainFilter = tab.dataset.mainFilter;
 
-        // Toggle visibility of control groups and list view class
         if (mainFilter === 'Completed') {
             el.activeControlsGroup.classList.add('hidden');
             el.completedControlsGroup.classList.remove('hidden');
@@ -248,35 +477,31 @@ function setupEventListeners() {
             currentCompletedFilter = el.completedFilterSelect.value;
             el.customerListContainer.classList.add('completed-view');
             
-        } else { // Active Orders
+        } else { 
             el.activeControlsGroup.classList.remove('hidden');
             el.completedControlsGroup.classList.add('hidden');
             
-            // Set the active status filter (default to 'All' which is currently active pill)
             const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
             currentFilter = activePill ? activePill.dataset.filter : 'All';
-            currentCompletedFilter = 'All'; // Reset completed filter state
+            currentCompletedFilter = 'All'; 
             el.customerListContainer.classList.remove('completed-view');
         }
 
         displayCustomers();
     });
 
-    // Secondary Pill Listener (Now only affects Active Status)
+    // Secondary Pill Listener
     el.filterPillsContainer.addEventListener('click', (e) => {
         const pill = e.target.closest('.filter-pill');
         if (!pill) return;
 
-        // Only run if we are in the Active view
         if (el.mainListTabs.querySelector('.main-list-tab[data-main-filter="Active"]').classList.contains('active')) {
-            // Update active class
             el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => {
                 p.classList.remove('active');
             });
             pill.classList.add('active');
     
-            // Update state and re-render
-            currentFilter = pill.dataset.filter; // This will be 'All', 'New Order', etc.
+            currentFilter = pill.dataset.filter;
             displayCustomers();
         }
     });
@@ -288,14 +513,14 @@ function setupEventListeners() {
             handleSelectCustomer(customerItem.dataset.id, customerItem);
         }
     });
-    
-    // Dashboard Toggle Listener
-    el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle);
-
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.updateCustomerBtn.addEventListener('click', handleUpdateCustomer);
+    
+    // MODIFIED: Listeners for BOTH save buttons
+    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
+    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
+
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
@@ -309,10 +534,8 @@ function setupEventListeners() {
         const newStatus = stepButton.dataset.status;
         const pageId = stepButton.dataset.page;
 
-        // Set the hidden input's value
         el.detailsForm['details-status'].value = newStatus;
 
-        // Update the UI
         updateStepperUI(newStatus);
         showDetailsPage(pageId);
         
@@ -323,42 +546,26 @@ function setupEventListeners() {
 
     // On Hold toggle
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
-}
+};
 
-// --- DASHBOARD TOGGLE FUNCTION (NEW) ---
-function handleDashboardToggle() {
-    const isExpanded = el.dashboardContent.classList.contains('active');
-    
-    if (isExpanded) {
-        el.dashboardContent.classList.remove('active');
-        el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
-    } else {
-        el.dashboardContent.classList.add('active');
-        el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
-    }
-}
+// --- PDF PROCESSING FUNCTIONS ---
 
-
-// --- PDF PROCESSING FUNCTIONS (NEW, Cost-Free) ---
-
-function getPdfData(file) {
+const getPdfData = (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
         reader.readAsArrayBuffer(file);
     });
-}
+};
 
-async function extractTextFromPdf(data) {
+const extractTextFromPdf = async (data) => {
     try {
-        // Ensure PDF.js is loaded
         if (!window.pdfjsLib) {
              throw new Error("PDF.js library not found.");
         }
 
         const pdf = await window.pdfjsLib.getDocument({ data }).promise;
-        // Concatenate text from all pages if needed, but for a simple SO, page 1 is enough
         const page = await pdf.getPage(1);
         const textContent = await page.getTextContent();
         return textContent.items.map(item => item.str).join('\n');
@@ -366,15 +573,14 @@ async function extractTextFromPdf(data) {
         console.error("PDF Text Extraction Error:", e);
         throw new Error("Failed to read text from PDF file. Ensure it is not scanned/image-only.");
     }
-}
+};
 
-function parseServiceOrderText(rawText) {
-    // Clean up excessive whitespace and normalize internal newlines for easier regex matching
+const parseServiceOrderText = (rawText) => {
     const normalizedText = rawText
-        .replace(/(\r\n|\n|\r)/gm, '\n') // Normalize newlines
-        .replace(/ +/g, ' ')            // Collapse multiple spaces
-        .replace(/ \n/g, '\n')          // Remove trailing spaces before newlines
-        .replace(/\n /g, '\n');         // Remove leading spaces after newlines
+        .replace(/(\r\n|\n|\r)/gm, '\n') 
+        .replace(/ +/g, ' ')            
+        .replace(/ \n/g, '\n')          
+        .replace(/\n /g, '\n');         
 
     const data = {
         serviceOrderNumber: '',
@@ -382,27 +588,22 @@ function parseServiceOrderText(rawText) {
         address: '',
         primaryEmail: '',
         primaryPhone: '',
-        serviceSpeed: '200 Mbps' // Default to smallest speed if speed parsing fails
+        serviceSpeed: '200 Mbps' 
     };
 
-    // Helper to find a specific pattern
     const findMatch = (pattern, cleanup = (v) => v.trim()) => {
         const match = normalizedText.match(pattern);
         return match ? cleanup(match[1]) : '';
     };
 
-    // 1. Service Order # (Handles both "Label:\n Value" and "Label: Value" formats)
     data.serviceOrderNumber = findMatch(/Service Order:\s*\n?\s*(\d+)/i);
-    // Fallback if the format is "Service Order: 150987"
     if (!data.serviceOrderNumber) {
         data.serviceOrderNumber = findMatch(/Service Order: (\d+)/i);
     }
     
-    // 2. Name and Address (Look for the block starting with Bill To: and ending near Res/Bus)
     const addressBlockMatch = normalizedText.match(/Bill To:\s*\n\n(.*?)\n\nRes\/Bus:/s);
     
     if (addressBlockMatch && addressBlockMatch[1]) {
-        // Split the block into lines, filtering out empty lines
         const addressLines = addressBlockMatch[1].split('\n').map(line => line.trim()).filter(line => line.length > 0);
         
         console.log("--- DEBUG PARSING START ---");
@@ -410,82 +611,61 @@ function parseServiceOrderText(rawText) {
 
 
         if (addressLines.length >= 2) {
-            // Define all required variables in scope 
-            let lastName = addressLines[0]; // e.g., HATFIELD or TY MILLER (Line 1)
-            let rawAddressAndNames = addressLines.slice(1).join(' '); // e.g., SCOTT & ALYSSA 5382 E CREEKSIDE... (Line 2+)
+            let lastName = addressLines[0]; 
+            let rawAddressAndNames = addressLines.slice(1).join(' '); 
             let firstNames = ''; 
             let finalAddressString = rawAddressAndNames;
             
             console.log("Last Name (Line 1):", lastName);
             console.log("Raw Address/Names (Line 2+):", rawAddressAndNames);
             
-            // --- CORE FIX: Extract names from address prefix based on street number anchor ---
-            // Regex: Match 1+ non-digit characters at the start (group 1), followed by 1+ digits (street number)
             const prefixMatch = rawAddressAndNames.match(/^([^0-9]*?)\s*(\d.*)/);
 
             if (prefixMatch) {
-                firstNames = prefixMatch[1].trim(); // e.g., "SCOTT & ALYSSA"
-                finalAddressString = prefixMatch[2].trim(); // e.g., "5382 E CREEKSIDE TRL SYRACUSE, IN 46567"
+                firstNames = prefixMatch[1].trim();
+                finalAddressString = prefixMatch[2].trim();
                 
                 console.log("Extracted First Names from Address Prefix:", firstNames);
                 console.log("Extracted Street Address Start:", finalAddressString);
 
             } else {
                 console.log("No street number detected at address start. Keeping raw line for address.");
-                // If no number found, assume everything is address data, and treat Line 1 as the primary name
                 finalAddressString = rawAddressAndNames;
             }
             
-            // 2a. Construct the final customer name
             let combinedNames = '';
             
-            // --- MANUAL TWEAK: Simplify and prioritize extracted names if present ---
             if (firstNames.length > 0) {
-                // If we successfully extracted first names from the address prefix (e.g., "SCOTT & ALYSSA"),
-                // combine them with the last name (e.g., "HATFIELD") from Line 1.
                 combinedNames = `${firstNames} ${lastName}`;
-                
             } else if (lastName.includes(' ')) {
-                // Case for single name orders like "TY MILLER" found entirely in Line 1.
-                // We trust this name format if no prefix extraction was needed.
                 combinedNames = lastName;
             } else {
-                // Fallback: Use whatever we got in Line 1 (the single last name).
                 combinedNames = lastName;
             }
-            // --- END MANUAL TWEAK ---
             
-            data.customerName = combinedNames; // Assign the correctly combined name
+            data.customerName = combinedNames; 
             
-            // 2c. Final Address Cleanup: Replace commas with spaces and collapse whitespace in the *final* address string.
             data.address = finalAddressString
-                .replace(/,/g, ' ')        // 1. Replace all commas with space
-                .replace(/\s+/g, ' ')      // 2. Collapse multiple spaces to single space
-                .trim();                   // 3. Trim leading/trailing spaces
-            // --- END FIX ---
+                .replace(/,/g, ' ')        
+                .replace(/\s+/g, ' ')      
+                .trim();                   
 
         } else if (addressLines.length === 1) {
-            // Case where only the name is found in the block (TY MILLER or HATFIELD)
             data.customerName = addressLines[0];
             data.address = ""; 
         }
     }
 
-    // 3. Phone (Look for the first CELL contact number)
     const cellMatch = normalizedText.match(/CELL\s*\n\s*(\d{10})/);
     if (cellMatch) {
          data.primaryPhone = cellMatch[1];
     }
     
-    // 4. Email (Look for the first EMAIL contact)
     const emailMatch = normalizedText.match(/EMAIL\s*\n\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
     if (emailMatch) {
         data.primaryEmail = emailMatch[1];
     }
 
-
-    // 5. Service Speed (Look for number next to 'MEG', 'MBPS', or 'GIG')
-    // Look in Description: CONNECT 1 GIG FTTH SVC
     const speedMatch = normalizedText.match(/CONNECT\s*(\d+)\s*(MEG|MBPS|GB|GIG)/i);
     if (speedMatch) {
         let speedValue = speedMatch[1].trim();
@@ -498,16 +678,15 @@ function parseServiceOrderText(rawText) {
         }
     }
     
-    // Log the final parsed data for confirmation
     console.log("--- DEBUG PARSING END ---");
     console.log("Final Parsed Data:", data);
     console.log("---------------------------");
     
     return data;
-}
+};
 
 
-async function handlePdfProcessing() {
+const handlePdfProcessing = async () => {
     if (!window.pdfjsLib) {
          showToast('PDF.js library not loaded. Check network connection.', 'error');
          return;
@@ -527,216 +706,35 @@ async function handlePdfProcessing() {
         const arrayBuffer = await getPdfData(file);
         const rawText = await extractTextFromPdf(arrayBuffer);
         
-        // Use the highly optimized, cost-free parser
         const data = parseServiceOrderText(rawText);
         
-        // --- Autofill the form ---
         el.soNumberInput.value = data.serviceOrderNumber || '';
         el.customerNameInput.value = data.customerName || '';
         el.addressInput.value = data.address || '';
         el.customerEmailInput.value = data.primaryEmail || '';
         el.customerPhoneInput.value = data.primaryPhone || '';
         
-        // Attempt to select the service speed if available
         const speed = data.serviceSpeed;
         const options = Array.from(el.serviceSpeedInput.options).map(opt => opt.value);
         const bestMatch = options.find(opt => speed && opt.toLowerCase().includes(speed.toLowerCase()));
         
-        // Use best match, or default to 200 Mbps if 500 or 1Gbps aren't found, 
-        // OR default to the first option if the speed field is truly empty.
         el.serviceSpeedInput.value = bestMatch || options.find(opt => opt.includes('200')) || options[0];
 
         el.pdfStatusMsg.textContent = 'PDF processed and form successfully autofilled! Review details before saving.';
-        el.pdfStatusMsg.style.color = '#065F46'; // Green success color
+        el.pdfStatusMsg.style.color = '#065F46'; 
         
     } catch (error) {
         console.error("PDF Processing Failed:", error);
         el.pdfStatusMsg.textContent = `Error processing PDF: ${error.message}. Try manual entry.`;
-        el.pdfStatusMsg.style.color = '#ef4444'; // Red error color
+        el.pdfStatusMsg.style.color = '#ef4444'; 
         showToast('PDF processing failed.', 'error');
     } finally {
         el.processPdfBtn.disabled = false;
-        el.pdfUploadInput.value = ''; // Clear file input
+        el.pdfUploadInput.value = ''; 
     }
-}
+};
 
-// --- NEW HELPER FUNCTION: Populates Month/Year Filter (Moved Up) ---
-function updateCompletedFilterOptions() {
-    // Filter down to only completed customers with an install date
-    const completedCustomers = allCustomers.filter(c => 
-        c.status === 'Completed' && c.installDetails?.installDate
-    );
-
-    // Get unique 'YYYY-MM' strings
-    const dateMap = new Map(); 
-    completedCustomers.forEach(c => {
-        const dateString = c.installDetails.installDate; // format: 'YYYY-MM-DD'
-        const date = new Date(dateString.replace(/-/g, '/')); // Use forward slashes for cross-browser compatibility
-        // Using 'en-US' or similar to get locale month name, and full year
-        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
-        const monthYearValue = dateString.substring(0, 7); // 'YYYY-MM'
-        
-        dateMap.set(monthYearValue, monthYearKey);
-    });
-
-    // Convert Map entries to a list of objects for sorting and rendering
-    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
-
-    // Sort newest to oldest (reverse alphabetical on YYYY-MM)
-    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
-    
-    // Render options
-    el.completedFilterSelect.innerHTML = '';
-    
-    // Add "All" option
-    const allOption = document.createElement('option');
-    allOption.value = 'All';
-    allOption.textContent = 'All Completed Orders';
-    el.completedFilterSelect.appendChild(allOption);
-
-    sortedDates.forEach(date => {
-        const option = document.createElement('option');
-        option.value = date.value;
-        option.textContent = date.text;
-        el.completedFilterSelect.appendChild(option);
-    });
-    
-    // Ensure the filter state is valid after update
-    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
-        currentCompletedFilter = 'All';
-    }
-    el.completedFilterSelect.value = currentCompletedFilter;
-}
-
-
-// --- NEW CHART RENDER FUNCTIONS (Moved Up) ---
-
-function renderMonthlyAverageChart(monthlyAverages) {
-    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
-    
-    const chartLabels = sortedKeys.map(key => {
-        const [year, month] = key.split('-');
-        const date = new Date(year, month - 1);
-        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-    });
-
-    const chartData = sortedKeys.map(key => monthlyAverages[key]);
-
-    if (monthlyAvgChart) {
-        monthlyAvgChart.destroy();
-    }
-
-    if (!el.monthlyInstallChart) {
-        console.error("Chart canvas (monthly-install-chart) not found.");
-        return;
-    }
-    
-    const Chart = window.Chart;
-
-    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
-        type: 'line',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Avg Days',
-                data: chartData,
-                borderColor: '#ef4444', // Red color for attention
-                backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                borderWidth: 2,
-                tension: 0.3,
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: false
-                    },
-                    ticks: {
-                        precision: 0
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-function renderSpeedBreakdownChart(speedCounts) {
-    const speeds = Object.keys(speedCounts);
-    const counts = Object.values(speedCounts);
-    
-    // Assign colors based on speed tier for consistency
-    const speedColors = {
-        '1 Gbps': '#4F46E5', // indigo-600
-        '500 Mbps': '#FBBF24', // amber-400
-        '200 Mbps': '#065F46', // green-700
-        'Unknown': '#6B7280'   // gray-500
-    };
-    
-    const chartColors = speeds.map(speed => speedColors[speed] || '#6B7280');
-
-
-    if (speedBreakdownChart) {
-        speedBreakdownChart.destroy();
-    }
-    
-    if (!el.speedBreakdownChart) {
-        console.error("Chart canvas (speed-breakdown-chart) not found.");
-        return;
-    }
-
-    const Chart = window.Chart;
-    
-    speedBreakdownChart = new Chart(el.speedBreakdownChart, {
-        type: 'doughnut',
-        data: {
-            labels: speeds,
-            datasets: [{
-                label: 'Customer Count',
-                data: counts,
-                backgroundColor: chartColors,
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false, // CRITICAL: Ensures chart respects container size
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 10,
-                        padding: 10,
-                        font: {
-                            size: 10
-                        }
-                    }
-                },
-                title: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-// --- DASHBOARD FUNCTIONS ---
-
-function calculateDashboardStats(customers) {
+const calculateDashboardStats = (customers) => {
     const statusCounts = {
         'New Order': 0,
         'Site Survey': 0,
@@ -745,13 +743,11 @@ function calculateDashboardStats(customers) {
         'Completed': 0
     };
     
-    // KPI Data structures
     let totalInstallDays = 0;
     let completedCount = 0;
-    const monthlyInstallTimes = {}; // { 'YYYY-MM': { totalDays: 0, count: 0 } }
-    const speedCounts = {}; // NEW: { 'Speed': count }
+    const monthlyInstallTimes = {}; 
+    const speedCounts = {}; 
     
-    // YTD installation data (Month/Year => count) for the chart
     const ytdInstalls = {};
     const currentYear = new Date().getFullYear();
 
@@ -760,24 +756,19 @@ function calculateDashboardStats(customers) {
             statusCounts[c.status]++;
         }
         
-        // Count speeds
         const speed = c.serviceSpeed || 'Unknown';
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
-        // Calculate Install Time KPIs (only for completed orders)
         if (c.status === 'Completed' && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
 
-            // Calculate difference in days (using milliseconds)
             const diffTime = Math.abs(dateInstalled - dateCreated);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
-            // 1. Overall Average
             totalInstallDays += diffDays;
             completedCount++;
 
-            // 2. Monthly Average
             const installYear = dateInstalled.getFullYear();
             const installMonth = String(dateInstalled.getMonth() + 1).padStart(2, '0');
             const monthKey = `${installYear}-${installMonth}`;
@@ -788,7 +779,6 @@ function calculateDashboardStats(customers) {
             monthlyInstallTimes[monthKey].totalDays += diffDays;
             monthlyInstallTimes[monthKey].count++;
             
-            // 3. YTD Chart Data
             if (installYear === currentYear) {
                 const key = `${installYear}-${installMonth}`;
                 ytdInstalls[key] = (ytdInstalls[key] || 0) + 1;
@@ -799,10 +789,8 @@ function calculateDashboardStats(customers) {
     const totalActive = statusCounts['New Order'] + statusCounts['Site Survey'] + statusCounts['NID'] + statusCounts['On Hold'];
     const totalCompleted = statusCounts['Completed'];
     
-    // Final KPI calculations
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
     
-    // Calculate final monthly averages
     const finalMonthlyAverages = {};
     for (const monthKey in monthlyInstallTimes) {
         const data = monthlyInstallTimes[monthKey];
@@ -813,53 +801,40 @@ function calculateDashboardStats(customers) {
     renderChart(ytdInstalls, currentYear);
     renderMonthlyAverageChart(finalMonthlyAverages);
     renderSpeedBreakdownChart(speedCounts); 
-}
+    updateCompletedFilterOptions(customers); 
+};
 
-function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime) {
+const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTime) => {
     let breakdownHtml = '';
     const activeStatuses = ['New Order', 'Site Survey', 'NID', 'On Hold'];
     
-    // Sort active statuses: New Order, Site Survey, NID, On Hold
     activeStatuses.sort((a, b) => {
         const order = { 'New Order': 1, 'Site Survey': 2, 'NID': 3, 'On Hold': 4 };
         return order[a] - order[b];
     });
 
-    // --- UPDATED: Generate status pills for a clean grid view (Status - Count format) ---
-    const getStatusClass = (status) => {
-        if (!status) return 'status-default';
-        const statusSlug = status.toLowerCase().replace(/ /g, '-');
-        // Handle 'Install' (old status for Completed progress) by defaulting to NID if not New or Survey
-        return `status-${statusSlug}`;
-    };
+    if (totalActive > 0) {
+        const pillsHtml = activeStatuses.map(status => {
+            if (statusCounts[status] > 0) {
+                const statusSlug = status.toLowerCase().replace(/ /g, '-');
+                return `<span class="status-pill status-${statusSlug}">${status} - ${statusCounts[status]}</span>`;
+            }
+            return '';
+        }).join('');
 
-    activeStatuses.forEach(status => {
-        const count = statusCounts[status] || 0;
-        // Only show stages that have at least one order
-        if (count > 0) {
-            breakdownHtml += `
-                <div class="active-breakdown-item">
-                    <span class="status-pill ${getStatusClass(status)}">${status} - ${count}</span>
-                </div>
-            `;
-        }
-    });
-
-    if (breakdownHtml === '') {
-         breakdownHtml = '<p class="text-gray-500">No orders currently in progress.</p>';
+        breakdownHtml = `<div class="active-breakdown-grid">${pillsHtml}</div>`;
+    } else {
+         breakdownHtml = 'No orders currently in progress.';
     }
 
-    // --- RENDER ACTIVE STAT (using the new breakdown grid) ---
     el.statsSummaryActiveWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #eef2ff; border: 1px solid #c7d2fe;">
             <div class="stat-main-title">Active Orders</div>
             <div class="stat-main-value" style="color: #4f46e5;">${totalActive}</div>
-            <div class="active-breakdown-grid">${breakdownHtml}</div>
+            <p class="stat-breakdown">${breakdownHtml}</p>
         </div>
     `;
-    // --- END UPDATED RENDER ---
 
-    // --- RENDER COMPLETED STAT ---
     el.statsSummaryCompletedWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #d1fae5; border: 1px solid #a7f3d0;">
             <div class="stat-main-title">Completed Orders</div>
@@ -868,7 +843,6 @@ function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTi
         </div>
     `;
     
-    // --- RENDER OVERALL AVG TIME STAT (New KPI) ---
     el.overallInstallTimeWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #fffbeb; border: 1px solid #fde68a;">
             <div class="stat-main-title">Avg Install Time</div>
@@ -876,78 +850,12 @@ function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTi
             <p class="stat-breakdown">From order creation to installation complete.</p>
         </div>
     `;
-}
-
-function renderChart(ytdInstalls, currentYear) {
-    // Standard month mapping for chart labels
-    const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ];
-
-    const chartLabels = [];
-    const chartData = [];
-
-    // Initialize data for all months of the current year
-    for (let i = 1; i <= 12; i++) {
-        const monthKey = `${currentYear}-${String(i).padStart(2, '0')}`;
-        chartLabels.push(monthNames[i - 1]);
-        chartData.push(ytdInstalls[monthKey] || 0);
-    }
-    
-    // If a chart instance exists, destroy it first (only the main one)
-    if (myChart && myChart.canvas.id === 'installations-chart') {
-        myChart.destroy();
-    }
-
-    if (!el.installationsChart) {
-        console.error("Chart canvas (installations-chart) not found.");
-        return;
-    }
-
-    // Get the global Chart object (from CDN)
-    const Chart = window.Chart;
-
-    myChart = new Chart(el.installationsChart, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Installs',
-                data: chartData,
-                backgroundColor: '#4f46e5', // Indigo color
-                borderColor: '#4f46e5',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: false // Hide title for compactness
-                    },
-                    ticks: {
-                        precision: 0, // Ensure integer ticks
-                        maxTicksLimit: 5 // Limit ticks for smaller view
-                    }
-                }
-            }
-        }
-    });
-}
+};
 
 
-// --- 3. CUSTOMER LIST (READ) (Updated for initial load fix) ---
+// --- 3. CUSTOMER LIST (READ) ---
 
-function loadCustomers() {
+const loadCustomers = () => {
     if (!customersCollectionRef) return;
     if (customerUnsubscribe) customerUnsubscribe();
 
@@ -960,25 +868,18 @@ function loadCustomers() {
             allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
-        // --- FIX: Explicitly synchronize filter state with active UI elements ---
-        const activeTab = el.mainListTabs.querySelector('.main-list-tab.active');
-        if (activeTab && activeTab.dataset.mainFilter === 'Active') {
-            const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
-            // This reads 'All', 'New Order', etc. from the active pill's data-filter
-            currentFilter = activePill ? activePill.dataset.filter : 'All';
-            currentCompletedFilter = 'All'; 
-        } else {
-            // Should default to 'Active' on load, but handles case if 'Completed' was somehow active
-            currentFilter = 'Completed'; 
-            currentCompletedFilter = el.completedFilterSelect.value;
-        }
-        // --- END FIX ---
-
-        // --- NEW: Calculate/Render Dashboard ---
         calculateDashboardStats(allCustomers);
         
-        // Update the completed filter options
-        updateCompletedFilterOptions();
+        const activeMainTab = el.mainListTabs.querySelector('.main-list-tab.active');
+        const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
+
+        if (activeMainTab && activeMainTab.dataset.mainFilter === 'Completed') {
+            currentFilter = 'Completed';
+            currentCompletedFilter = el.completedFilterSelect.value;
+        } else {
+            currentFilter = activePill ? activePill.dataset.filter : 'All';
+            currentCompletedFilter = 'All';
+        }
         
         displayCustomers();
         
@@ -996,21 +897,17 @@ function loadCustomers() {
         el.listLoading.textContent = 'Error loading customers.';
         showToast('Error loading customers.', 'error');
     });
-}
+};
 
-// --- NEW CENTRAL RENDER FUNCTION (Unchanged) ---
-function displayCustomers() {
+const displayCustomers = () => {
     const searchTerm = el.searchBar.value.toLowerCase();
     
     let filteredCustomers = [...allCustomers];
     let isCompletedList = (currentFilter === 'Completed');
 
-    // 1. Apply Stage Filter (Handles isolating Completed list from active lists)
     if (isCompletedList) {
-        // Only show 'Completed' customers
         filteredCustomers = filteredCustomers.filter(c => c.status === 'Completed');
         
-        // Apply Month/Year Filter (only if Completed is selected)
         if (currentCompletedFilter !== 'All') {
             filteredCustomers = filteredCustomers.filter(c => 
                 (c.installDetails?.installDate || '').startsWith(currentCompletedFilter)
@@ -1018,15 +915,12 @@ function displayCustomers() {
         }
 
     } else if (currentFilter !== 'All') {
-        // Show only the selected active status (New Order, Site Survey, NID, On Hold)
         filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
         
     } else {
-        // 'All' filter selected: Show all EXCEPT 'Completed' (active list view)
         filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed');
     }
 
-    // 2. Apply Search Filter
     if (searchTerm) {
         filteredCustomers = filteredCustomers.filter(c => 
             (c.customerName || '').toLowerCase().includes(searchTerm) || 
@@ -1034,13 +928,10 @@ function displayCustomers() {
         );
     }
 
-    // 3. Apply Sort (Modified to prioritize Completed date sort)
     if (isCompletedList) {
-        // Sort Completed list by Install Date (newest first)
         filteredCustomers.sort((a, b) => {
             const dateA = a.installDetails?.installDate || '0000-00-00';
             const dateB = b.installDetails?.installDate || '0000-00-00';
-            // Simple date string comparison works for YYYY-MM-DD (newest date is greatest string)
             return dateB.localeCompare(dateA); 
         });
     } else if (currentSort === 'name') {
@@ -1051,12 +942,10 @@ function displayCustomers() {
         filteredCustomers.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
     }
 
-    // 4. Render the final list
     renderCustomerList(filteredCustomers, searchTerm);
-}
+};
 
-// --- MODIFIED: renderCustomerList (Unchanged) ---
-function renderCustomerList(customersToRender, searchTerm = '') {
+const renderCustomerList = (customersToRender, searchTerm = '') => {
     el.customerListContainer.innerHTML = '';
     el.customerListContainer.appendChild(el.listLoading); 
 
@@ -1094,7 +983,6 @@ function renderCustomerList(customersToRender, searchTerm = '') {
             createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
         }
         
-        // Use Install Date for Completed list view
         const dateDisplay = (customer.status === 'Completed' && customer.installDetails?.installDate) 
             ? new Date(customer.installDetails.installDate.replace(/-/g, '/')).toLocaleDateString() : createdDate;
 
@@ -1111,28 +999,28 @@ function renderCustomerList(customersToRender, searchTerm = '') {
         `;
         el.customerListContainer.appendChild(item);
     });
-}
+};
 
 
-// --- 4. CUSTOMER (CREATE) (Unchanged) ---
+// --- 4. CUSTOMER (CREATE) ---
 
-function openAddCustomerModal() {
+const openAddCustomerModal = () => {
     el.addCustomerModal.classList.add('show');
-    el.pdfStatusMsg.textContent = ''; // Clear status message on open
+    el.pdfStatusMsg.textContent = ''; 
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-}
+};
 
-function closeAddCustomerModal() {
+const closeAddCustomerModal = () => {
     el.addCustomerModal.classList.remove('show');
     el.addForm.reset();
-    el.pdfStatusMsg.textContent = ''; // Clear status message on close
+    el.pdfStatusMsg.textContent = ''; 
     el.processPdfBtn.disabled = false;
     el.pdfUploadInput.value = '';
-}
+};
 
-async function handleAddCustomer(e) {
+const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!customersCollectionRef) return;
 
@@ -1178,11 +1066,15 @@ async function handleAddCustomer(e) {
         console.error("Error adding customer: ", error);
         showToast('Error adding customer.', 'error');
     }
-}
+};
 
 
-// --- 5. DETAILS PANEL (UPDATE / DELETE) (Unchanged) ---
-async function handleSelectCustomer(customerId, customerItem) {
+// --- 5. DETAILS PANEL (UPDATE / DELETE) ---
+const handleSelectCustomer = async (customerId, customerItem) => {
+    if (selectedCustomerId && selectedCustomerId !== customerId) {
+        await handleUpdateCustomer(null, true);
+    }
+
     if (selectedCustomerId === customerId) {
         handleDeselectCustomer();
         return;
@@ -1216,9 +1108,13 @@ async function handleSelectCustomer(customerId, customerItem) {
             lucide.createIcons();
         }
     }
-}
+};
 
-function handleDeselectCustomer() {
+const handleDeselectCustomer = async () => {
+    if (selectedCustomerId) {
+        await handleUpdateCustomer(null, true);
+    }
+
     selectedCustomerId = null;
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
@@ -1229,51 +1125,47 @@ function handleDeselectCustomer() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-}
+};
 
-function populateDetailsForm(data) {
-    // Editable Fields (Input/Textarea)
-    el.detailsCustomerNameInput.value = data.customerName || '';
+const populateDetailsForm = (data) => {
+    el.detailsCustomerNameInput.value = data.customerName || ''; 
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
     el.detailsAddressInput.value = data.address || '';
     el.detailsSpeedInput.value = data.serviceSpeed || '';
     el.detailsEmailInput.value = data.primaryContact?.email || '';
     el.detailsPhoneInput.value = data.primaryContact?.phone || '';
     
-    // Status
     el.detailsForm['details-status'].value = data.status || 'New Order';
-    // Pre-Install
+    
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
     el.detailsForm['check-fiber-list'].checked = data.preInstallChecklist?.addedToFiberList || false;
     el.detailsForm['check-repair-shoppr'].checked = data.preInstallChecklist?.addedToRepairShoppr || false;
-    // Site Survey
+    
     el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
-    // Install
+    
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsForm['general-notes'].value = data.installDetails?.generalNotes || '';
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
-    // Post-Install
+    
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
 
-    // This will style the stepper correctly when a customer is loaded
     updateStepperUI(data.status || 'New Order');
-}
+};
 
-function showDetailsPage(pageId) {
+const showDetailsPage = (pageId) => {
     el.detailsPages.forEach(page => page.classList.remove('active'));
     
     const targetPage = document.getElementById(pageId);
     if (targetPage) targetPage.classList.add('active');
-}
+};
 
-// --- RENAMED and UPDATED (Unchanged) ---
-function setPageForStatus(status) {
+const setPageForStatus = (status) => {
     switch (status) {
         case 'Site Survey':
             showDetailsPage('page-site-survey');
@@ -1290,56 +1182,45 @@ function setPageForStatus(status) {
         default:
             showDetailsPage('page-pre-install');
     }
-}
+};
 
-// --- NEW FUNCTION (Unchanged) ---
-function handleToggleOnHold(e) {
-    e.preventDefault(); // It's in a form
+const handleToggleOnHold = (e) => {
+    e.preventDefault(); 
     const currentStatus = el.detailsForm['details-status'].value;
 
     if (currentStatus === 'On Hold') {
-        // TOGGLE OFF
-        // Get the status we saved, or default to 'New Order'
         const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
         el.detailsForm['details-status'].value = statusToRestore;
         updateStepperUI(statusToRestore);
         setPageForStatus(statusToRestore);
     } else {
-        // TOGGLE ON
-        // Save the current status before setting to "On Hold"
         el.detailsForm.dataset.statusBeforeHold = currentStatus;
         el.detailsForm['details-status'].value = 'On Hold';
         updateStepperUI('On Hold');
-        setPageForStatus('On Hold'); // Shows pre-install page
+        setPageForStatus('On Hold'); 
     }
     
-    // Refresh lucide icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-}
+};
 
-// --- MODIFIED FUNCTION (Unchanged) ---
-function updateStepperUI(currentStatus) {
+const updateStepperUI = (currentStatus) => {
     const steps = ['New Order', 'Site Survey', 'NID', 'Completed']; 
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
-    // Reset all styles
     allStepButtons.forEach(btn => {
         btn.classList.remove('active', 'completed');
     });
 
-    // On Hold button text/style logic
     const onHoldBtnText = el.onHoldButton.querySelector('span');
 
     if (currentStatus === 'On Hold') {
-        // Handle "On Hold" state
         el.onHoldButton.classList.add('active');
         if (onHoldBtnText) onHoldBtnText.textContent = 'Status: On Hold';
         el.statusStepper.classList.add('is-on-hold'); 
         
     } else {
-        // Handle main progression states
         el.onHoldButton.classList.remove('active');
         if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
         el.statusStepper.classList.remove('is-on-hold'); 
@@ -1348,7 +1229,6 @@ function updateStepperUI(currentStatus) {
         if (statusIndex !== -1) {
             for (let i = 0; i < allStepButtons.length; i++) {
                 const stepButton = allStepButtons[i];
-                // Check if the button's data-status matches the progression steps
                 if (stepButton.dataset.status === steps[i]) {
                     if (i < statusIndex) {
                         stepButton.classList.add('completed');
@@ -1358,27 +1238,22 @@ function updateStepperUI(currentStatus) {
                 }
             }
         } else {
-            // Default to New Order if status is unknown (e.g., old 'Install' data)
             const newOrderButton = el.statusStepper.querySelector('.step[data-status="New Order"]');
             if (newOrderButton) {
                 newOrderButton.classList.add('active');
             }
         }
     }
-}
-// --- END MODIFIED FUNCTION ---
+};
 
-
-function handleDetailsFormClick(e) {
+const handleDetailsFormClick = (e) => {
     const copyBtn = e.target.closest('.copy-btn');
     if (!copyBtn) return; 
     const targetId = copyBtn.dataset.target;
     if (!targetId) return;
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
-    // --- UPDATED: Use .value for inputs, .textContent for span fallback ---
-    const textToCopy = (targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.tagName === 'SELECT') ? targetElement.value : targetElement.textContent;
-    // --- END UPDATED ---
+    const textToCopy = (targetElement.tagName === 'SPAN') ? targetElement.textContent : targetElement.value;
     if (!textToCopy) {
         showToast('Nothing to copy.', 'error');
         return;
@@ -1401,22 +1276,22 @@ function handleDetailsFormClick(e) {
         console.error('Failed to copy text: ', err);
         showToast('Failed to copy.', 'error');
     }
-}
+};
 
-async function handleUpdateCustomer(e) {
-    e.preventDefault();
+const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
+    if (e) {
+        e.preventDefault();
+    }
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
     const updatedData = {
-        // --- UPDATED: Editable Input Fields ---
-        'customerName': el.detailsCustomerNameInput.value,
-        'serviceOrderNumber': el.detailsSoNumberInput.value,
-        'address': el.detailsAddressInput.value,
-        'serviceSpeed': el.detailsSpeedInput.value,
+        customerName: el.detailsCustomerNameInput.value,
+        serviceOrderNumber: el.detailsSoNumberInput.value,
+        address: el.detailsAddressInput.value,
+        serviceSpeed: el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
-        // --- END UPDATED ---
         
         'status': el.detailsForm['details-status'].value,
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
@@ -1439,22 +1314,24 @@ async function handleUpdateCustomer(e) {
         el.loadingOverlay.style.display = 'flex';
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, updatedData);
-        showToast('Customer updated!', 'success');
+        
+        if (!isAutoSave) {
+            showToast('Customer updated!', 'success');
+        }
     } catch (error) {
         console.error("Error updating customer: ", error);
         showToast('Error updating customer.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
     }
-}
+};
 
-async function handleDeleteCustomer(e) {
+const handleDeleteCustomer = async (e) => {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsCustomerNameInput.value;
     
-    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
     if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
             el.loadingOverlay.style.display = 'flex';
@@ -1469,20 +1346,20 @@ async function handleDeleteCustomer(e) {
             el.loadingOverlay.style.display = 'none';
         }
     }
-}
+};
 
-// --- 6. ACTIONS (Unchanged) ---
-async function handleSendWelcomeEmail(e) {
+// --- 6. ACTIONS ---
+const handleSendWelcomeEmail = async (e) => {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !mailCollectionRef) return;
     const toEmail = el.detailsEmailInput.value;
     const customerName = el.detailsCustomerNameInput.value;
+    
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
     }
-    // --- NOTE: Changed from window.confirm to a simple confirm for this environment ---
     if (!confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
         return;
     }
@@ -1501,9 +1378,9 @@ async function handleSendWelcomeEmail(e) {
     } finally {
         el.loadingOverlay.style.display = 'none';
     }
-}
+};
 
-async function handleCopyBilling(e) {
+const handleCopyBilling = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId) return;
@@ -1517,14 +1394,13 @@ async function handleCopyBilling(e) {
         const data = docSnap.data();
         const customerName = el.detailsCustomerNameInput.value;
         
-        // --- MODIFIED BILLING TEXT ---
         const billingText = `
 Customer Name: ${customerName}
 Address: ${data.address || 'N/A'}
 Service Order: ${data.serviceOrderNumber || 'N/A'}
 Date Installed: ${data.installDetails.installDate || 'N/A'}
 Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
-        `.trim().replace(/^\s+\n/gm, '\n'); // Clean up whitespace
+        `.trim().replace(/^\s+\n/gm, '\n'); 
 
         const ta = document.createElement('textarea');
         ta.value = billingText;
@@ -1539,14 +1415,14 @@ Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
         console.error("Error copying billing info: ", error);
         showToast('Error copying info.', 'error');
     }
-}
+};
 
-// --- 7. UTILITIES (Unchanged) ---
+// --- 7. UTILITIES ---
 
-function showToast(message, type = 'success') {
+const showToast = (message, type = 'success') => {
     el.toast.textContent = message;
     el.toast.classList.remove('success', 'error');
     el.toast.classList.add(type === 'error' ? 'error' : 'success');
     el.toast.classList.add('show');
     setTimeout(() => el.toast.classList.remove('show'), 3000);
-}
+};
