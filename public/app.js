@@ -27,6 +27,7 @@ const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/
 let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
+let mailCollectionRef = null; // New reference for mail
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
@@ -116,7 +117,7 @@ const el = {
     toast: document.getElementById('toast-notification')
 };
 
-// --- 1. AUTHENTICATION (Unchanged) ---
+// --- 1. AUTHENTICATION (Updated to set shared collection paths) ---
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
@@ -125,13 +126,19 @@ function handleAuthentication(user) {
         currentUserId = user.uid;
         el.userEmailDisplay.textContent = user.email;
         currentAppId = 'cfn-install-tracker';
-        customersCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'customers');
+        
+        // --- CORE FIX: Use the shared, public data path ---
+        customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
+        // Mail collection MUST remain user-specific for security/billing purposes (mail is triggered via function that bills per user)
+        mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
+        
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
         initializeApp();
     } else {
         currentUserId = null;
         customersCollectionRef = null;
+        mailCollectionRef = null;
         if (customerUnsubscribe) {
             customerUnsubscribe();
             customerUnsubscribe = null;
@@ -401,19 +408,22 @@ function parseServiceOrderText(rawText) {
             }
             
             // 2a. Construct the final customer name
+            let combinedNames = '';
             if (firstNames && firstNames.includes('&')) {
                 // Case 1: Joint name (HATFIELD in Line 1, SCOTT & ALYSSA in Line 2 prefix)
-                data.customerName = `${firstNames} ${lastName}`;
+                combinedNames = `${firstNames} ${lastName}`;
             } else if (lastName.includes(' ') && !lastName.includes('&')) {
                 // Case 2: Single name order (TY MILLER) where the full name is already in Line 1
-                 data.customerName = lastName;
+                 combinedNames = lastName;
             } else if (lastName.length > 0) {
                 // Case 3: Single person, only last name found in Line 1 (HATFIELD).
-                data.customerName = lastName;
+                combinedNames = lastName;
             } else {
                  // Fallback for names in unknown format
-                 data.customerName = firstNames || lastName;
+                 combinedNames = firstNames || lastName;
             }
+            
+            data.customerName = combinedNames; // Assign the correctly combined name
             
             // 2c. Final Address Cleanup: Replace commas with spaces and collapse whitespace in the *final* address string.
             data.address = finalAddressString
@@ -773,7 +783,7 @@ function displayCustomers() {
 
     } else if (currentFilter !== 'All') {
         // Show only the selected active status (New Order, Site Survey, NID, On Hold)
-        filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
+        filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed' && c.status === currentFilter);
         
     } else {
         // 'All' filter selected: Show all EXCEPT 'Completed' (active list view)
@@ -1241,7 +1251,7 @@ async function handleSendWelcomeEmail(e) {
     }
     el.loadingOverlay.style.display = 'flex';
     try {
-        const mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
+        // Use the dedicated mail collection reference
         await addDoc(mailCollectionRef, {
             to: [toEmail],
             template: { name: "cfnWelcome", data: { customerName: customerName } },
