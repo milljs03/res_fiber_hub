@@ -20,25 +20,23 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; // MOVED TO TOP
 // --- END CONSTANTS ---
 
 // --- Global State ---
 let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
-let mailCollectionRef = null;
+let mailCollectionRef = null; // New reference for mail
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
 let currentSort = 'name'; 
 let currentFilter = 'All'; 
 let currentCompletedFilter = 'All'; 
-
-// Chart instances (declared at top level)
 let myChart = null; 
 let monthlyAvgChart = null; 
-let speedChart = null; 
+let speedBreakdownChart = null; 
 
 // --- DOM Elements ---
 const el = {
@@ -94,9 +92,10 @@ const el = {
     overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
     monthlyInstallChart: document.getElementById('monthly-install-chart'), 
     speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
-    dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'), 
-    dashboardContent: document.getElementById('dashboard-content'), 
-    dashboardToggleIcon: document.getElementById('dashboard-toggle-icon'), 
+    // Toggle Elements
+    dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'),
+    dashboardContent: document.getElementById('dashboard-content'),
+    // --- END NEW ELEMENTS ---
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
@@ -106,7 +105,7 @@ const el = {
     
     // Copyable/Editable Fields (UPDATED REFERENCES)
     detailsSoNumberInput: document.getElementById('details-so-number'),
-    detailsCustomerNameInput: document.getElementById('details-customer-name'), 
+    detailsCustomerNameInput: document.getElementById('details-customer-name'),
     detailsAddressInput: document.getElementById('details-address'),
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
@@ -131,8 +130,7 @@ const el = {
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
-
-const handleAuthentication = (user) => {
+function handleAuthentication(user) {
     if (user && user.email && user.email.endsWith('@nptel.com')) {
         currentUserId = user.uid;
         el.userEmailDisplay.textContent = user.email;
@@ -163,8 +161,7 @@ const handleAuthentication = (user) => {
             el.authError.textContent = '';
         }
     }
-};
-
+}
 el.signInBtn.addEventListener('click', () => {
     el.authError.textContent = ''; 
     signInWithPopup(auth, googleProvider)
@@ -178,251 +175,14 @@ el.signInBtn.addEventListener('click', () => {
             }
         });
 });
-
 el.signOutBtn.addEventListener('click', () => {
     signOut(auth).catch((error) => console.error("Sign-out error", error));
 });
 
 
-// --- DASHBOARD CHART FUNCTIONS (Defined as const arrow functions to avoid SyntaxError) ---
+// --- 2. INITIALIZATION (Fixed ReferenceError) ---
 
-const updateCompletedFilterOptions = (allCustomers) => {
-    // Filter down to only completed customers with an install date
-    const completedCustomers = allCustomers.filter(c => 
-        c.status === 'Completed' && c.installDetails?.installDate
-    );
-
-    // Get unique 'YYYY-MM' strings
-    const dateMap = new Map(); 
-    completedCustomers.forEach(c => {
-        const dateString = c.installDetails.installDate; // format: 'YYYY-MM-DD'
-        const date = new Date(dateString.replace(/-/g, '/')); // Use forward slashes for cross-browser compatibility
-        // Using 'en-US' or similar to get locale month name, and full year
-        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
-        const monthYearValue = dateString.substring(0, 7); // 'YYYY-MM'
-        
-        dateMap.set(monthYearValue, monthYearKey);
-    });
-
-    // Convert Map entries to a list of objects for sorting and rendering
-    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
-
-    // Sort newest to oldest (reverse alphabetical on YYYY-MM)
-    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
-    
-    // Render options
-    el.completedFilterSelect.innerHTML = '';
-    
-    // Add "All" option
-    const allOption = document.createElement('option');
-    allOption.value = 'All';
-    allOption.textContent = 'All Completed Orders';
-    el.completedFilterSelect.appendChild(allOption);
-
-    sortedDates.forEach(date => {
-        const option = document.createElement('option');
-        option.value = date.value;
-        option.textContent = date.text;
-        el.completedFilterSelect.appendChild(option);
-    });
-    
-    // Ensure the filter state is valid after update
-    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
-        currentCompletedFilter = 'All';
-    }
-    el.completedFilterSelect.value = currentCompletedFilter;
-};
-
-
-const renderSpeedBreakdownChart = (speedCounts) => {
-    const Chart = window.Chart;
-    if (speedChart) {
-        speedChart.destroy();
-    }
-    
-    const speedLabels = Object.keys(speedCounts);
-    const speedData = Object.values(speedCounts);
-    
-    const colors = [
-        '#4f46e5', // Indigo
-        '#065f46', // Green
-        '#d97706', // Yellow/Orange
-        '#9ca3af'  // Gray (for unknown)
-    ];
-
-    speedChart = new Chart(el.speedBreakdownChart, {
-        type: 'doughnut',
-        data: {
-            labels: speedLabels,
-            datasets: [{
-                data: speedData,
-                backgroundColor: speedLabels.map((_, i) => colors[i % colors.length]),
-                borderColor: 'white',
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false, // CRUCIAL for horizontal layout
-            cutout: '60%', // Thicker ring
-            plugins: {
-                legend: {
-                    position: 'right',
-                    align: 'middle',
-                    labels: {
-                        boxWidth: 10,
-                        padding: 10
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: (context) => {
-                            const label = context.label || '';
-                            const value = context.parsed;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${label}: ${value} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-};
-
-const renderMonthlyAverageChart = (monthlyAverages) => {
-    const Chart = window.Chart;
-    if (monthlyAvgChart) {
-        monthlyAvgChart.destroy();
-    }
-    
-    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
-    const chartLabels = sortedKeys.map(key => new Date(key.replace(/-/g, '/')).toLocaleString('en-US', { month: 'short', year: '2-digit' }));
-    const chartData = sortedKeys.map(key => monthlyAverages[key]);
-    
-    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
-        type: 'line',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Avg Days to Install',
-                data: chartData,
-                backgroundColor: 'rgba(217, 119, 6, 0.5)', // Yellow/Orange color
-                borderColor: '#d97706',
-                borderWidth: 2,
-                tension: 0.2, // makes the line slightly curved
-                pointRadius: 4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { grid: { display: false } },
-                y: {
-                    beginAtZero: true,
-                    ticks: { precision: 0, maxTicksLimit: 5 },
-                    title: { display: false }
-                }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (context) => `Avg: ${context.raw} days`
-                    }
-                }
-            }
-        }
-    });
-};
-
-const renderChart = (ytdInstalls, currentYear) => {
-    // Standard month mapping for chart labels
-    const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ];
-
-    const chartLabels = [];
-    const chartData = [];
-
-    // Initialize data for all months of the current year
-    for (let i = 1; i <= 12; i++) {
-        const monthKey = `${currentYear}-${String(i).padStart(2, '0')}`;
-        chartLabels.push(monthNames[i - 1]);
-        chartData.push(ytdInstalls[monthKey] || 0);
-    }
-    
-    // If a chart instance exists, destroy it first (only the main one)
-    if (myChart && myChart.canvas.id === 'installations-chart') {
-        myChart.destroy();
-    }
-
-    if (!el.installationsChart) {
-        console.error("Chart canvas (installations-chart) not found.");
-        return;
-    }
-
-    // Get the global Chart object (from CDN)
-    const Chart = window.Chart;
-
-    myChart = new Chart(el.installationsChart, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Installs',
-                data: chartData,
-                backgroundColor: '#4f46e5', // Indigo color
-                borderColor: '#4f46e5',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: false // Hide title for compactness
-                    },
-                    ticks: {
-                        precision: 0, // Ensure integer ticks
-                        maxTicksLimit: 5 // Limit ticks for smaller view
-                    }
-                }
-            }
-        }
-    });
-};
-
-
-// --- DASHBOARD TOGGLE FUNCTION ---
-const handleDashboardToggle = () => {
-    const isExpanded = el.dashboardContent.classList.contains('active');
-    
-    if (isExpanded) {
-        el.dashboardContent.classList.remove('active');
-        el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
-        el.dashboardToggleIcon.src = 'chevron_up.png'; // Use UP icon when collapsed
-    } else {
-        el.dashboardContent.classList.add('active');
-        el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
-        el.dashboardToggleIcon.src = 'chevron_down.png'; // Use DOWN icon when expanded
-    }
-};
-
-
-// --- 2. INITIALIZATION ---
-const initializeApp = () => {
+function initializeApp() {
     // FIX: PDFJS_WORKER_SRC is now defined globally, resolving the ReferenceError.
     if (window.pdfjsLib) {
          window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
@@ -434,9 +194,9 @@ const initializeApp = () => {
     }
     loadCustomers();
     handleDeselectCustomer();
-};
+}
 
-const setupEventListeners = () => {
+function setupEventListeners() {
     // Modal Listeners
     el.newCustomerBtn.addEventListener('click', openAddCustomerModal);
     el.modalCloseBtn.addEventListener('click', closeAddCustomerModal);
@@ -445,11 +205,9 @@ const setupEventListeners = () => {
     // Form submission
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // PDF Processing Listener
+    // --- PDF Processing Listener ---
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
-
-    // Dashboard Toggle Listener
-    el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle); 
+    // --- END NEW LISTENER ---
 
     // Search
     el.searchBar.addEventListener('input', (e) => {
@@ -530,6 +288,10 @@ const setupEventListeners = () => {
             handleSelectCustomer(customerItem.dataset.id, customerItem);
         }
     });
+    
+    // Dashboard Toggle Listener
+    el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle);
+
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
@@ -561,20 +323,34 @@ const setupEventListeners = () => {
 
     // On Hold toggle
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
-};
+}
 
-// --- PDF PROCESSING FUNCTIONS ---
+// --- DASHBOARD TOGGLE FUNCTION (NEW) ---
+function handleDashboardToggle() {
+    const isExpanded = el.dashboardContent.classList.contains('active');
+    
+    if (isExpanded) {
+        el.dashboardContent.classList.remove('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
+    } else {
+        el.dashboardContent.classList.add('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
+    }
+}
 
-const getPdfData = (file) => {
+
+// --- PDF PROCESSING FUNCTIONS (NEW, Cost-Free) ---
+
+function getPdfData(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
         reader.readAsArrayBuffer(file);
     });
-};
+}
 
-const extractTextFromPdf = async (data) => {
+async function extractTextFromPdf(data) {
     try {
         // Ensure PDF.js is loaded
         if (!window.pdfjsLib) {
@@ -590,9 +366,9 @@ const extractTextFromPdf = async (data) => {
         console.error("PDF Text Extraction Error:", e);
         throw new Error("Failed to read text from PDF file. Ensure it is not scanned/image-only.");
     }
-};
+}
 
-const parseServiceOrderText = (rawText) => {
+function parseServiceOrderText(rawText) {
     // Clean up excessive whitespace and normalize internal newlines for easier regex matching
     const normalizedText = rawText
         .replace(/(\r\n|\n|\r)/gm, '\n') // Normalize newlines
@@ -634,7 +410,7 @@ const parseServiceOrderText = (rawText) => {
 
 
         if (addressLines.length >= 2) {
-            // Define all required variables in scope
+            // Define all required variables in scope 
             let lastName = addressLines[0]; // e.g., HATFIELD or TY MILLER (Line 1)
             let rawAddressAndNames = addressLines.slice(1).join(' '); // e.g., SCOTT & ALYSSA 5382 E CREEKSIDE... (Line 2+)
             let firstNames = ''; 
@@ -656,24 +432,28 @@ const parseServiceOrderText = (rawText) => {
 
             } else {
                 console.log("No street number detected at address start. Keeping raw line for address.");
+                // If no number found, assume everything is address data, and treat Line 1 as the primary name
                 finalAddressString = rawAddressAndNames;
             }
             
             // 2a. Construct the final customer name
             let combinedNames = '';
             
-            // --- FINAL LOGIC FOR NAME COMBINATION ---
+            // --- MANUAL TWEAK: Simplify and prioritize extracted names if present ---
             if (firstNames.length > 0) {
-                // Case: Two-part name detected, combine prefix with last name
+                // If we successfully extracted first names from the address prefix (e.g., "SCOTT & ALYSSA"),
+                // combine them with the last name (e.g., "HATFIELD") from Line 1.
                 combinedNames = `${firstNames} ${lastName}`;
                 
             } else if (lastName.includes(' ')) {
-                // Case: Full name found in Line 1 (e.g., TY MILLER)
+                // Case for single name orders like "TY MILLER" found entirely in Line 1.
+                // We trust this name format if no prefix extraction was needed.
                 combinedNames = lastName;
             } else {
-                // Fallback: Use whatever we got in Line 1 (e.g., just HATFIELD)
+                // Fallback: Use whatever we got in Line 1 (the single last name).
                 combinedNames = lastName;
             }
+            // --- END MANUAL TWEAK ---
             
             data.customerName = combinedNames; // Assign the correctly combined name
             
@@ -724,10 +504,10 @@ const parseServiceOrderText = (rawText) => {
     console.log("---------------------------");
     
     return data;
-};
+}
 
 
-const handlePdfProcessing = async () => {
+async function handlePdfProcessing() {
     if (!window.pdfjsLib) {
          showToast('PDF.js library not loaded. Check network connection.', 'error');
          return;
@@ -778,9 +558,185 @@ const handlePdfProcessing = async () => {
         el.processPdfBtn.disabled = false;
         el.pdfUploadInput.value = ''; // Clear file input
     }
-};
+}
 
-const calculateDashboardStats = (customers) => {
+// --- NEW HELPER FUNCTION: Populates Month/Year Filter (Moved Up) ---
+function updateCompletedFilterOptions() {
+    // Filter down to only completed customers with an install date
+    const completedCustomers = allCustomers.filter(c => 
+        c.status === 'Completed' && c.installDetails?.installDate
+    );
+
+    // Get unique 'YYYY-MM' strings
+    const dateMap = new Map(); 
+    completedCustomers.forEach(c => {
+        const dateString = c.installDetails.installDate; // format: 'YYYY-MM-DD'
+        const date = new Date(dateString.replace(/-/g, '/')); // Use forward slashes for cross-browser compatibility
+        // Using 'en-US' or similar to get locale month name, and full year
+        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
+        const monthYearValue = dateString.substring(0, 7); // 'YYYY-MM'
+        
+        dateMap.set(monthYearValue, monthYearKey);
+    });
+
+    // Convert Map entries to a list of objects for sorting and rendering
+    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
+
+    // Sort newest to oldest (reverse alphabetical on YYYY-MM)
+    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
+    
+    // Render options
+    el.completedFilterSelect.innerHTML = '';
+    
+    // Add "All" option
+    const allOption = document.createElement('option');
+    allOption.value = 'All';
+    allOption.textContent = 'All Completed Orders';
+    el.completedFilterSelect.appendChild(allOption);
+
+    sortedDates.forEach(date => {
+        const option = document.createElement('option');
+        option.value = date.value;
+        option.textContent = date.text;
+        el.completedFilterSelect.appendChild(option);
+    });
+    
+    // Ensure the filter state is valid after update
+    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
+        currentCompletedFilter = 'All';
+    }
+    el.completedFilterSelect.value = currentCompletedFilter;
+}
+
+
+// --- NEW CHART RENDER FUNCTIONS (Moved Up) ---
+
+function renderMonthlyAverageChart(monthlyAverages) {
+    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
+    
+    const chartLabels = sortedKeys.map(key => {
+        const [year, month] = key.split('-');
+        const date = new Date(year, month - 1);
+        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    });
+
+    const chartData = sortedKeys.map(key => monthlyAverages[key]);
+
+    if (monthlyAvgChart) {
+        monthlyAvgChart.destroy();
+    }
+
+    if (!el.monthlyInstallChart) {
+        console.error("Chart canvas (monthly-install-chart) not found.");
+        return;
+    }
+    
+    const Chart = window.Chart;
+
+    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Avg Days',
+                data: chartData,
+                borderColor: '#ef4444', // Red color for attention
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function renderSpeedBreakdownChart(speedCounts) {
+    const speeds = Object.keys(speedCounts);
+    const counts = Object.values(speedCounts);
+    
+    // Assign colors based on speed tier for consistency
+    const speedColors = {
+        '1 Gbps': '#4F46E5', // indigo-600
+        '500 Mbps': '#FBBF24', // amber-400
+        '200 Mbps': '#065F46', // green-700
+        'Unknown': '#6B7280'   // gray-500
+    };
+    
+    const chartColors = speeds.map(speed => speedColors[speed] || '#6B7280');
+
+
+    if (speedBreakdownChart) {
+        speedBreakdownChart.destroy();
+    }
+    
+    if (!el.speedBreakdownChart) {
+        console.error("Chart canvas (speed-breakdown-chart) not found.");
+        return;
+    }
+
+    const Chart = window.Chart;
+    
+    speedBreakdownChart = new Chart(el.speedBreakdownChart, {
+        type: 'doughnut',
+        data: {
+            labels: speeds,
+            datasets: [{
+                label: 'Customer Count',
+                data: counts,
+                backgroundColor: chartColors,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // CRITICAL: Ensures chart respects container size
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 10,
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                title: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// --- DASHBOARD FUNCTIONS ---
+
+function calculateDashboardStats(customers) {
     const statusCounts = {
         'New Order': 0,
         'Site Survey': 0,
@@ -857,10 +813,9 @@ const calculateDashboardStats = (customers) => {
     renderChart(ytdInstalls, currentYear);
     renderMonthlyAverageChart(finalMonthlyAverages);
     renderSpeedBreakdownChart(speedCounts); 
-    updateCompletedFilterOptions(customers); // Update filter dropdown here
-};
+}
 
-const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTime) => {
+function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime) {
     let breakdownHtml = '';
     const activeStatuses = ['New Order', 'Site Survey', 'NID', 'On Hold'];
     
@@ -870,29 +825,39 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
         return order[a] - order[b];
     });
 
-    // RENDER: Active breakdown as colored pills
-    if (totalActive > 0) {
-        const pillsHtml = activeStatuses.map(status => {
-            if (statusCounts[status] > 0) {
-                const statusSlug = status.toLowerCase().replace(/ /g, '-');
-                return `<span class="status-pill status-${statusSlug}">${status} - ${statusCounts[status]}</span>`;
-            }
-            return '';
-        }).join('');
+    // --- UPDATED: Generate status pills for a clean grid view (Status - Count format) ---
+    const getStatusClass = (status) => {
+        if (!status) return 'status-default';
+        const statusSlug = status.toLowerCase().replace(/ /g, '-');
+        // Handle 'Install' (old status for Completed progress) by defaulting to NID if not New or Survey
+        return `status-${statusSlug}`;
+    };
 
-        breakdownHtml = `<div class="active-breakdown-grid">${pillsHtml}</div>`;
-    } else {
-         breakdownHtml = 'No orders currently in progress.';
+    activeStatuses.forEach(status => {
+        const count = statusCounts[status] || 0;
+        // Only show stages that have at least one order
+        if (count > 0) {
+            breakdownHtml += `
+                <div class="active-breakdown-item">
+                    <span class="status-pill ${getStatusClass(status)}">${status} - ${count}</span>
+                </div>
+            `;
+        }
+    });
+
+    if (breakdownHtml === '') {
+         breakdownHtml = '<p class="text-gray-500">No orders currently in progress.</p>';
     }
 
-    // --- RENDER ACTIVE STAT ---
+    // --- RENDER ACTIVE STAT (using the new breakdown grid) ---
     el.statsSummaryActiveWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #eef2ff; border: 1px solid #c7d2fe;">
             <div class="stat-main-title">Active Orders</div>
             <div class="stat-main-value" style="color: #4f46e5;">${totalActive}</div>
-            <p class="stat-breakdown">${breakdownHtml}</p>
+            <div class="active-breakdown-grid">${breakdownHtml}</div>
         </div>
     `;
+    // --- END UPDATED RENDER ---
 
     // --- RENDER COMPLETED STAT ---
     el.statsSummaryCompletedWrapper.innerHTML = `
@@ -911,12 +876,78 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
             <p class="stat-breakdown">From order creation to installation complete.</p>
         </div>
     `;
-};
+}
+
+function renderChart(ytdInstalls, currentYear) {
+    // Standard month mapping for chart labels
+    const monthNames = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+
+    const chartLabels = [];
+    const chartData = [];
+
+    // Initialize data for all months of the current year
+    for (let i = 1; i <= 12; i++) {
+        const monthKey = `${currentYear}-${String(i).padStart(2, '0')}`;
+        chartLabels.push(monthNames[i - 1]);
+        chartData.push(ytdInstalls[monthKey] || 0);
+    }
+    
+    // If a chart instance exists, destroy it first (only the main one)
+    if (myChart && myChart.canvas.id === 'installations-chart') {
+        myChart.destroy();
+    }
+
+    if (!el.installationsChart) {
+        console.error("Chart canvas (installations-chart) not found.");
+        return;
+    }
+
+    // Get the global Chart object (from CDN)
+    const Chart = window.Chart;
+
+    myChart = new Chart(el.installationsChart, {
+        type: 'bar',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Installs',
+                data: chartData,
+                backgroundColor: '#4f46e5', // Indigo color
+                borderColor: '#4f46e5',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false // Hide title for compactness
+                    },
+                    ticks: {
+                        precision: 0, // Ensure integer ticks
+                        maxTicksLimit: 5 // Limit ticks for smaller view
+                    }
+                }
+            }
+        }
+    });
+}
 
 
-// --- 3. CUSTOMER LIST (READ) ---
+// --- 3. CUSTOMER LIST (READ) (Updated for initial load fix) ---
 
-const loadCustomers = () => {
+function loadCustomers() {
     if (!customersCollectionRef) return;
     if (customerUnsubscribe) customerUnsubscribe();
 
@@ -929,23 +960,26 @@ const loadCustomers = () => {
             allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
-        // 1. Calculate/Render Dashboard
+        // --- FIX: Explicitly synchronize filter state with active UI elements ---
+        const activeTab = el.mainListTabs.querySelector('.main-list-tab.active');
+        if (activeTab && activeTab.dataset.mainFilter === 'Active') {
+            const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
+            // This reads 'All', 'New Order', etc. from the active pill's data-filter
+            currentFilter = activePill ? activePill.dataset.filter : 'All';
+            currentCompletedFilter = 'All'; 
+        } else {
+            // Should default to 'Active' on load, but handles case if 'Completed' was somehow active
+            currentFilter = 'Completed'; 
+            currentCompletedFilter = el.completedFilterSelect.value;
+        }
+        // --- END FIX ---
+
+        // --- NEW: Calculate/Render Dashboard ---
         calculateDashboardStats(allCustomers);
         
-        // 2. Synchronization FIX: Determine the initial active filter state from the UI elements.
-        const activeMainTab = el.mainListTabs.querySelector('.main-list-tab.active');
-        const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
-
-        if (activeMainTab && activeMainTab.dataset.mainFilter === 'Completed') {
-            currentFilter = 'Completed';
-            currentCompletedFilter = el.completedFilterSelect.value;
-        } else {
-            // Default to 'Active Orders' view
-            currentFilter = activePill ? activePill.dataset.filter : 'All';
-            currentCompletedFilter = 'All';
-        }
+        // Update the completed filter options
+        updateCompletedFilterOptions();
         
-        // 3. Display customers based on the synchronized filter state
         displayCustomers();
         
         if (selectedCustomerId) {
@@ -962,10 +996,10 @@ const loadCustomers = () => {
         el.listLoading.textContent = 'Error loading customers.';
         showToast('Error loading customers.', 'error');
     });
-};
+}
 
-// --- NEW CENTRAL RENDER FUNCTION ---
-const displayCustomers = () => {
+// --- NEW CENTRAL RENDER FUNCTION (Unchanged) ---
+function displayCustomers() {
     const searchTerm = el.searchBar.value.toLowerCase();
     
     let filteredCustomers = [...allCustomers];
@@ -1019,10 +1053,10 @@ const displayCustomers = () => {
 
     // 4. Render the final list
     renderCustomerList(filteredCustomers, searchTerm);
-};
+}
 
-// --- MODIFIED: renderCustomerList ---
-const renderCustomerList = (customersToRender, searchTerm = '') => {
+// --- MODIFIED: renderCustomerList (Unchanged) ---
+function renderCustomerList(customersToRender, searchTerm = '') {
     el.customerListContainer.innerHTML = '';
     el.customerListContainer.appendChild(el.listLoading); 
 
@@ -1077,28 +1111,28 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
         `;
         el.customerListContainer.appendChild(item);
     });
-};
+}
 
 
-// --- 4. CUSTOMER (CREATE) ---
+// --- 4. CUSTOMER (CREATE) (Unchanged) ---
 
-const openAddCustomerModal = () => {
+function openAddCustomerModal() {
     el.addCustomerModal.classList.add('show');
     el.pdfStatusMsg.textContent = ''; // Clear status message on open
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-};
+}
 
-const closeAddCustomerModal = () => {
+function closeAddCustomerModal() {
     el.addCustomerModal.classList.remove('show');
     el.addForm.reset();
     el.pdfStatusMsg.textContent = ''; // Clear status message on close
     el.processPdfBtn.disabled = false;
     el.pdfUploadInput.value = '';
-};
+}
 
-const handleAddCustomer = async (e) => {
+async function handleAddCustomer(e) {
     e.preventDefault();
     if (!customersCollectionRef) return;
 
@@ -1144,11 +1178,11 @@ const handleAddCustomer = async (e) => {
         console.error("Error adding customer: ", error);
         showToast('Error adding customer.', 'error');
     }
-};
+}
 
 
-// --- 5. DETAILS PANEL (UPDATE / DELETE) ---
-const handleSelectCustomer = async (customerId, customerItem) => {
+// --- 5. DETAILS PANEL (UPDATE / DELETE) (Unchanged) ---
+async function handleSelectCustomer(customerId, customerItem) {
     if (selectedCustomerId === customerId) {
         handleDeselectCustomer();
         return;
@@ -1182,9 +1216,9 @@ const handleSelectCustomer = async (customerId, customerItem) => {
             lucide.createIcons();
         }
     }
-};
+}
 
-const handleDeselectCustomer = () => {
+function handleDeselectCustomer() {
     selectedCustomerId = null;
     document.querySelectorAll('.customer-item').forEach(item => {
         item.classList.remove('selected');
@@ -1195,11 +1229,11 @@ const handleDeselectCustomer = () => {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-};
+}
 
-const populateDetailsForm = (data) => {
-    // Editable fields (Inputs/Textareas)
-    el.detailsCustomerNameInput.value = data.customerName || ''; 
+function populateDetailsForm(data) {
+    // Editable Fields (Input/Textarea)
+    el.detailsCustomerNameInput.value = data.customerName || '';
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
     el.detailsAddressInput.value = data.address || '';
     el.detailsSpeedInput.value = data.serviceSpeed || '';
@@ -1208,7 +1242,6 @@ const populateDetailsForm = (data) => {
     
     // Status
     el.detailsForm['details-status'].value = data.status || 'New Order';
-    
     // Pre-Install
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
@@ -1230,17 +1263,17 @@ const populateDetailsForm = (data) => {
 
     // This will style the stepper correctly when a customer is loaded
     updateStepperUI(data.status || 'New Order');
-};
+}
 
-const showDetailsPage = (pageId) => {
+function showDetailsPage(pageId) {
     el.detailsPages.forEach(page => page.classList.remove('active'));
     
     const targetPage = document.getElementById(pageId);
     if (targetPage) targetPage.classList.add('active');
-};
+}
 
-// --- RENAMED and UPDATED ---
-const setPageForStatus = (status) => {
+// --- RENAMED and UPDATED (Unchanged) ---
+function setPageForStatus(status) {
     switch (status) {
         case 'Site Survey':
             showDetailsPage('page-site-survey');
@@ -1257,10 +1290,10 @@ const setPageForStatus = (status) => {
         default:
             showDetailsPage('page-pre-install');
     }
-};
+}
 
-// --- NEW FUNCTION ---
-const handleToggleOnHold = (e) => {
+// --- NEW FUNCTION (Unchanged) ---
+function handleToggleOnHold(e) {
     e.preventDefault(); // It's in a form
     const currentStatus = el.detailsForm['details-status'].value;
 
@@ -1284,10 +1317,10 @@ const handleToggleOnHold = (e) => {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-};
+}
 
-// --- MODIFIED FUNCTION ---
-const updateStepperUI = (currentStatus) => {
+// --- MODIFIED FUNCTION (Unchanged) ---
+function updateStepperUI(currentStatus) {
     const steps = ['New Order', 'Site Survey', 'NID', 'Completed']; 
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
@@ -1332,18 +1365,20 @@ const updateStepperUI = (currentStatus) => {
             }
         }
     }
-};
+}
 // --- END MODIFIED FUNCTION ---
 
 
-const handleDetailsFormClick = (e) => {
+function handleDetailsFormClick(e) {
     const copyBtn = e.target.closest('.copy-btn');
     if (!copyBtn) return; 
     const targetId = copyBtn.dataset.target;
     if (!targetId) return;
     const targetElement = document.getElementById(targetId);
     if (!targetElement) return;
-    const textToCopy = (targetElement.tagName === 'SPAN') ? targetElement.textContent : targetElement.value;
+    // --- UPDATED: Use .value for inputs, .textContent for span fallback ---
+    const textToCopy = (targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.tagName === 'SELECT') ? targetElement.value : targetElement.textContent;
+    // --- END UPDATED ---
     if (!textToCopy) {
         showToast('Nothing to copy.', 'error');
         return;
@@ -1366,23 +1401,23 @@ const handleDetailsFormClick = (e) => {
         console.error('Failed to copy text: ', err);
         showToast('Failed to copy.', 'error');
     }
-};
+}
 
-const handleUpdateCustomer = async (e) => {
+async function handleUpdateCustomer(e) {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
     const updatedData = {
-        // --- Editable Contact Fields ---
-        customerName: el.detailsCustomerNameInput.value,
-        serviceOrderNumber: el.detailsSoNumberInput.value,
-        address: el.detailsAddressInput.value,
-        serviceSpeed: el.detailsSpeedInput.value,
+        // --- UPDATED: Editable Input Fields ---
+        'customerName': el.detailsCustomerNameInput.value,
+        'serviceOrderNumber': el.detailsSoNumberInput.value,
+        'address': el.detailsAddressInput.value,
+        'serviceSpeed': el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
+        // --- END UPDATED ---
         
-        // --- Status and Checklist Fields ---
         'status': el.detailsForm['details-status'].value,
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
@@ -1411,9 +1446,9 @@ const handleUpdateCustomer = async (e) => {
     } finally {
         el.loadingOverlay.style.display = 'none';
     }
-};
+}
 
-const handleDeleteCustomer = async (e) => {
+async function handleDeleteCustomer(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
@@ -1434,16 +1469,15 @@ const handleDeleteCustomer = async (e) => {
             el.loadingOverlay.style.display = 'none';
         }
     }
-};
+}
 
-// --- 6. ACTIONS ---
-const handleSendWelcomeEmail = async (e) => {
+// --- 6. ACTIONS (Unchanged) ---
+async function handleSendWelcomeEmail(e) {
     e.preventDefault(); 
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !mailCollectionRef) return;
     const toEmail = el.detailsEmailInput.value;
     const customerName = el.detailsCustomerNameInput.value;
-    
     if (!toEmail) {
         showToast('No customer email on file to send to.', 'error');
         return;
@@ -1467,9 +1501,9 @@ const handleSendWelcomeEmail = async (e) => {
     } finally {
         el.loadingOverlay.style.display = 'none';
     }
-};
+}
 
-const handleCopyBilling = async (e) => {
+async function handleCopyBilling(e) {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId) return;
@@ -1505,14 +1539,14 @@ Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
         console.error("Error copying billing info: ", error);
         showToast('Error copying info.', 'error');
     }
-};
+}
 
-// --- 7. UTILITIES ---
+// --- 7. UTILITIES (Unchanged) ---
 
-const showToast = (message, type = 'success') => {
+function showToast(message, type = 'success') {
     el.toast.textContent = message;
     el.toast.classList.remove('success', 'error');
     el.toast.classList.add(type === 'error' ? 'error' : 'success');
     el.toast.classList.add('show');
     setTimeout(() => el.toast.classList.remove('show'), 3000);
-};
+}
