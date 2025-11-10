@@ -60,7 +60,9 @@ const el = {
     serviceSpeedInput: document.getElementById('service-speed'),
 
     // PDF Processing
+    pdfDropZone: document.getElementById('pdf-drop-zone'),
     pdfUploadInput: document.getElementById('pdf-upload'),
+    selectedFileNameDisplay: document.getElementById('selected-file-name'),
     processPdfBtn: document.getElementById('process-pdf-btn'),
     pdfStatusMsg: document.getElementById('pdf-status-msg'),
 
@@ -114,11 +116,8 @@ const el = {
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
-    
-    // MODIFIED: Both Save Buttons
     headerSaveBtn: document.getElementById('header-save-btn'), 
-    updateCustomerBtn: document.getElementById('update-customer-btn'), // (Bottom one)
-    
+    updateCustomerBtn: document.getElementById('update-customer-btn'), 
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
@@ -434,8 +433,29 @@ const setupEventListeners = () => {
     // Form submission
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // PDF Processing Listener
+    // PDF Processing Listeners (Click & Drag-and-Drop)
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
+    
+    // Drag and Drop Events
+    el.pdfDropZone.addEventListener('click', () => el.pdfUploadInput.click());
+    el.pdfDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        el.pdfDropZone.classList.add('dragover');
+    });
+    el.pdfDropZone.addEventListener('dragleave', () => {
+        el.pdfDropZone.classList.remove('dragover');
+    });
+    el.pdfDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.pdfDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            el.pdfUploadInput.files = e.dataTransfer.files;
+            updateSelectedFileDisplay();
+        }
+    });
+    // Standard file input change event
+    el.pdfUploadInput.addEventListener('change', updateSelectedFileDisplay);
+
 
     // Dashboard Toggle Listener
     el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle); 
@@ -516,11 +536,8 @@ const setupEventListeners = () => {
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    
-    // MODIFIED: Listeners for BOTH save buttons
     el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
     el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
-
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
@@ -549,6 +566,18 @@ const setupEventListeners = () => {
 };
 
 // --- PDF PROCESSING FUNCTIONS ---
+
+// Helper to update UI when file is selected
+const updateSelectedFileDisplay = () => {
+    const file = el.pdfUploadInput.files[0];
+    if (file) {
+        el.selectedFileNameDisplay.textContent = `Selected: ${file.name}`;
+        el.processPdfBtn.disabled = false;
+    } else {
+        el.selectedFileNameDisplay.textContent = '';
+        el.processPdfBtn.disabled = true;
+    }
+};
 
 const getPdfData = (file) => {
     return new Promise((resolve, reject) => {
@@ -730,7 +759,8 @@ const handlePdfProcessing = async () => {
         showToast('PDF processing failed.', 'error');
     } finally {
         el.processPdfBtn.disabled = false;
-        el.pdfUploadInput.value = ''; 
+        // DO NOT clear input here so user sees what they selected.
+        // It gets cleared on modal close instead.
     }
 };
 
@@ -1007,6 +1037,10 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
 const openAddCustomerModal = () => {
     el.addCustomerModal.classList.add('show');
     el.pdfStatusMsg.textContent = ''; 
+    // Ensure selected file text is cleared on re-open
+    el.selectedFileNameDisplay.textContent = '';
+    el.processPdfBtn.disabled = true;
+
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
@@ -1016,7 +1050,8 @@ const closeAddCustomerModal = () => {
     el.addCustomerModal.classList.remove('show');
     el.addForm.reset();
     el.pdfStatusMsg.textContent = ''; 
-    el.processPdfBtn.disabled = false;
+    el.selectedFileNameDisplay.textContent = '';
+    el.processPdfBtn.disabled = true;
     el.pdfUploadInput.value = '';
 };
 

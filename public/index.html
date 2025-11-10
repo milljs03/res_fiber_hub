@@ -165,7 +165,6 @@
             <div class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer Details</h2>
-                    <!-- NEW TOP BUTTON (No Icon) -->
                     <button type="button" id="header-save-btn" class="btn btn-primary">
                         Save Changes
                     </button>
@@ -361,7 +360,6 @@
                                     </div>
                                     
 
-
                                     <div class="form-group">
                                         <label for="extra-equip" class="form-label">Additional Equipment</label>
                                         <div class="field-wrapper">
@@ -411,6 +409,7 @@
                                             <label for="eero-info">Eero Insight Info Documented</label>
                                         </div>
                                     </div>
+
                                     <div class="checklist-item">
                                         <div class="checklist-item-box">
                                             <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
@@ -447,7 +446,6 @@
 
                         </div> 
                         <div class="action-buttons">
-                            <!-- RESTORED ORIGINAL SAVE BUTTON (with icon) -->
                             <button type="button" id="update-customer-btn" class="btn btn-primary">
                                 <i data-lucide="save" class="btn-icon"></i>
                                 Save Changes
@@ -488,13 +486,23 @@
             </div>
             
             <form id="add-customer-form" class="card-content">
-                <!-- PDF Upload Section -->
+                <!-- PDF Upload Section with Drag and Drop -->
                 <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 1.25rem;">
-                    <label for="pdf-upload" class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
-                    <input type="file" id="pdf-upload" accept=".pdf" class="form-input" style="padding: 0.5rem 0.75rem; border: 1px solid #d1d5db;">
-                    <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" style="margin-top: 0.75rem;">
+                    <label class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
+                    
+                    <div id="pdf-drop-zone" class="pdf-drop-zone">
+                        <i data-lucide="upload-cloud" class="drop-zone-icon"></i>
+                        <p class="drop-zone-text">
+                            Drag & drop PDF here, or <span class="browse-link">browse</span>
+                        </p>
+                        <p id="selected-file-name" class="selected-file-name"></p>
+                        <!-- Hidden file input -->
+                        <input type="file" id="pdf-upload" accept=".pdf" class="file-input-hidden">
+                    </div>
+
+                    <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" style="margin-top: 0.75rem;" disabled>
                         <i data-lucide="file-text" class="btn-icon"></i>
-                        Process PDF & Autofill (Cost-Free)
+                        Process PDF & Autofill
                     </button>
                     <p id="pdf-status-msg" style="font-size: 0.75rem; color: #4b5563; margin-top: 0.5rem; text-align: center;"></p>
                 </div>

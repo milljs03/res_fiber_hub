@@ -53,15 +53,6 @@ body {
     background-color: #f9fafb; /* hover:bg-gray-50 */
 }
 
-/* --- NEW BUTTON STYLE: Utility/PDF --- */
-.btn-utility {
-    background-color: #e0e7ff; /* light blue/indigo */
-    color: #3730a3; /* dark indigo text */
-    border-color: #a5b4fc; /* subtle border */
-}
-.btn-utility:hover:not(:disabled) {
-    background-color: #c7d2fe; /* slightly darker hover */
-}
 .btn-danger {
     background-color: #fef2f2; /* bg-red-100 */
     color: #b91c1c; /* text-red-700 */
@@ -955,4 +946,61 @@ body {
     padding-top: 1.25rem;
     border-top: 1px solid #e5e7eb; 
     margin-top: 1.25rem;
+}
+
+/* --- New: PDF Drop Zone Styles --- */
+.pdf-drop-zone {
+    border: 2px dashed #d1d5db; /* border-gray-300 */
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    background-color: #f9fafb; /* bg-gray-50 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+.pdf-drop-zone:hover {
+    border-color: #9ca3af; /* border-gray-400 */
+    background-color: #f3f4f6; /* bg-gray-100 */
+}
+.pdf-drop-zone.dragover {
+    border-color: #4f46e5; /* border-indigo-600 */
+    background-color: #eef2ff; /* bg-indigo-50 */
+}
+.drop-zone-icon {
+    width: 2rem;
+    height: 2rem;
+    color: #9ca3af; /* text-gray-400 */
+    transition: color 0.2s;
+}
+.pdf-drop-zone:hover .drop-zone-icon,
+.pdf-drop-zone.dragover .drop-zone-icon {
+    color: #6b7280; /* text-gray-500 */
+}
+.pdf-drop-zone.dragover .drop-zone-icon {
+    color: #4f46e5; /* text-indigo-600 */
+}
+.drop-zone-text {
+    font-size: 0.875rem; /* text-sm */
+    color: #6b7280; /* text-gray-500 */
+    margin: 0;
+}
+.browse-link {
+    color: #4f46e5; /* text-indigo-600 */
+    font-weight: 500;
+    text-decoration: underline;
+}
+.file-input-hidden {
+    display: none; /* Hide the actual input */
+}
+.selected-file-name {
+    font-size: 0.75rem; /* text-xs */
+    color: #374151; /* text-gray-700 */
+    font-weight: 500;
+    margin: 0;
+    min-height: 1rem; /* maintain space even when empty */
 }
