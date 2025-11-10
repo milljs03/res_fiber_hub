@@ -50,23 +50,46 @@
             <div id="dashboard-card" class="card">
                 <h2 class="card-title">At a Glance</h2>
                 <div id="dashboard-stats-grid" class="dashboard-stats-grid">
-                    <!-- 1. Active Stat Box (populated by JS into this container) -->
+                    
+                    <!-- KPI 1: Active Orders -->
                     <div id="stats-summary-active-wrapper" class="stat-wrapper">
                         <!-- JS content for Active Stats goes here -->
                     </div>
                     
-                    <!-- 2. Completed Stat Box (populated by JS into this container) -->
+                    <!-- KPI 2: Completed Orders -->
                     <div id="stats-summary-completed-wrapper" class="stat-wrapper">
                         <!-- JS content for Completed Stats goes here -->
                     </div>
 
-                    <!-- 3. Chart area -->
+                    <!-- KPI 3: Overall Average Install Time -->
+                    <div id="overall-install-time-wrapper" class="stat-wrapper">
+                        <!-- JS content for Avg Install Time goes here -->
+                    </div>
+
+                    <!-- Chart Area 1: YTD Installs -->
                     <div id="chart-area-box" class="chart-area-box">
-                        <h3 class="chart-title">YTD Installs</h3>
+                        <h3 class="chart-title">YTD Installs by Month</h3>
                         <div id="chart-area" class="chart-area">
                             <canvas id="installations-chart"></canvas>
                         </div>
                     </div>
+                    
+                    <!-- Chart Area 2: Monthly Average Install Time -->
+                    <div id="monthly-avg-time-box" class="chart-area-box">
+                        <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
+                        <div id="monthly-avg-chart-area" class="chart-area">
+                            <canvas id="monthly-install-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart Area 3: Service Speed Breakdown (NEW) -->
+                    <div id="speed-breakdown-box" class="chart-area-box">
+                        <h3 class="chart-title">Service Speed Breakdown</h3>
+                        <div id="speed-breakdown-chart-area" class="chart-area">
+                            <canvas id="speed-breakdown-chart"></canvas>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -284,7 +307,7 @@
                                             <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
                                         </div>
                                         <div class="checklist-item-label">
-                                            <label for="check-fiber-list">Added to Current Drops List</label>
+                                            <label for="check-fiber-list">Added to Residential Fiber List</label>
                                         </div>
                                     </div>
                                     <div class="checklist-item">
@@ -409,7 +432,7 @@
                                             <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
                                         </div>
                                         <div class="checklist-item-label">
-                                            <label for="post-check-fiber">Removed from Current Drops List</label>
+                                            <label for="post-check-fiber">Removed from Residential Fiber List</label>
                                         </div>
                                     </div>
                                     <div class="checklist-item">

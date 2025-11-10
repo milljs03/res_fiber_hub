@@ -86,6 +86,10 @@ const el = {
     statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
     statsSummaryCompletedWrapper: document.getElementById('stats-summary-completed-wrapper'),
     installationsChart: document.getElementById('installations-chart'),
+    // NEW KPIs
+    overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
+    monthlyInstallChart: document.getElementById('monthly-install-chart'), 
+    speedBreakdownChart: document.getElementById('speed-breakdown-chart'), // NEW REFERENCE
     // --- END NEW ELEMENTS ---
 
     // Details Panel
@@ -405,6 +409,8 @@ function parseServiceOrderText(rawText) {
 
             } else {
                 console.log("No street number detected at address start. Keeping raw line for address.");
+                // If no number found, assume everything is address data, and treat Line 1 as the primary name
+                finalAddressString = rawAddressAndNames;
             }
             
             // 2a. Construct the final customer name
@@ -415,8 +421,12 @@ function parseServiceOrderText(rawText) {
             } else if (lastName.includes(' ') && !lastName.includes('&')) {
                 // Case 2: Single name order (TY MILLER) where the full name is already in Line 1
                  combinedNames = lastName;
+            } else if (firstNames.length > 0 && lastName.length > 0) {
+                 // Case 3: Names were successfully separated, but no '&' detected (e.g., John Smith on line 2, Doe on line 1)
+                 // Reorder back to First Last Doe or if it was just Doe Smith it goes back to Doe Smith
+                 combinedNames = `${firstNames} ${lastName}`;
             } else if (lastName.length > 0) {
-                // Case 3: Single person, only last name found in Line 1 (HATFIELD).
+                // Case 4: Single person, only last name found in Line 1 (HATFIELD) and no names extracted from address prefix.
                 combinedNames = lastName;
             } else {
                  // Fallback for names in unknown format
@@ -528,7 +538,8 @@ async function handlePdfProcessing() {
     }
 }
 
-// --- DASHBOARD FUNCTIONS (Unchanged) ---
+// --- DASHBOARD FUNCTIONS (UPDATED FOR NEW KPIs) ---
+
 function calculateDashboardStats(customers) {
     const statusCounts = {
         'New Order': 0,
@@ -538,7 +549,13 @@ function calculateDashboardStats(customers) {
         'Completed': 0
     };
     
-    // YTD installation data (Month/Year => count)
+    // KPI Data structures
+    let totalInstallDays = 0;
+    let completedCount = 0;
+    const monthlyInstallTimes = {}; // { 'YYYY-MM': { totalDays: 0, count: 0 } }
+    const speedCounts = {}; // NEW: { 'Speed': count }
+    
+    // YTD installation data (Month/Year => count) for the chart
     const ytdInstalls = {};
     const currentYear = new Date().getFullYear();
 
@@ -547,13 +564,37 @@ function calculateDashboardStats(customers) {
             statusCounts[c.status]++;
         }
         
-        if (c.status === 'Completed' && c.installDetails?.installDate) {
-            const date = c.installDetails.installDate; // YYYY-MM-DD
-            const year = date.substring(0, 4);
+        // Count speeds
+        const speed = c.serviceSpeed || 'Unknown';
+        speedCounts[speed] = (speedCounts[speed] || 0) + 1;
+
+        // Calculate Install Time KPIs (only for completed orders)
+        if (c.status === 'Completed' && c.installDetails?.installDate && c.createdAt?.seconds) {
+            const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
+            const dateCreated = new Date(c.createdAt.seconds * 1000);
+
+            // Calculate difference in days (using milliseconds)
+            const diffTime = Math.abs(dateInstalled - dateCreated);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
-            if (parseInt(year) === currentYear) {
-                const month = date.substring(5, 7); // MM
-                const key = `${currentYear}-${month}`;
+            // 1. Overall Average
+            totalInstallDays += diffDays;
+            completedCount++;
+
+            // 2. Monthly Average
+            const installYear = dateInstalled.getFullYear();
+            const installMonth = String(dateInstalled.getMonth() + 1).padStart(2, '0');
+            const monthKey = `${installYear}-${installMonth}`;
+            
+            if (!monthlyInstallTimes[monthKey]) {
+                monthlyInstallTimes[monthKey] = { totalDays: 0, count: 0 };
+            }
+            monthlyInstallTimes[monthKey].totalDays += diffDays;
+            monthlyInstallTimes[monthKey].count++;
+            
+            // 3. YTD Chart Data
+            if (installYear === currentYear) {
+                const key = `${installYear}-${installMonth}`;
                 ytdInstalls[key] = (ytdInstalls[key] || 0) + 1;
             }
         }
@@ -562,11 +603,23 @@ function calculateDashboardStats(customers) {
     const totalActive = statusCounts['New Order'] + statusCounts['Site Survey'] + statusCounts['NID'] + statusCounts['On Hold'];
     const totalCompleted = statusCounts['Completed'];
     
-    renderDashboard(totalActive, totalCompleted, statusCounts);
+    // Final KPI calculations
+    const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
+    
+    // Calculate final monthly averages
+    const finalMonthlyAverages = {};
+    for (const monthKey in monthlyInstallTimes) {
+        const data = monthlyInstallTimes[monthKey];
+        finalMonthlyAverages[monthKey] = (data.totalDays / data.count).toFixed(1);
+    }
+    
+    renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime);
     renderChart(ytdInstalls, currentYear);
+    renderMonthlyAverageChart(finalMonthlyAverages);
+    renderSpeedBreakdownChart(speedCounts); // NEW CALL
 }
 
-function renderDashboard(totalActive, totalCompleted, statusCounts) {
+function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime) {
     let breakdownHtml = '';
     const activeStatuses = ['New Order', 'Site Survey', 'NID', 'On Hold'];
     
@@ -605,6 +658,15 @@ function renderDashboard(totalActive, totalCompleted, statusCounts) {
             <p class="stat-breakdown">Total lifetime installs.</p>
         </div>
     `;
+    
+    // --- RENDER OVERALL AVG TIME STAT (New KPI) ---
+    el.overallInstallTimeWrapper.innerHTML = `
+        <div class="stat-box" style="background-color: #fffbeb; border: 1px solid #fde68a;">
+            <div class="stat-main-title">Avg Install Time</div>
+            <div class="stat-main-value" style="color: #d97706;">${overallAvgTime} days</div>
+            <p class="stat-breakdown">From order creation to installation complete.</p>
+        </div>
+    `;
 }
 
 function renderChart(ytdInstalls, currentYear) {
@@ -624,13 +686,13 @@ function renderChart(ytdInstalls, currentYear) {
         chartData.push(ytdInstalls[monthKey] || 0);
     }
     
-    // If a chart instance exists, destroy it first
-    if (myChart) {
+    // If a chart instance exists, destroy it first (only the main one)
+    if (myChart && myChart.canvas.id === 'installations-chart') {
         myChart.destroy();
     }
 
     if (!el.installationsChart) {
-        console.error("Chart canvas not found.");
+        console.error("Chart canvas (installations-chart) not found.");
         return;
     }
 
@@ -672,9 +734,146 @@ function renderChart(ytdInstalls, currentYear) {
         }
     });
 }
+
+// --- NEW FUNCTION: RENDER MONTHLY AVERAGE TIME CHART ---
+let monthlyAvgChart = null; 
+
+function renderMonthlyAverageChart(monthlyAverages) {
+    const sortedKeys = Object.keys(monthlyAverages).sort((a, b) => a.localeCompare(b));
+    const chartLabels = sortedKeys.map(key => {
+        const [year, month] = key.split('-');
+        const date = new Date(year, month - 1);
+        return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    });
+    const chartData = sortedKeys.map(key => parseFloat(monthlyAverages[key]));
+    
+    if (monthlyAvgChart) {
+        monthlyAvgChart.destroy();
+    }
+
+    if (!el.monthlyInstallChart) {
+        console.error("Chart canvas (monthly-install-chart) not found.");
+        return;
+    }
+    
+    const Chart = window.Chart;
+
+    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Avg Days (Order to Install)',
+                data: chartData,
+                borderColor: '#dc2626', // Red color
+                backgroundColor: 'rgba(220, 38, 38, 0.1)', 
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: '#dc2626'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Average Days'
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        boxWidth: 12
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Avg Time: ${context.raw} days`
+                    }
+                }
+            }
+        }
+    });
+}
+
+// --- NEW FUNCTION: RENDER SPEED BREAKDOWN CHART ---
+let speedChart = null; 
+
+function renderSpeedBreakdownChart(speedCounts) {
+    const speedLabels = Object.keys(speedCounts).sort();
+    const speedData = speedLabels.map(label => speedCounts[label]);
+    
+    // Map speeds to colors for a better visual experience
+    const getSpeedColor = (label) => {
+        if (label.includes('1 Gbps')) return '#4f46e5';
+        if (label.includes('500 Mbps')) return '#10b981';
+        if (label.includes('200 Mbps')) return '#f59e0b';
+        return '#9ca3af';
+    };
+    
+    const chartColors = speedLabels.map(label => getSpeedColor(label));
+
+    if (speedChart) {
+        speedChart.destroy();
+    }
+
+    if (!el.speedBreakdownChart) {
+        console.error("Chart canvas (speed-breakdown-chart) not found.");
+        return;
+    }
+    
+    const Chart = window.Chart;
+
+    speedChart = new Chart(el.speedBreakdownChart, {
+        type: 'doughnut',
+        data: {
+            labels: speedLabels,
+            datasets: [{
+                label: 'Customers',
+                data: speedData,
+                backgroundColor: chartColors,
+                hoverOffset: 4,
+                borderWidth: 1,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // <-- FIX APPLIED HERE
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 5
+                    }
+                },
+                title: {
+                    display: false
+                }
+            }
+        }
+    });
+}
 // --- END DASHBOARD FUNCTIONS ---
 
-// --- NEW HELPER FUNCTION: Populates Month/Year Filter (Unchanged) ---
+
+// ... (rest of the file remains unchanged)
 function updateCompletedFilterOptions() {
     // Filter down to only completed customers with an install date
     const completedCustomers = allCustomers.filter(c => 
