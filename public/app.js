@@ -35,6 +35,8 @@ let currentSort = 'name';
 let currentFilter = 'All'; 
 let currentCompletedFilter = 'All'; 
 let myChart = null; 
+let monthlyAvgChart = null; 
+let speedBreakdownChart = null; 
 
 // --- DOM Elements ---
 const el = {
@@ -86,10 +88,13 @@ const el = {
     statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
     statsSummaryCompletedWrapper: document.getElementById('stats-summary-completed-wrapper'),
     installationsChart: document.getElementById('installations-chart'),
-    // NEW KPIs
+    // KPIs
     overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
     monthlyInstallChart: document.getElementById('monthly-install-chart'), 
     speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
+    // Toggle Elements
+    dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'),
+    dashboardContent: document.getElementById('dashboard-content'),
     // --- END NEW ELEMENTS ---
 
     // Details Panel
@@ -283,6 +288,10 @@ function setupEventListeners() {
             handleSelectCustomer(customerItem.dataset.id, customerItem);
         }
     });
+    
+    // Dashboard Toggle Listener
+    el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle);
+
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
@@ -315,6 +324,20 @@ function setupEventListeners() {
     // On Hold toggle
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
 }
+
+// --- DASHBOARD TOGGLE FUNCTION (NEW) ---
+function handleDashboardToggle() {
+    const isExpanded = el.dashboardContent.classList.contains('active');
+    
+    if (isExpanded) {
+        el.dashboardContent.classList.remove('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
+    } else {
+        el.dashboardContent.classList.add('active');
+        el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
+    }
+}
+
 
 // --- PDF PROCESSING FUNCTIONS (NEW, Cost-Free) ---
 
@@ -387,7 +410,7 @@ function parseServiceOrderText(rawText) {
 
 
         if (addressLines.length >= 2) {
-            // Define all required variables in scope (FIX for ReferenceError)
+            // Define all required variables in scope 
             let lastName = addressLines[0]; // e.g., HATFIELD or TY MILLER (Line 1)
             let rawAddressAndNames = addressLines.slice(1).join(' '); // e.g., SCOTT & ALYSSA 5382 E CREEKSIDE... (Line 2+)
             let firstNames = ''; 
@@ -537,7 +560,181 @@ async function handlePdfProcessing() {
     }
 }
 
-// --- DASHBOARD FUNCTIONS (UPDATED FOR NEW KPIs) ---
+// --- NEW HELPER FUNCTION: Populates Month/Year Filter (Moved Up) ---
+function updateCompletedFilterOptions() {
+    // Filter down to only completed customers with an install date
+    const completedCustomers = allCustomers.filter(c => 
+        c.status === 'Completed' && c.installDetails?.installDate
+    );
+
+    // Get unique 'YYYY-MM' strings
+    const dateMap = new Map(); 
+    completedCustomers.forEach(c => {
+        const dateString = c.installDetails.installDate; // format: 'YYYY-MM-DD'
+        const date = new Date(dateString.replace(/-/g, '/')); // Use forward slashes for cross-browser compatibility
+        // Using 'en-US' or similar to get locale month name, and full year
+        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
+        const monthYearValue = dateString.substring(0, 7); // 'YYYY-MM'
+        
+        dateMap.set(monthYearValue, monthYearKey);
+    });
+
+    // Convert Map entries to a list of objects for sorting and rendering
+    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
+
+    // Sort newest to oldest (reverse alphabetical on YYYY-MM)
+    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
+    
+    // Render options
+    el.completedFilterSelect.innerHTML = '';
+    
+    // Add "All" option
+    const allOption = document.createElement('option');
+    allOption.value = 'All';
+    allOption.textContent = 'All Completed Orders';
+    el.completedFilterSelect.appendChild(allOption);
+
+    sortedDates.forEach(date => {
+        const option = document.createElement('option');
+        option.value = date.value;
+        option.textContent = date.text;
+        el.completedFilterSelect.appendChild(option);
+    });
+    
+    // Ensure the filter state is valid after update
+    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
+        currentCompletedFilter = 'All';
+    }
+    el.completedFilterSelect.value = currentCompletedFilter;
+}
+
+
+// --- NEW CHART RENDER FUNCTIONS (Moved Up) ---
+
+function renderMonthlyAverageChart(monthlyAverages) {
+    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
+    
+    const chartLabels = sortedKeys.map(key => {
+        const [year, month] = key.split('-');
+        const date = new Date(year, month - 1);
+        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+    });
+
+    const chartData = sortedKeys.map(key => monthlyAverages[key]);
+
+    if (monthlyAvgChart) {
+        monthlyAvgChart.destroy();
+    }
+
+    if (!el.monthlyInstallChart) {
+        console.error("Chart canvas (monthly-install-chart) not found.");
+        return;
+    }
+    
+    const Chart = window.Chart;
+
+    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: 'Avg Days',
+                data: chartData,
+                borderColor: '#ef4444', // Red color for attention
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: false
+                    },
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function renderSpeedBreakdownChart(speedCounts) {
+    const speeds = Object.keys(speedCounts);
+    const counts = Object.values(speedCounts);
+    
+    // Assign colors based on speed tier for consistency
+    const speedColors = {
+        '1 Gbps': '#4F46E5', // indigo-600
+        '500 Mbps': '#FBBF24', // amber-400
+        '200 Mbps': '#065F46', // green-700
+        'Unknown': '#6B7280'   // gray-500
+    };
+    
+    const chartColors = speeds.map(speed => speedColors[speed] || '#6B7280');
+
+
+    if (speedBreakdownChart) {
+        speedBreakdownChart.destroy();
+    }
+    
+    if (!el.speedBreakdownChart) {
+        console.error("Chart canvas (speed-breakdown-chart) not found.");
+        return;
+    }
+
+    const Chart = window.Chart;
+    
+    speedBreakdownChart = new Chart(el.speedBreakdownChart, {
+        type: 'doughnut',
+        data: {
+            labels: speeds,
+            datasets: [{
+                label: 'Customer Count',
+                data: counts,
+                backgroundColor: chartColors,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // CRITICAL: Ensures chart respects container size
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 10,
+                        padding: 10,
+                        font: {
+                            size: 10
+                        }
+                    }
+                },
+                title: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// --- DASHBOARD FUNCTIONS ---
 
 function calculateDashboardStats(customers) {
     const statusCounts = {
@@ -615,7 +812,7 @@ function calculateDashboardStats(customers) {
     renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime);
     renderChart(ytdInstalls, currentYear);
     renderMonthlyAverageChart(finalMonthlyAverages);
-    renderSpeedBreakdownChart(speedCounts); // NEW CALL
+    renderSpeedBreakdownChart(speedCounts); 
 }
 
 function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTime) {
@@ -629,14 +826,20 @@ function renderDashboard(totalActive, totalCompleted, statusCounts, overallAvgTi
     });
 
     // --- UPDATED: Generate status pills for a clean grid view (Status - Count format) ---
+    const getStatusClass = (status) => {
+        if (!status) return 'status-default';
+        const statusSlug = status.toLowerCase().replace(/ /g, '-');
+        // Handle 'Install' (old status for Completed progress) by defaulting to NID if not New or Survey
+        return `status-${statusSlug}`;
+    };
+
     activeStatuses.forEach(status => {
         const count = statusCounts[status] || 0;
         // Only show stages that have at least one order
         if (count > 0) {
-            const statusSlug = status.toLowerCase().replace(/ /g, '-');
             breakdownHtml += `
                 <div class="active-breakdown-item">
-                    <span class="status-pill status-${statusSlug}">${status} - ${count}</span>
+                    <span class="status-pill ${getStatusClass(status)}">${status} - ${count}</span>
                 </div>
             `;
         }
@@ -741,133 +944,8 @@ function renderChart(ytdInstalls, currentYear) {
     });
 }
 
-// --- NEW FUNCTION: RENDER MONTHLY AVERAGE TIME CHART ---
-let monthlyAvgChart = null; 
 
-function renderMonthlyAverageChart(monthlyAverages) {
-    const sortedKeys = Object.keys(monthlyAverages).sort(); // Sort by YYYY-MM
-    
-    const chartLabels = sortedKeys.map(key => {
-        const [year, month] = key.split('-');
-        const date = new Date(year, month - 1);
-        return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-    });
-
-    const chartData = sortedKeys.map(key => monthlyAverages[key]);
-
-    if (monthlyAvgChart) {
-        monthlyAvgChart.destroy();
-    }
-
-    if (!el.monthlyInstallChart) {
-        console.error("Chart canvas (monthly-install-chart) not found.");
-        return;
-    }
-    
-    const Chart = window.Chart;
-
-    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
-        type: 'line',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Avg Days',
-                data: chartData,
-                borderColor: '#ef4444', // Red color for attention
-                backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                borderWidth: 2,
-                tension: 0.3,
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: false
-                    },
-                    ticks: {
-                        precision: 0
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-// --- NEW FUNCTION: RENDER SPEED BREAKDOWN CHART ---
-let speedBreakdownChart = null;
-
-function renderSpeedBreakdownChart(speedCounts) {
-    const speeds = Object.keys(speedCounts);
-    const counts = Object.values(speedCounts);
-    
-    const colors = [
-        '#065F46', // green-700 (200 Mbps)
-        '#FBBF24', // amber-400 (500 Mbps)
-        '#4F46E5', // indigo-600 (1 Gbps)
-        '#6B7280'  // gray-500 (Unknown)
-    ];
-
-    if (speedBreakdownChart) {
-        speedBreakdownChart.destroy();
-    }
-    
-    if (!el.speedBreakdownChart) {
-        console.error("Chart canvas (speed-breakdown-chart) not found.");
-        return;
-    }
-
-    const Chart = window.Chart;
-    
-    speedBreakdownChart = new Chart(el.speedBreakdownChart, {
-        type: 'doughnut',
-        data: {
-            labels: speeds,
-            datasets: [{
-                label: 'Customer Count',
-                data: counts,
-                backgroundColor: colors.slice(0, speeds.length),
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false, // CRITICAL: Ensures chart respects container size
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 10,
-                        padding: 10,
-                        font: {
-                            size: 10
-                        }
-                    }
-                },
-                title: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-
-// --- 3. CUSTOMER LIST (READ) (Unchanged) ---
+// --- 3. CUSTOMER LIST (READ) (Updated for initial load fix) ---
 
 function loadCustomers() {
     if (!customersCollectionRef) return;
@@ -882,6 +960,20 @@ function loadCustomers() {
             allCustomers.push({ id: doc.id, ...doc.data() });
         });
         
+        // --- FIX: Explicitly synchronize filter state with active UI elements ---
+        const activeTab = el.mainListTabs.querySelector('.main-list-tab.active');
+        if (activeTab && activeTab.dataset.mainFilter === 'Active') {
+            const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
+            // This reads 'All', 'New Order', etc. from the active pill's data-filter
+            currentFilter = activePill ? activePill.dataset.filter : 'All';
+            currentCompletedFilter = 'All'; 
+        } else {
+            // Should default to 'Active' on load, but handles case if 'Completed' was somehow active
+            currentFilter = 'Completed'; 
+            currentCompletedFilter = el.completedFilterSelect.value;
+        }
+        // --- END FIX ---
+
         // --- NEW: Calculate/Render Dashboard ---
         calculateDashboardStats(allCustomers);
         

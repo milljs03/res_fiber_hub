@@ -228,9 +228,53 @@ body {
     margin: 2rem auto 1.5rem; /* Align top margin with main-grid */
     padding: 0 1rem;
 }
-#dashboard-card .card-title {
-    margin-bottom: 1rem; /* Slightly less space before the grid starts */
+
+/* --- New Header/Toggle styles --- */
+.dashboard-header-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
 }
+.dashboard-header-toggle .card-title {
+    margin-bottom: 0;
+}
+.toggle-btn {
+    background: none;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+}
+.toggle-icon {
+    width: 1.5rem; 
+    height: 1.5rem;
+    color: #4b5563;
+    transition: transform 0.3s; /* Increased transition for smoothness */
+}
+.dashboard-content-collapsible.active .toggle-icon {
+    transform: rotate(0deg); 
+}
+.dashboard-content-collapsible:not(.active) .toggle-icon {
+    transform: rotate(-90deg); /* Rotate up when collapsed */
+}
+/* Collapsible content wrapper styles */
+.dashboard-content-collapsible {
+    overflow: hidden;
+    /* Large max-height ensures smooth transition */
+    max-height: 1000px; 
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in;
+    opacity: 1; 
+    /* Ensure content is laid out correctly when active */
+    display: flex;
+    flex-direction: column;
+    gap: 1rem; /* Match spacing between row 1 and row 2 */
+}
+.dashboard-content-collapsible:not(.active) {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+/* --- End New Header/Toggle styles --- */
 
 /* --- Main Grid --- */
 .main-grid {
@@ -278,7 +322,7 @@ body {
 }
 
 /* --- Dashboard Styles (UPDATED FOR 3-COLUMN LAYOUT) --- */
-/* NEW: Dashboard Grid for 3 equal columns in the first row, 3 equal columns in the second row */
+/* NEW: Dashboard Grid for 3 equal columns */
 .dashboard-stats-grid {
     display: grid;
     grid-template-columns: 1fr; /* Default: stack on mobile */
@@ -287,7 +331,12 @@ body {
 }
 @media (min-width: 768px) {
     .dashboard-stats-grid {
-        grid-template-columns: repeat(3, 1fr); /* 3 equal columns on tablet/desktop (Row 1) */
+        /* First row (stats) has 3 columns */
+        grid-template-columns: 1fr 1fr 1fr; 
+    }
+    /* Second row (charts) has 3 columns */
+    #dashboard-charts-grid {
+        grid-template-columns: 1fr 1fr 1fr;
     }
 }
 
@@ -318,21 +367,6 @@ body {
     font-weight: 700;
     color: #111827;
 }
-
-/* --- NEW: Active Breakdown Grid (Replaces stat-breakdown) --- */
-.active-breakdown-grid {
-    margin-top: 0.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem; /* Spacing between pills */
-}
-.active-breakdown-item {
-    flex-shrink: 0; /* Prevent items from squeezing */
-    /* No additional styling needed here, pills handle the rest */
-}
-/* --- END NEW --- */
-
-
 .stat-breakdown {
     margin-top: 0.5rem;
     font-size: 0.75rem; /* Made smaller */
@@ -344,6 +378,20 @@ body {
     color: #1f2937;
 }
 
+/* NEW: Active Breakdown Grid */
+.active-breakdown-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb; /* Separator line */
+}
+.active-breakdown-item {
+    flex-shrink: 0;
+}
+/* END NEW */
+
 
 /* Chart Box Styling Adjustments */
 .chart-area-box {
@@ -352,12 +400,12 @@ body {
     border-radius: 0.5rem;
     border: 1px solid #e5e7eb; 
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    min-height: 100px;
+    min-height: 200px; 
+    /* MAX HEIGHT TO PREVENT CHART PUSHING */
+    max-height: 250px; 
     box-sizing: border-box;
-    
-    /* NEW: Flex container to restrict chart growth */
-    display: flex;
-    flex-direction: column;
+    display: flex; /* Flex container for content */
+    flex-direction: column; /* Stack title and chart */
 }
 .chart-title {
     font-size: 0.75rem; /* Smaller title */
@@ -365,22 +413,17 @@ body {
     margin-bottom: 0.5rem; 
     color: #4b5563;
     text-transform: uppercase;
+    flex-shrink: 0; /* Prevent title from shrinking */
 }
 .chart-area {
-    min-height: 100px; 
+    /* Use flex-grow to ensure chart canvas takes up all remaining vertical space */
+    flex-grow: 1; 
     position: relative;
     padding: 0;
-    flex-grow: 1; /* Allow chart area to take available space */
-    
-    /* CRITICAL FIX: Ensure canvas respects vertical constraints */
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    height: 100%; /* Important for inner canvas sizing */
+    min-height: 0; /* Allow the flex item (canvas container) to shrink */
 }
-/* Force the canvas within the flex container to stretch but respect height */
 .chart-area canvas {
-    max-height: 200px; /* NEW: Max height to prevent vertical expansion */
+    max-height: 100%; /* Important for Doughnut/Pie charts to scale within flex container */
 }
 
 
@@ -717,12 +760,33 @@ body {
 .field-wrapper {
     position: relative;
 }
-/* Applied to inputs/textareas for editable fields */
-.form-input[id^="details-"],
-.form-textarea[id^="details-"] {
+.static-field, /* Keeping .static-field as a base style for input/textarea */
+.field-wrapper input.form-input,
+.field-wrapper textarea.form-textarea {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: 'Inter', sans-serif;
+    color: #1f2937; 
+    background-color: #f3f4f6; 
+    border: 1px solid #e5e7eb; 
+    border-radius: 0.375rem; 
+    min-height: 42px; 
+    word-wrap: break-word;
+    line-height: 1.5rem;
     padding-right: 2.5rem; 
+    box-sizing: border-box; 
+    /* Overriding static field appearance to match input style */
+    background-color: white; 
+    border: 1px solid #d1d5db;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
-/* Removed old .static-field styles */
+/* Overriding base form-input/form-textarea to use white background in details form */
+.details-page .form-input,
+.details-page .form-textarea {
+    background-color: white !important;
+}
 
 .copy-btn {
     position: absolute;

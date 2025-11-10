@@ -48,48 +48,55 @@
         <!-- NEW: DASHBOARD CONTAINER (Full Width) -->
         <div class="dashboard-container">
             <div id="dashboard-card" class="card">
-                <h2 class="card-title">At a Glance</h2>
-                <div id="dashboard-stats-grid" class="dashboard-stats-grid">
-                    
-                    <!-- KPI 1: Active Orders -->
-                    <div id="stats-summary-active-wrapper" class="stat-wrapper">
-                        <!-- JS content for Active Stats goes here -->
-                    </div>
-                    
-                    <!-- KPI 2: Completed Orders -->
-                    <div id="stats-summary-completed-wrapper" class="stat-wrapper">
-                        <!-- JS content for Completed Stats goes here -->
-                    </div>
-
-                    <!-- KPI 3: Overall Average Install Time -->
-                    <div id="overall-install-time-wrapper" class="stat-wrapper">
-                        <!-- JS content for Avg Install Time goes here -->
-                    </div>
-
-                    <!-- Chart Area 1: YTD Installs -->
-                    <div id="chart-area-box" class="chart-area-box">
-                        <h3 class="chart-title">YTD Installs by Month</h3>
-                        <div id="chart-area" class="chart-area">
-                            <canvas id="installations-chart"></canvas>
+                <!-- Dashboard Header with Toggle -->
+                <div class="dashboard-header-toggle">
+                    <h2 class="card-title">At a Glance</h2>
+                    <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
+                        <i data-lucide="chevron-down" class="toggle-icon" id="dashboard-toggle-icon"></i>
+                    </button>
+                </div>
+                
+                <!-- Collapsible Content Wrapper -->
+                <div id="dashboard-content" class="dashboard-content-collapsible active">
+                    <!-- First Row: KPI Stats -->
+                    <div id="dashboard-stats-grid" class="dashboard-stats-grid">
+                        <div id="stats-summary-active-wrapper" class="stat-wrapper">
+                            <!-- Active Stats content goes here -->
+                        </div>
+                        <div id="stats-summary-completed-wrapper" class="stat-wrapper">
+                            <!-- Completed Stats content goes here -->
+                        </div>
+                        <div id="overall-install-time-wrapper" class="stat-wrapper">
+                            <!-- Overall Avg Time content goes here -->
                         </div>
                     </div>
                     
-                    <!-- Chart Area 2: Monthly Average Install Time -->
-                    <div id="monthly-avg-time-box" class="chart-area-box">
-                        <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
-                        <div id="monthly-avg-chart-area" class="chart-area">
-                            <canvas id="monthly-install-chart"></canvas>
+                    <!-- Second Row: Charts -->
+                    <div id="dashboard-charts-grid" class="dashboard-stats-grid" style="margin-top: 1rem;">
+                        <!-- 1. YTD Installs Chart -->
+                        <div id="chart-area-box-installs" class="chart-area-box">
+                            <h3 class="chart-title">YTD Installs</h3>
+                            <div id="chart-area-installs" class="chart-area">
+                                <canvas id="installations-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 2. Monthly Avg Time Chart -->
+                        <div id="chart-area-box-monthly-avg" class="chart-area-box">
+                            <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
+                            <div id="chart-area-monthly-avg" class="chart-area">
+                                <canvas id="monthly-install-chart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- 3. Speed Breakdown Chart -->
+                        <div id="chart-area-box-speed" class="chart-area-box">
+                            <h3 class="chart-title">Service Speed Breakdown</h3>
+                            <div id="chart-area-speed" class="chart-area">
+                                <canvas id="speed-breakdown-chart"></canvas>
+                            </div>
                         </div>
                     </div>
-
-                    <!-- Chart Area 3: Service Speed Breakdown (NEW) -->
-                    <div id="speed-breakdown-box" class="chart-area-box">
-                        <h3 class="chart-title">Service Speed Breakdown</h3>
-                        <div id="speed-breakdown-chart-area" class="chart-area">
-                            <canvas id="speed-breakdown-chart"></canvas>
-                        </div>
-                    </div>
-
                 </div>
             </div>
         </div>
@@ -202,7 +209,6 @@
                         <!-- === REMOVED old details-tabs === -->
 
                         <div id="page-pre-install" class="details-page active">
-                            <!-- === UPDATED: Customer Name Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-customer-name">Customer Name</label>
                                 <div class="field-wrapper">
@@ -213,9 +219,6 @@
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
-
-                            <!-- === UPDATED: Service Order # Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-so-number">Service Order #</label>
                                 <div class="field-wrapper">
@@ -226,9 +229,6 @@
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
-
-                            <!-- === UPDATED: Address Field (Editable Textarea) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-address">Address</label>
                                 <div class="field-wrapper">
@@ -239,22 +239,17 @@
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
-
-                            <!-- === UPDATED: Service Speed Field (Editable Input/Textarea) - Changed to Input to match dynamic logic -->
                             <div class="form-group">
                                 <label class="form-label" for="details-speed">Service Speed</label>
                                 <div class="field-wrapper">
-                                    <input type="text" id="details-speed" class="form-input" required>
+                                    <!-- Changed to input/text area to maintain flexibility if non-standard speeds are edited -->
+                                    <input type="text" id="details-speed" class="form-input"> 
                                     <button type="button" class="copy-btn" data-target="details-speed">
                                         <img src="copy.png" alt="Copy" class="icon-copy" />
                                         <img src="check.png" alt="Copied" class="icon-check" />
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
-
-                            <!-- === UPDATED: Primary Email Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-email">Primary Email</label>
                                 <div class="field-wrapper">
@@ -265,9 +260,6 @@
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
-
-                            <!-- === UPDATED: Primary Phone Field (Editable) === -->
                             <div class="form-group">
                                 <label class="form-label" for="details-phone">Primary Phone</label>
                                 <div class="field-wrapper">
@@ -278,7 +270,6 @@
                                     </button>
                                 </div>
                             </div>
-                            <!-- === END UPDATED === -->
                             
                             <fieldset class="checklist-group">
                                 <legend class="checklist-title">Pre-Install Checklist</legend>
