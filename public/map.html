@@ -51,23 +51,40 @@
 
     <!-- 
       SCRIPT LOADING ORDER FIX:
-      1. Load Firebase and mapapp.js (which defines `initMap`) as modules.
-      2. THEN, load the Google Maps script, which will call `initMap` once it's ready.
+      Defines `initMap` so it exists when the Google Maps script loads.
+      `initMap` then dynamically imports our app module, which is the
+      recommended pattern.
     -->
     
-    <!-- Load Firebase and the new map logic FIRST -->
-    <script type="module" src="firebase.js"></script>
-    <script type="module" src="mapapp.js"></script>
+    <!-- This script MUST come before the Google Maps API script -->
+    <script>
+        async function initMap() {
+            try {
+                // Dynamically import the map app module
+                const mapApp = await import('./mapapp.js');
+                // Call the main function from the module
+                mapApp.initializeMap();
+            } catch (error) {
+                console.error("Error loading or initializing map app:", error);
+                const overlay = document.getElementById('map-loading-overlay');
+                if (overlay) {
+                    overlay.innerHTML = `<p style="color: red; font-weight: bold; text-align: center; padding: 1rem;">Error initializing map.<br/>Check console for details.</p>`;
+                }
+            }
+        }
+        
+        // Make initMap globally accessible for the Google Maps callback
+        window.initMap = initMap;
+    </script>
     
-    <!--
-      Load the Google Maps API. 
-      Removed 'async' and 'defer' to ensure it loads *after* the modules
-      and calls the now-defined `initMap` function.
+    <!-- 
+      Load the Google Maps API using async/defer and the callback.
+      This will call the `initMap` function (defined above) once the API is ready.
     -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding" async defer></script>
 
     <script>
-        // Run Lucide icons replacement on load
+        // Run Lucide icons replacement on load (this is separate from map init)
         window.onload = function() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
