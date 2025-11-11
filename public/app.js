@@ -20,7 +20,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"; 
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
 // NEW: Define the workflow steps
 const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed'];
 // --- END CONSTANTS ---
@@ -1033,7 +1033,7 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
 
         const getStatusClass = (status) => {
             if (!status) return 'status-default';
-            const statusSlug = status.toLowerCase().replace(/ /g, '-');
+            const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
             return `status-${statusSlug}`;
         };
 

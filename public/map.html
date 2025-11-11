@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>Customer Map | CFN Install Tracker</title>
     
     <!-- Load base styles first -->
@@ -19,13 +19,21 @@
     <header class="app-header">
         <div class="header-content">
             <div class="header-title">
-                <i data-lucide="map"></i>
+                <!-- UPDATED ICON -->
+                <img src="map.png" alt="Map Icon" class="header-logo-img" />
                 <h1>Customer Map</h1>
             </div>
             <div class="user-info">
+                <!-- NEW: Re-plot Button -->
+                <button id="replot-all-btn" class="btn btn-secondary" style="background-color: #fef2f2; color: #b91c1c;">
+                    <!-- UPDATED ICON -->
+                    <img src="refresh.png" alt="Re-plot Icon" class="btn-icon-img" />
+                    Re-plot All Pins
+                </button>
                 <!-- Link back to the main tracker page -->
                 <a href="index.html" id="view-tracker-btn" class="btn btn-secondary">
-                    <i data-lucide="list-checks" class="btn-icon"></i>
+                    <!-- UPDATED ICON -->
+                    <img src="clock.png" alt="Tracker Icon" class="btn-icon-img" />
                     View Tracker
                 </a>
             </div>

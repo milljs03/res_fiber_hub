@@ -26,7 +26,8 @@ let currentAppId = 'default-app-id'; // Use the same App ID as app.js
 // --- UI Elements ---
 const el = {
     loadingOverlay: document.getElementById('map-loading-overlay'),
-    filterControls: document.getElementById('filter-controls')
+    filterControls: document.getElementById('filter-controls'),
+    replotButton: document.getElementById('replot-all-btn') // <-- ADDED BUTTON
 };
 
 // --- Status Colors (Must match app.js) ---
@@ -60,7 +61,7 @@ export async function initializeMap() {
     
     // 1. Initialize Google Maps objects
     map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 41.5647, lng: -85.9940 }, // Centered on New Paris, IN
+        center: { lat: 41.500492, lng: -85.829624 }, // <-- UPDATED COORDINATES
         zoom: 12,
         mapId: "CFN_INSTALL_MAP"
     });
@@ -78,6 +79,9 @@ export async function initializeMap() {
             el.loadingOverlay.innerHTML = '<p style="color: red; font-weight: bold;">Access Denied. Please sign in on the main tracker page.</p>';
         }
     });
+
+    // 3. <-- ADDED: Event listener for the new button -->
+    el.replotButton.addEventListener('click', replotAllCustomers);
 }
 
 /**
@@ -114,6 +118,52 @@ async function loadAndProcessCustomers() {
         el.loadingOverlay.innerHTML = `<p style="color: red; font-weight: bold;">Error loading customers: ${error.message}</p>`;
     }
 }
+
+/**
+ * <-- NEW FUNCTION -->
+ * Clears all markers and forces a re-geocode of all customers.
+ */
+async function replotAllCustomers() {
+    // Use a custom modal for confirm, since window.confirm is blocked
+    if (!await showConfirmModal('This will re-plot all customer pins. This is useful if you have updated addresses, but may take a moment. Continue?')) {
+        return;
+    }
+
+    console.log("Re-plotting all customers...");
+
+    // 1. Show loading overlay
+    el.loadingOverlay.style.display = 'flex';
+    el.loadingOverlay.querySelector('p').textContent = 'Forcing re-plot of all customers...';
+
+    // 2. Clear all existing markers from the map and the array
+    allMarkers.forEach(marker => marker.setMap(null));
+    allMarkers = [];
+
+    // 3. IMPORTANT: Delete the cached coordinates from our local customer data
+    // This forces geocodeAndPlotCustomers to re-geocode every address.
+    const updatePromises = [];
+    allCustomers.forEach(customer => {
+        delete customer.coordinates;
+        // We also clear them from Firestore to ensure they are re-cached
+        const docRef = doc(customersCollectionRef, customer.id);
+        updatePromises.push(updateDoc(docRef, { coordinates: null }).catch(err => console.error(`Failed to clear cache for ${customer.id}`, err)));
+    });
+
+    await Promise.all(updatePromises); // Wait for all cache-clearing updates to finish
+    console.log("Firestore coordinate cache cleared.");
+
+    // 4. Re-run the geocoding and plotting process
+    await geocodeAndPlotCustomers(allCustomers);
+
+    // 5. Re-populate the filter legend
+    populateFilterLegend();
+
+    // 6. Hide loading overlay
+    el.loadingOverlay.style.display = 'none';
+    el.loadingOverlay.querySelector('p').textContent = 'Loading Map & Geocoding Customers...';
+    console.log("Re-plotting complete.");
+}
+
 
 /**
  * Geocodes and plots all customers on the map.
@@ -180,26 +230,35 @@ async function geocodeAndPlotCustomers(customers) {
  */
 async function createMarker(customer, coordinates) {
     const status = customer.status || 'Default';
-    const color = statusColors[status] || statusColors['Default'];
+    const color = statusColors[status] || statusColors['Default']; // <-- This line is correct
 
-    // Use Google's PinElement for modern markers
-    const { PinElement } = await google.maps.importLibrary("marker");
+    console.log(`Plotting marker for ${customer.customerName} with status: ${status} (Color: ${color})`);
 
-    const pin = new PinElement({
-        background: color,
-        borderColor: "#000",
-        glyphColor: "#000",
-    });
+    // --- START: REPLACEMENT MARKER LOGIC ---
+
+    // We are replacing the PinElement with a dynamic SVG icon,
+    // as PinElement seems to be failing to render the background color.
+    const pinIcon = {
+        path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z", // Standard Google pin SVG path
+        fillColor: color, // Use the dynamic status color
+        fillOpacity: 1,
+        strokeWeight: 1,
+        strokeColor: "#000000", // Black border
+        scale: 1.5, // Make it a bit bigger
+        anchor: new google.maps.Point(12, 24), // Anchor at the bottom tip
+    };
 
     const marker = new google.maps.Marker({
         position: coordinates,
         map: map,
         title: `${customer.customerName}\nStatus: ${status}\nAddress: ${customer.address}`,
-        content: pin.element,
+        icon: pinIcon, // <-- Use the new SVG icon
         // Store customer data on the marker object
         customerStatus: status,
         customerId: customer.id
     });
+
+    // --- END: REPLACEMENT MARKER LOGIC ---
 
     // Add info window
     const infoWindow = new google.maps.InfoWindow({
@@ -301,4 +360,83 @@ function handleFilterChange(e) {
             .every(cb => cb.checked);
         document.getElementById('filter-All').checked = allAreChecked;
     }
+}
+
+/**
+ * --- NEW FUNCTION ---
+ * Shows a custom confirmation modal, as window.confirm() is blocked.
+ * @param {string} message - The message to display.
+ * @returns {Promise<boolean>} - Resolves true if confirmed, false if cancelled.
+ */
+function showConfirmModal(message) {
+    return new Promise((resolve) => {
+        // Check if a modal already exists, remove it
+        const oldModal = document.getElementById('confirm-modal-wrapper');
+        if (oldModal) {
+            oldModal.remove();
+        }
+
+        // Create modal elements
+        const modalWrapper = document.createElement('div');
+        modalWrapper.id = 'confirm-modal-wrapper';
+        modalWrapper.style = `
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            font-family: 'Inter', sans-serif;
+        `;
+
+        const modalPanel = document.createElement('div');
+        modalPanel.style = `
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 400px;
+            width: 90%;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Confirm Action';
+        title.style = 'font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; color: #1f2937;';
+
+        const messageP = document.createElement('p');
+        messageP.textContent = message;
+        messageP.style = 'font-size: 0.875rem; color: #4b5563; margin-bottom: 1.5rem;';
+
+        const buttonGroup = document.createElement('div');
+        buttonGroup.style = 'display: flex; gap: 0.75rem; justify-content: flex-end;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.className = 'btn btn-secondary'; // Use existing styles
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Continue';
+        confirmBtn.className = 'btn btn-danger'; // Use existing styles
+        
+        // Event listeners
+        cancelBtn.onclick = () => {
+            modalWrapper.remove();
+            resolve(false);
+        };
+
+        confirmBtn.onclick = () => {
+            modalWrapper.remove();
+            resolve(true);
+        };
+        
+        // Assemble modal
+        buttonGroup.appendChild(cancelBtn);
+        buttonGroup.appendChild(confirmBtn);
+        modalPanel.appendChild(title);
+        modalPanel.appendChild(messageP);
+        modalPanel.appendChild(buttonGroup);
+        modalWrapper.appendChild(modalPanel);
+        document.body.appendChild(modalWrapper);
+    });
 }

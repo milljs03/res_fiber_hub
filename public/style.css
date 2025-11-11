@@ -6,6 +6,27 @@ body {
     margin: 0;
 }
 
+/* --- NEW STYLES FOR IMG ICONS --- */
+.auth-logo-img {
+    margin: 0 auto;
+    height: 3rem; /* 48px */
+    width: 3rem; /* 48px */
+    object-fit: contain;
+}
+.header-logo-img {
+    height: 2rem; /* 32px */
+    width: 2rem; /* 32px */
+    object-fit: contain;
+}
+.btn-icon-img {
+    width: 1.125rem; /* 18px */
+    height: 1.125rem; /* 18px */
+    margin-right: 0.5rem;
+    object-fit: contain;
+}
+/* --- END NEW STYLES --- */
+
+
 .hidden {
     display: none !important;
 }
@@ -218,6 +239,14 @@ body {
     font-weight: 500; /* font-medium */
     color: #4b5563; /* text-gray-600 */
 }
+#sign-out-btn {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #4b5563;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
 #sign-out-btn:hover {
     color: #4f46e5; /* hover:text-indigo-600 */
 }
@@ -301,6 +330,12 @@ body {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-lg */
     height: fit-content;
     position: relative; /* For loading overlay */
+}
+.card-title {
+    font-size: 1.25rem; /* text-xl */
+    font-weight: 700; /* font-bold */
+    color: #111827; /* text-gray-900 */
+    margin: 0 0 1.25rem 0; /* space-y-5 */
 }
 /* Card title is already styled */
 .card-title-header {
