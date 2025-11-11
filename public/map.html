@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Map | CFN Install Tracker</title>
     
     <!-- Load base styles first -->
@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="map.css">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide-icons@0.309.0"></script>
+    <!-- Lucide script is no longer needed -->
+    <!-- <script src="https://unpkg.com/lucide-icons@0.309.0"></script> -->
 </head>
 <body>
 
@@ -20,20 +21,20 @@
         <div class="header-content">
             <div class="header-title">
                 <!-- UPDATED ICON -->
-                <img src="map.png" alt="Map Icon" class="header-logo-img" />
+                <img src="icons/map.png" alt="Map Icon" class="header-logo-img" />
                 <h1>Customer Map</h1>
             </div>
             <div class="user-info">
                 <!-- NEW: Re-plot Button -->
                 <button id="replot-all-btn" class="btn btn-secondary" style="background-color: #fef2f2; color: #b91c1c;">
                     <!-- UPDATED ICON -->
-                    <img src="refresh.png" alt="Re-plot Icon" class="btn-icon-img" />
+                    <img src="icons/refresh.png" alt="Re-plot Icon" class="btn-icon-img" />
                     Re-plot All Pins
                 </button>
                 <!-- Link back to the main tracker page -->
                 <a href="index.html" id="view-tracker-btn" class="btn btn-secondary">
                     <!-- UPDATED ICON -->
-                    <img src="clock.png" alt="Tracker Icon" class="btn-icon-img" />
+                    <img src="icons/clock.png" alt="Tracker Icon" class="btn-icon-img" />
                     View Tracker
                 </a>
             </div>
@@ -91,13 +92,17 @@
     -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding" async defer></script>
 
+    <!-- 
+      This script is no longer needed as we are not using lucide icons.
+    -->
+    <!--
     <script>
-        // Run Lucide icons replacement on load (this is separate from map init)
         window.onload = function() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
         };
     </script>
+    -->
 </body>
 </html>

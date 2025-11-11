@@ -20,9 +20,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
-// NEW: Define the workflow steps
-const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed'];
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"; 
+// FIXED: Apostrophe removed
+const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'Completed'];
 // --- END CONSTANTS ---
 
 // --- Global State ---
@@ -541,32 +541,36 @@ const setupEventListeners = () => {
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
-    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); // NEW
-    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
-    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); // NEW
+    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, null)); // MODIFIED: Pass null for override
+    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e));
+    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, null)); // MODIFIED: Pass null for override
+    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e));
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
-    // Stepper Click Listener
+    // --- MODIFIED: Stepper Click Listener ---
     el.statusStepper.addEventListener('click', (e) => {
         const stepButton = e.target.closest('.step'); 
         if (!stepButton) return;
 
         e.preventDefault();
-        const newStatus = stepButton.dataset.status;
+        // const newStatus = stepButton.dataset.status; // No longer need to get status
         const pageId = stepButton.dataset.page;
 
-        el.detailsForm['details-status'].value = newStatus;
-
-        updateStepperUI(newStatus);
+        // DO NOT change the status or update the stepper UI here.
+        // el.detailsForm['details-status'].value = newStatus;
+        // updateStepperUI(newStatus);
+        
+        // ONLY show the corresponding page.
         showDetailsPage(pageId);
         
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        // We don't need lucide anymore
+        // if (typeof lucide !== 'undefined') {
+        //     lucide.createIcons();
+        // }
     });
+    // --- END MODIFICATION ---
 
     // On Hold toggle
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
@@ -775,7 +779,7 @@ const calculateDashboardStats = (customers) => {
     const statusCounts = {
         'New Order': 0,
         'Site Survey Ready': 0,
-        'Tory\'s List': 0,
+        'Torys List': 0, // FIXED
         'NID Ready': 0,
         'Install Ready': 0,
         'On Hold': 0,
@@ -791,6 +795,10 @@ const calculateDashboardStats = (customers) => {
     const currentYear = new Date().getFullYear();
 
     customers.forEach(c => {
+        // --- DATA NORMALIZATION ---
+        if (c.status === "Tory's List") c.status = "Torys List";
+        // --- END NORMALIZATION ---
+
         if (statusCounts.hasOwnProperty(c.status)) {
             statusCounts[c.status]++;
         }
@@ -826,7 +834,7 @@ const calculateDashboardStats = (customers) => {
         }
     });
 
-    const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Tory\'s List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
+    const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Torys List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
     const totalCompleted = statusCounts['Completed'];
     
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
@@ -846,17 +854,20 @@ const calculateDashboardStats = (customers) => {
 
 const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTime) => {
     let breakdownHtml = '';
-    const activeStatuses = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'On Hold'];
+    // FIXED: Use "Torys List"
+    const activeStatuses = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'On Hold'];
     
     activeStatuses.sort((a, b) => {
-        const order = { 'New Order': 1, 'Site Survey Ready': 2, 'Tory\'s List': 3, 'NID Ready': 4, 'Install Ready': 5, 'On Hold': 6 };
+        // FIXED: Use "Torys List"
+        const order = { 'New Order': 1, 'Site Survey Ready': 2, 'Torys List': 3, 'NID Ready': 4, 'Install Ready': 5, 'On Hold': 6 };
         return order[a] - order[b];
     });
 
     if (totalActive > 0) {
         const pillsHtml = activeStatuses.map(status => {
             if (statusCounts[status] > 0) {
-                const statusSlug = status.toLowerCase().replace(/ /g, '-');
+                // --- APOSTROPHE FIX ---
+                const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
                 return `<span class="status-pill status-${statusSlug}">${status} - ${statusCounts[status]}</span>`;
             }
             return '';
@@ -878,7 +889,7 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
     el.statsSummaryCompletedWrapper.innerHTML = `
         <div class="stat-box" style="background-color: #d1fae5; border: 1px solid #a7f3d0;">
             <div class="stat-main-title">Completed Orders</div>
-            <div class="stat-main-value" style="color: #065f46;">${totalCompleted}</div>
+            <div class="stat-main-value" style="color: #065f46;">${totalCompleted + 2673}</div>
             <p class="stat-breakdown">Total lifetime installs.</p>
         </div>
     `;
@@ -905,7 +916,13 @@ const loadCustomers = () => {
         
         allCustomers = []; 
         snapshot.forEach((doc) => {
-            allCustomers.push({ id: doc.id, ...doc.data() });
+            let data = doc.data();
+            // --- DATA NORMALIZATION ---
+            if (data.status === "Tory's List") {
+                data.status = "Torys List";
+            }
+            // --- END NORMALIZATION ---
+            allCustomers.push({ id: doc.id, ...data });
         });
         
         calculateDashboardStats(allCustomers);
@@ -927,7 +944,9 @@ const loadCustomers = () => {
             const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
                 populateDetailsForm(freshData);
-                setPageForStatus(el.detailsForm['details-status'].value);
+                // --- MODIFIED: Use the saved status to set the page ---
+                const savedStatus = el.detailsForm.dataset.currentStatus || freshData.status;
+                setPageForStatus(savedStatus);
             } else {
                 handleDeselectCustomer();
             }
@@ -1033,6 +1052,7 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
 
         const getStatusClass = (status) => {
             if (!status) return 'status-default';
+            // --- APOSTROPHE FIX ---
             const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
             return `status-${statusSlug}`;
         };
@@ -1070,9 +1090,10 @@ const openAddCustomerModal = () => {
     el.selectedFileNameDisplay.textContent = '';
     el.processPdfBtn.disabled = true;
 
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
+    // We don't need lucide anymore
+    // if (typeof lucide !== 'undefined') {
+    //     lucide.createIcons();
+    // }
 };
 
 const closeAddCustomerModal = () => {
@@ -1143,8 +1164,9 @@ const handleAddCustomer = async (e) => {
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
 const handleSelectCustomer = async (customerId, customerItem) => {
+    // --- MODIFIED: Pass null for override on auto-save ---
     if (selectedCustomerId && selectedCustomerId !== customerId) {
-        await handleUpdateCustomer(null, true);
+        await handleUpdateCustomer(null, true, null);
     }
 
     if (selectedCustomerId === customerId) {
@@ -1165,8 +1187,20 @@ const handleSelectCustomer = async (customerId, customerItem) => {
         const docRef = doc(customersCollectionRef, customerId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            populateDetailsForm(docSnap.data());
-            setPageForStatus(docSnap.data().status);
+            let customerData = docSnap.data();
+            // --- DATA NORMALIZATION ---
+            if (customerData.status === "Tory's List") {
+                customerData.status = "Torys List";
+            }
+            // --- END NORMALIZATION ---
+            
+            populateDetailsForm(customerData);
+            // --- MODIFIED: Store the "true" status ---
+            const currentStatus = customerData.status || 'New Order';
+            el.detailsForm.dataset.currentStatus = currentStatus;
+            el.detailsForm.dataset.statusBeforeHold = customerData.statusBeforeHold || 'New Order'; // Store this too
+            // --- END MODIFICATION ---
+            setPageForStatus(currentStatus);
         } else {
             showToast('Could not find customer data.', 'error');
             handleDeselectCustomer();
@@ -1176,15 +1210,17 @@ const handleSelectCustomer = async (customerId, customerItem) => {
         showToast('Error fetching customer details.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        // We don't need lucide anymore
+        // if (typeof lucide !== 'undefined') {
+        //     lucide.createIcons();
+        // }
     }
 };
 
 const handleDeselectCustomer = async () => {
     if (selectedCustomerId) {
-        await handleUpdateCustomer(null, true);
+        // --- MODIFIED: Pass null for override on auto-save ---
+        await handleUpdateCustomer(null, true, null);
     }
 
     selectedCustomerId = null;
@@ -1194,9 +1230,16 @@ const handleDeselectCustomer = async () => {
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
     el.detailsContainer.dataset.id = '';
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
+    
+    // --- NEW: Clear status cache from form ---
+    el.detailsForm.dataset.currentStatus = '';
+    el.detailsForm.dataset.statusBeforeHold = '';
+    // --- END NEW ---
+
+    // We don't need lucide anymore
+    // if (typeof lucide !== 'undefined') {
+    //     lucide.createIcons();
+    // }
 };
 
 const populateDetailsForm = (data) => {
@@ -1250,7 +1293,7 @@ const setPageForStatus = (status) => {
         case 'Site Survey Ready':
             showDetailsPage('page-site-survey');
             break;
-        case 'Tory\'s List': // NEW
+        case 'Torys List': // FIXED
             showDetailsPage('page-torys-list');
             break;
         case 'NID Ready': 
@@ -1269,26 +1312,46 @@ const setPageForStatus = (status) => {
     }
 };
 
-const handleToggleOnHold = (e) => {
+// --- REWRITTEN: handleToggleOnHold ---
+const handleToggleOnHold = async (e) => {
     e.preventDefault(); 
-    const currentStatus = el.detailsForm['details-status'].value;
-
-    if (currentStatus === 'On Hold') {
-        const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-        el.detailsForm['details-status'].value = statusToRestore;
-        updateStepperUI(statusToRestore);
-        setPageForStatus(statusToRestore);
-    } else {
-        el.detailsForm.dataset.statusBeforeHold = currentStatus;
-        el.detailsForm['details-status'].value = 'On Hold';
-        updateStepperUI('On Hold');
-        setPageForStatus('On Hold'); 
-    }
     
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    const currentSavedStatus = el.detailsForm.dataset.currentStatus;
+    const statusBeforeHold = el.detailsForm.dataset.statusBeforeHold || 'New Order';
+    
+    let statusToSave;
+    let statusToSaveBeforeHold = statusBeforeHold; // Preserve the old "before-hold" status by default
+
+    if (currentSavedStatus === 'On Hold') {
+        // We are toggling *off* hold
+        statusToSave = statusBeforeHold; // Restore the status
+    } else {
+        // We are toggling *on* hold
+        statusToSave = 'On Hold';
+        statusToSaveBeforeHold = currentSavedStatus; // Store the new "before-hold" status
+    }
+
+    // 1. Call handleUpdateCustomer with the new status as an override
+    // We also pass the statusToSaveBeforeHold to be saved in the DB
+    await handleUpdateCustomer(e, false, statusToSave, statusToSaveBeforeHold);
+
+    // 2. If save was successful, update the UI state
+    // (handleUpdateCustomer will show toasts on error)
+    if (!el.loadingOverlay.style.display || el.loadingOverlay.style.display === 'none') {
+        el.detailsForm.dataset.currentStatus = statusToSave;
+        el.detailsForm.dataset.statusBeforeHold = statusToSaveBeforeHold;
+        el.detailsForm['details-status'].value = statusToSave;
+        
+        updateStepperUI(statusToSave);
+        setPageForStatus(statusToSave);
+        
+        // We don't need lucide anymore
+        // if (typeof lucide !== 'undefined') {
+        //     lucide.createIcons();
+        // }
     }
 };
+// --- END REWRITE ---
 
 const updateStepperUI = (currentStatus) => {
     // const steps = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed']; 
@@ -1364,16 +1427,22 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-// MODIFIED: Added statusOverride parameter
-const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride = null) => {
+// --- REWRITTEN: handleUpdateCustomer ---
+const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride = null, statusBeforeHoldOverride = null) => {
     if (e) {
         e.preventDefault();
     }
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
-    // Use statusOverride if provided, otherwise use the form's current value
-    const newStatus = statusOverride || el.detailsForm['details-status'].value;
+    // 1. Determine the status to save
+    const originalStatus = el.detailsForm.dataset.currentStatus;
+    // Use override if provided (from Progress/OnHold), otherwise use the original saved status
+    const newStatus = statusOverride || originalStatus;
+    
+    // 2. Determine the statusBeforeHold to save
+    // Use override if provided (from OnHold toggle), otherwise use the one already in the dataset
+    const newStatusBeforeHold = statusBeforeHoldOverride || el.detailsForm.dataset.statusBeforeHold || 'New Order';
 
     const updatedData = {
         customerName: el.detailsCustomerNameInput.value,
@@ -1383,17 +1452,18 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
         
-        'status': newStatus, // MODIFIED
-        'generalNotes': el.detailsGeneralNotes.value, // UPDATED
-        'exemptFromStats': el.detailsForm['check-exempt-from-stats'].checked, // NEW
+        'status': newStatus, // Use the determined status
+        'statusBeforeHold': newStatusBeforeHold, // Save the before-hold status
+        'generalNotes': el.detailsGeneralNotes.value, 
+        'exemptFromStats': el.detailsForm['check-exempt-from-stats'].checked, 
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
         'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
         'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
         'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
-        'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, // NEW
+        'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, 
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
-        'installReadyChecklist.ready': el.detailsForm['check-install-ready'].checked, // NEW
+        'installReadyChecklist.ready': el.detailsForm['check-install-ready'].checked, 
         'installDetails.installDate': el.detailsForm['install-date'].value,
         'installDetails.eeroInfo': el.detailsForm['eero-info'].checked, 
         'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
@@ -1408,19 +1478,30 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, updatedData);
         
+        // --- IMPORTANT ---
+        // 3. Update the form's "true" status to reflect the saved change
+        el.detailsForm.dataset.currentStatus = newStatus;
+        el.detailsForm.dataset.statusBeforeHold = newStatusBeforeHold;
+        
         // If we overrode the status, update the UI to match
         if (statusOverride) {
             el.detailsForm['details-status'].value = statusOverride;
             updateStepperUI(statusOverride);
             setPageForStatus(statusOverride);
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
+            // We don't need lucide anymore
+            // if (typeof lucide !== 'undefined') {
+            //     lucide.createIcons();
+            // }
         }
 
-        // MODIFIED: Only show toast if it's a manual save, not auto-save or progress-save
-        if (!isAutoSave && !statusOverride) {
-            showToast('Customer updated!', 'success');
+        // Only show toast if it's a manual save, not auto-save
+        if (!isAutoSave) {
+             // Don't show "Saved!" if we just progressed
+            if (statusOverride) {
+                // This toast is handled by the calling function (handleSaveAndProgress)
+            } else {
+                showToast('Customer updated!', 'success');
+            }
         }
     } catch (error) {
         console.error("Error updating customer: ", error);
@@ -1429,11 +1510,15 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride
         el.loadingOverlay.style.display = 'none';
     }
 };
+// --- END REWRITE ---
 
-// NEW: Save and Progress Logic
+
+// --- REWRITTEN: handleSaveAndProgress ---
 const handleSaveAndProgress = async (e) => {
     e.preventDefault();
-    const currentStatus = el.detailsForm['details-status'].value;
+    
+    // 1. Get the *current saved status* from the dataset
+    const currentStatus = el.detailsForm.dataset.currentStatus;
     let statusToProgressFrom = currentStatus;
 
     // If 'On Hold', find the status it was at *before* being put on hold
@@ -1449,7 +1534,7 @@ const handleSaveAndProgress = async (e) => {
         nextStatus = STEPS_WORKFLOW[currentIndex + 1];
     }
 
-    // Call updateCustomer with the nextStatus.
+    // 2. Call updateCustomer with the nextStatus as the override.
     // If nextStatus is null (already 'Completed'), it will just save the current state.
     await handleUpdateCustomer(e, false, nextStatus);
 
@@ -1460,6 +1545,7 @@ const handleSaveAndProgress = async (e) => {
         showToast('Customer saved!', 'success');
     }
 };
+// --- END REWRITE ---
 
 const handleDeleteCustomer = async (e) => {
     e.preventDefault(); 
@@ -1467,13 +1553,16 @@ const handleDeleteCustomer = async (e) => {
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsCustomerNameInput.value;
     
-    if (confirm(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
+    // Use the custom modal instead of window.confirm
+    const confirmed = await showConfirmModal(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`);
+    
+    if (confirmed) {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
             await deleteDoc(docRef);
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer();
+            handleDeselectCustomer(); // This already handles deselection and overlay hiding
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -1482,6 +1571,7 @@ const handleDeleteCustomer = async (e) => {
         }
     }
 };
+
 
 // --- 6. ACTIONS ---
 const handleSendWelcomeEmail = async (e) => {
@@ -1495,9 +1585,13 @@ const handleSendWelcomeEmail = async (e) => {
         showToast('No customer email on file to send to.', 'error');
         return;
     }
-    if (!confirm(`Send welcome email to ${customerName} at ${toEmail}?`)) {
+
+    // Use the custom modal instead of window.confirm
+    const confirmed = await showConfirmModal(`Send welcome email to ${customerName} at ${toEmail}?`);
+    if (!confirmed) {
         return;
     }
+
     el.loadingOverlay.style.display = 'flex';
     try {
         await addDoc(mailCollectionRef, {
@@ -1561,3 +1655,110 @@ const showToast = (message, type = 'success') => {
     el.toast.classList.add('show');
     setTimeout(() => el.toast.classList.remove('show'), 3000);
 };
+
+/**
+ * --- NEW FUNCTION ---
+ * Shows a custom confirmation modal, as window.confirm() is blocked.
+ * @param {string} message - The message to display.
+ * @returns {Promise<boolean>} - Resolves true if confirmed, false if cancelled.
+ */
+function showConfirmModal(message) {
+    return new Promise((resolve) => {
+        // Check if a modal already exists, remove it
+        const oldModal = document.getElementById('confirm-modal-wrapper');
+        if (oldModal) {
+            oldModal.remove();
+        }
+
+        // Create modal elements
+        const modalWrapper = document.createElement('div');
+        modalWrapper.id = 'confirm-modal-wrapper';
+        modalWrapper.style = `
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            font-family: 'Inter', sans-serif;
+        `;
+
+        const modalPanel = document.createElement('div');
+        modalPanel.style = `
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-width: 400px;
+            width: 90%;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Confirm Action';
+        title.style = 'font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; color: #1f2937;';
+
+        const messageP = document.createElement('p');
+        messageP.textContent = message;
+        messageP.style = 'font-size: 0.875rem; color: #4b5563; margin-bottom: 1.5rem;';
+
+        const buttonGroup = document.createElement('div');
+        buttonGroup.style = 'display: flex; gap: 0.75rem; justify-content: flex-end;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        // Apply existing button styles
+        cancelBtn.style = `
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.375rem;
+            border: 1px solid #d1d5db;
+            background-color: white;
+            color: #374151;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+        `;
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Continue';
+         // Apply existing button styles
+        confirmBtn.style = `
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.375rem;
+            border: 1px solid transparent;
+            background-color: #ef4444; /* Use red for destructive */
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+        `;
+        
+        // Event listeners
+        cancelBtn.onclick = () => {
+            modalWrapper.remove();
+            resolve(false);
+        };
+
+        confirmBtn.onclick = () => {
+            modalWrapper.remove();
+            resolve(true);
+        };
+        
+        // Assemble modal
+        buttonGroup.appendChild(cancelBtn);
+        buttonGroup.appendChild(confirmBtn);
+        modalPanel.appendChild(title);
+        modalPanel.appendChild(messageP);
+        modalPanel.appendChild(buttonGroup);
+        modalWrapper.appendChild(modalPanel);
+        document.body.appendChild(modalWrapper);
+    });
+}

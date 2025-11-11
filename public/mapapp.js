@@ -34,18 +34,18 @@ const el = {
 const statusColors = {
     'New Order': '#3B82F6',         // Blue
     'Site Survey Ready': '#D97706', // Yellow/Orange
-    'Tory\'s List': '#4F46E5',    // Indigo
+    'Torys List': '#4F46E5',    // Indigo
     'NID Ready': '#DC2626',           // Red
     'Install Ready': '#059669',     // Green
-    'Completed': '#10B981',         // Teal/Green
-    'On Hold': '#F97316',           // Orange
-    'Default': '#6B7280'            // Gray
+    'Completed': '#b910b0ff',         // Teal/Green
+    'On Hold': '#7c7c7cff',           // Orange
+    'Default': '#d2f35bff'            // Gray
 };
 
 const statusOrder = [
     'New Order',
     'Site Survey Ready',
-    'Tory\'s List',
+    'Torys List',
     'NID Ready',
     'Install Ready',
     'Completed',

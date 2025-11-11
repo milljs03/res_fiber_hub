@@ -364,11 +364,12 @@ body {
     padding: 0.25rem 0.625rem; /* Reduced padding */
     font-size: 0.8rem; /* Explicitly smaller than default .btn size (0.875rem) */
 }
-#new-customer-btn .btn-icon {
-    width: 0.9rem; /* Reduced icon size */
+/* This style was for lucide, replaced by .btn-icon-img */
+/* #new-customer-btn .btn-icon {
+    width: 0.9rem; 
     height: 0.9rem;
-    margin-right: 0.25rem; /* Increased margin for separation */
-}
+    margin-right: 0.25rem;
+} */
 
 /* --- Dashboard Styles (UPDATED FOR 3-COLUMN LAYOUT) --- */
 /* NEW: Dashboard Grid for 3 equal columns (Row 1: Stats) */
