@@ -3,7 +3,7 @@ const fetch = require("node-fetch"); // Make sure this is in functions/package.j
 
 // This is the Google Apps Script URL used for sending emails
 // eslint-disable-next-line max-len
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdBbGvicm3MahVg6jIMHT6vLc0eGi6ahSyupDIuMfHXgIeFojWhnZAGo1mtdif_ZFz/exec"; // Your URL
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzdcBKL0W8pGJ7w3DS3hKq5o-qvhqoja8MUVoGz9Xhh6ie36CYkYwLINccN8NnGVWiq/exec"; // Your URL
 
 /**
  * Helper function to send email via your Google Apps Script.
@@ -14,7 +14,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxdBbGvicm3MahVg6jIM
  */
 async function sendEmail(to, subject, htmlBody) {
   // Always send to these specific emails
-  const alwaysSendTo = ["jmiller@nptel.com"];
+  const alwaysSendTo = ["lpenrose@nptel.com"];
 
   // Use a Set to avoid sending duplicate emails
   const recipients = new Set([...to, ...alwaysSendTo]);
