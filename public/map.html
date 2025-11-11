@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Map | CFN Install Tracker</title>
+    
+    <!-- Load base styles first -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Load map-specific styles -->
+    <link rel="stylesheet" href="map.css">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide-icons@0.309.0"></script>
+</head>
+<body>
+
+    <!-- Re-use the same app header -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="header-title">
+                <i data-lucide="map"></i>
+                <h1>Customer Map</h1>
+            </div>
+            <div class="user-info">
+                <!-- Link back to the main tracker page -->
+                <a href="index.html" id="view-tracker-btn" class="btn btn-secondary">
+                    <i data-lucide="list-checks" class="btn-icon"></i>
+                    View Tracker
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Map container -->
+    <div id="map"></div>
+
+    <!-- Legend -->
+    <div id="legend" class="card">
+        <h2 class="legend-title">Filter by Status</h2>
+        <div id="filter-controls">
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="map-loading-overlay">
+        <div id="map-loading-spinner"></div>
+        <p>Loading Map & Geocoding Customers...</p>
+    </div>
+
+    <!-- 
+      SCRIPT LOADING ORDER FIX:
+      1. Load Firebase and mapapp.js (which defines `initMap`) as modules.
+      2. THEN, load the Google Maps script, which will call `initMap` once it's ready.
+    -->
+    
+    <!-- Load Firebase and the new map logic FIRST -->
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="mapapp.js"></script>
+    
+    <!--
+      Load the Google Maps API. 
+      Removed 'async' and 'defer' to ensure it loads *after* the modules
+      and calls the now-defined `initMap` function.
+    -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding"></script>
+
+    <script>
+        // Run Lucide icons replacement on load
+        window.onload = function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        };
+    </script>
+</body>
+</html>

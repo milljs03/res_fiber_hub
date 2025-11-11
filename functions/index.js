@@ -135,10 +135,22 @@ exports.sendWelcomeEmail = onDocumentCreated(
         return;
       }
 
-      logger.log(`Sending email to: ${toEmail} for customer: ${customerName}`);
+      // --- NEW: Reformat name from "Lastname Firstname" to "Firstname Lastname" ---
+      let formattedName = customerName;
+      const nameParts = customerName.split(" ").filter((n) => n.length > 0); // Split by space and remove empty parts
+      if (nameParts.length > 1) {
+        const lastName = nameParts.shift(); // Get the first word (assumed last name)
+        formattedName = [...nameParts, lastName].join(" "); // Join as "Firstname Lastname"
+      }
+      // --- END NEW LOGIC ---
+
+      logger.log(
+        `Sending email to: ${toEmail} for customer: ${customerName} (formatted as: ${formattedName})`,
+      );
 
       // 1. Generate the HTML email content
-      const { subject, body } = createWelcomeEmailHtml(customerName);
+      // --- FIX: Use the formattedName variable here ---
+      const { subject, body } = createWelcomeEmailHtml(formattedName);
 
       // 2. Send the email
       try {

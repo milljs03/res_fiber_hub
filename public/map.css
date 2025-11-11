@@ -1,0 +1,112 @@
+/* Ensure the map fills the whole screen, minus the header */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent scrolling */
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make the map take up all remaining space */
+#map {
+    height: 100%; /* Fallback */
+    flex-grow: 1; /* This makes it fill remaining space */
+    background-color: #e5e7eb;
+}
+
+/* Style the legend "card" */
+#legend {
+    position: absolute;
+    top: 5.5rem; /* 4rem header + 1.5rem padding */
+    left: 1.5rem;
+    width: 250px;
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
+    z-index: 10;
+    background-color: white;
+    padding: 1rem; /* Smaller padding */
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.legend-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+#filter-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.filter-item input {
+    margin-right: 0.5rem;
+    height: 1rem;
+    width: 1rem;
+}
+
+.filter-item label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.color-swatch {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgba(0,0,0,0.2);
+    display: inline-block;
+}
+
+/* Loading Overlay for the map */
+#map-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.3s;
+}
+
+#map-loading-overlay p {
+    font-weight: 600;
+    color: #4b5563;
+    margin-top: 1rem;
+}
+
+#map-loading-spinner {
+    border: 4px solid #e5e7eb; 
+    border-top: 4px solid #4f46e5; 
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

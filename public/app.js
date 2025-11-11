@@ -20,7 +20,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"; 
+// NEW: Define the workflow steps
+const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed'];
 // --- END CONSTANTS ---
 
 // --- Global State ---
@@ -118,7 +120,9 @@ const el = {
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
     headerSaveBtn: document.getElementById('header-save-btn'), 
+    headerSaveAndProgressBtn: document.getElementById('header-save-and-progress-btn'), // NEW
     updateCustomerBtn: document.getElementById('update-customer-btn'), 
+    saveAndProgressBtn: document.getElementById('save-and-progress-btn'), // NEW
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
@@ -538,7 +542,9 @@ const setupEventListeners = () => {
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
     el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
+    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); // NEW
     el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e));
+    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); // NEW
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
@@ -768,8 +774,10 @@ const handlePdfProcessing = async () => {
 const calculateDashboardStats = (customers) => {
     const statusCounts = {
         'New Order': 0,
-        'Site Survey': 0,
-        'NID': 0,
+        'Site Survey Ready': 0,
+        'Tory\'s List': 0,
+        'NID Ready': 0,
+        'Install Ready': 0,
         'On Hold': 0,
         'Completed': 0
     };
@@ -790,7 +798,8 @@ const calculateDashboardStats = (customers) => {
         const speed = c.serviceSpeed || 'Unknown';
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
-        if (c.status === 'Completed' && c.installDetails?.installDate && c.createdAt?.seconds) {
+        // --- MODIFICATION: Check for exemption ---
+        if (c.status === 'Completed' && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
 
@@ -817,7 +826,7 @@ const calculateDashboardStats = (customers) => {
         }
     });
 
-    const totalActive = statusCounts['New Order'] + statusCounts['Site Survey'] + statusCounts['NID'] + statusCounts['On Hold'];
+    const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Tory\'s List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
     const totalCompleted = statusCounts['Completed'];
     
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
@@ -837,10 +846,10 @@ const calculateDashboardStats = (customers) => {
 
 const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTime) => {
     let breakdownHtml = '';
-    const activeStatuses = ['New Order', 'Site Survey', 'NID', 'On Hold'];
+    const activeStatuses = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'On Hold'];
     
     activeStatuses.sort((a, b) => {
-        const order = { 'New Order': 1, 'Site Survey': 2, 'NID': 3, 'On Hold': 4 };
+        const order = { 'New Order': 1, 'Site Survey Ready': 2, 'Tory\'s List': 3, 'NID Ready': 4, 'Install Ready': 5, 'On Hold': 6 };
         return order[a] - order[b];
     });
 
@@ -923,6 +932,25 @@ const loadCustomers = () => {
                 handleDeselectCustomer();
             }
         }
+        
+        // --- NEW: Check for customerId from URL ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const customerIdFromUrl = urlParams.get('customerId');
+        if (customerIdFromUrl) {
+            const customerToSelect = allCustomers.find(c => c.id === customerIdFromUrl);
+            const customerItem = document.querySelector(`.customer-item[data-id="${customerIdFromUrl}"]`);
+            
+            if (customerToSelect && customerItem) {
+                handleSelectCustomer(customerToSelect.id, customerItem);
+                // Scroll to the item in the list
+                customerItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // Clean up the URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        // --- END NEW ---
+
     }, (error) => {
         console.error("Error loading customers: ", error);
         el.listLoading.textContent = 'Error loading customers.';
@@ -1072,12 +1100,19 @@ const handleAddCustomer = async (e) => {
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
         generalNotes: "", // MOVED TO TOP LEVEL
+        exemptFromStats: false, // NEW
         createdAt: serverTimestamp(), 
         preInstallChecklist: {
             welcomeEmailSent: false,
             addedToSiteSurvey: false,
             addedToFiberList: false,
             addedToRepairShoppr: false
+        },
+        torysListChecklist: { // NEW
+            added: false
+        },
+        installReadyChecklist: { // NEW
+            ready: false
         },
         installDetails: {
             installDate: "",
@@ -1181,12 +1216,20 @@ const populateDetailsForm = (data) => {
     
     el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
     
+    el.detailsForm['check-torys-list'].checked = data.torysListChecklist?.added || false; // NEW
+    
+    el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
+
+    el.detailsForm['check-install-ready'].checked = data.installReadyChecklist?.ready || false; // NEW
+    
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsGeneralNotes.value = data.generalNotes || ''; // UPDATED
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
+    
+    el.detailsForm['check-exempt-from-stats'].checked = data.exemptFromStats || false; // NEW
     
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
@@ -1204,14 +1247,19 @@ const showDetailsPage = (pageId) => {
 
 const setPageForStatus = (status) => {
     switch (status) {
-        case 'Site Survey':
+        case 'Site Survey Ready':
             showDetailsPage('page-site-survey');
             break;
-        case 'NID': 
+        case 'Tory\'s List': // NEW
+            showDetailsPage('page-torys-list');
+            break;
+        case 'NID Ready': 
             showDetailsPage('page-nid');
             break;
+        case 'Install Ready': // NEW
+            showDetailsPage('page-install-ready');
+            break;
         case 'Completed': 
-        case 'Install': 
             showDetailsPage('page-install');
             break;
         case 'New Order':
@@ -1243,7 +1291,8 @@ const handleToggleOnHold = (e) => {
 };
 
 const updateStepperUI = (currentStatus) => {
-    const steps = ['New Order', 'Site Survey', 'NID', 'Completed']; 
+    // const steps = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed']; 
+    // Use the global constant instead
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
     allStepButtons.forEach(btn => {
@@ -1262,11 +1311,11 @@ const updateStepperUI = (currentStatus) => {
         if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
         el.statusStepper.classList.remove('is-on-hold'); 
 
-        const statusIndex = steps.indexOf(currentStatus);
+        const statusIndex = STEPS_WORKFLOW.indexOf(currentStatus);
         if (statusIndex !== -1) {
             for (let i = 0; i < allStepButtons.length; i++) {
                 const stepButton = allStepButtons[i];
-                if (stepButton.dataset.status === steps[i]) {
+                if (stepButton.dataset.status === STEPS_WORKFLOW[i]) {
                     if (i < statusIndex) {
                         stepButton.classList.add('completed');
                     } else if (i === statusIndex) {
@@ -1315,12 +1364,16 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
+// MODIFIED: Added statusOverride parameter
+const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride = null) => {
     if (e) {
         e.preventDefault();
     }
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
+
+    // Use statusOverride if provided, otherwise use the form's current value
+    const newStatus = statusOverride || el.detailsForm['details-status'].value;
 
     const updatedData = {
         customerName: el.detailsCustomerNameInput.value,
@@ -1330,16 +1383,19 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
         
-        'status': el.detailsForm['details-status'].value,
+        'status': newStatus, // MODIFIED
         'generalNotes': el.detailsGeneralNotes.value, // UPDATED
+        'exemptFromStats': el.detailsForm['check-exempt-from-stats'].checked, // NEW
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
         'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
         'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
         'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
+        'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, // NEW
+        'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
+        'installReadyChecklist.ready': el.detailsForm['check-install-ready'].checked, // NEW
         'installDetails.installDate': el.detailsForm['install-date'].value,
         'installDetails.eeroInfo': el.detailsForm['eero-info'].checked, 
-        'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
         'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
         'installDetails.installNotes': el.detailsForm['install-notes'].value, 
         'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
@@ -1352,7 +1408,18 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, updatedData);
         
-        if (!isAutoSave) {
+        // If we overrode the status, update the UI to match
+        if (statusOverride) {
+            el.detailsForm['details-status'].value = statusOverride;
+            updateStepperUI(statusOverride);
+            setPageForStatus(statusOverride);
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        // MODIFIED: Only show toast if it's a manual save, not auto-save or progress-save
+        if (!isAutoSave && !statusOverride) {
             showToast('Customer updated!', 'success');
         }
     } catch (error) {
@@ -1360,6 +1427,37 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
         showToast('Error updating customer.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
+    }
+};
+
+// NEW: Save and Progress Logic
+const handleSaveAndProgress = async (e) => {
+    e.preventDefault();
+    const currentStatus = el.detailsForm['details-status'].value;
+    let statusToProgressFrom = currentStatus;
+
+    // If 'On Hold', find the status it was at *before* being put on hold
+    if (currentStatus === 'On Hold') {
+        statusToProgressFrom = el.detailsForm.dataset.statusBeforeHold || 'New Order';
+    }
+
+    const currentIndex = STEPS_WORKFLOW.indexOf(statusToProgressFrom);
+    let nextStatus = null;
+
+    // Find the next step, as long as it's not 'Completed'
+    if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
+        nextStatus = STEPS_WORKFLOW[currentIndex + 1];
+    }
+
+    // Call updateCustomer with the nextStatus.
+    // If nextStatus is null (already 'Completed'), it will just save the current state.
+    await handleUpdateCustomer(e, false, nextStatus);
+
+    if (nextStatus) {
+        showToast(`Saved & Progressed to "${nextStatus}"!`, 'success');
+    } else {
+        // This handles the case where the user is already at "Completed"
+        showToast('Customer saved!', 'success');
     }
 };
 

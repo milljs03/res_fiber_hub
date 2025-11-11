@@ -312,6 +312,18 @@ body {
 .card-title-header .card-title {
     margin: 0; 
 }
+/* NEW: Header Button Group */
+.header-button-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* 8px */
+}
+.header-button-group .btn {
+    padding: 0.25rem 0.625rem; /* Reduced padding */
+    font-size: 0.8rem;
+}
+/* END NEW */
+
 /* MODIFIED: Reduced size and spacing */
 #new-customer-btn {
     padding: 0.25rem 0.625rem; /* Reduced padding */
@@ -604,11 +616,27 @@ body {
     background-color: #FEF3C7; /* yellow-100 */
     color: #B45309; /* yellow-700 */
 }
-.status-install {
+/* NEW */
+.status-site-survey-ready {
+    background-color: #FEF3C7; /* yellow-100 */
+    color: #B45309; /* yellow-700 */
+}
+.status-torys-list {
     background-color: #E0E7FF; /* indigo-100 */
     color: #3730A3; /* indigo-700 */
 }
-.status-completed {
+/* END NEW */
+ .status-install {
+    background-color: #E0E7FF; /* indigo-100 */
+    color: #3730A3; /* indigo-700 */
+}
+/* NEW */
+.status-install-ready {
+    background-color: #D1FAE5; /* green-100 */
+    color: #065F46; /* green-700 */
+}
+/* END NEW */
+ .status-completed {
     background-color: #D1FAE5; /* green-100 */
     color: #065F46; /* green-700 */
 }
@@ -616,6 +644,12 @@ body {
     background-color: #FEE2E2; /* red-100 (using a new color for NID) */
     color: #991B1B; /* red-700 */
 }
+/* NEW */
+.status-nid-ready {
+    background-color: #FEE2E2; /* red-100 (using a new color for NID) */
+    color: #991B1B; /* red-700 */
+}
+/* END NEW */
 .status-on-hold {
     background-color: #fd9898; /* gray-100 */
     color: #7e1313; /* gray-700 */
@@ -833,6 +867,10 @@ body {
     font-weight: 500; 
     color: #374151; 
 }
+/* NEW: Margin for exempt stats checkbox */
+#exempt-from-stats-wrapper {
+    margin-bottom: 0.75rem; /* 12px */
+}
 #send-welcome-email-btn {
     margin-left: auto;
     font-size: 0.875rem; 
@@ -853,6 +891,16 @@ body {
     flex-direction: column;
     gap: 0.75rem; 
 }
+
+/* NEW: Button Group for actions */
+.button-group {
+    display: flex;
+    gap: 0.75rem;
+}
+.button-group .btn {
+    flex: 1; /* Make buttons equal width */
+}
+/* END NEW */
 
 /* --- Loading Spinner --- */
 #loading-overlay {

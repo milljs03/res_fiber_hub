@@ -40,6 +40,11 @@
                 </div>
                 <div class="user-info">
                     <span id="user-email"></span>
+                    <!-- NEW MAP LINK -->
+                    <a href="map.html" id="view-map-btn" class="btn btn-secondary">
+                        <i data-lucide="map" class="btn-icon"></i>
+                        View Map
+                    </a>
                     <button id="sign-out-btn">Sign Out</button>
                 </div>
             </div>
@@ -140,8 +145,10 @@
                         <div id="filter-pills" class="filter-pills">
                             <button type="button" class="filter-pill active" data-filter="All">All</button>
                             <button type="button" class="filter-pill" data-filter="New Order">New Order</button>
-                            <button type="button" class="filter-pill" data-filter="Site Survey">Site Survey</button>
-                            <button type="button" class="filter-pill" data-filter="NID">NID</button>
+                            <button type="button" class="filter-pill" data-filter="Site Survey Ready">Site Survey Ready</button>
+                            <button type="button" class="filter-pill" data-filter="Tory's List">Tory's List</button>
+                            <button type="button" class="filter-pill" data-filter="NID Ready">NID Ready</button>
+                            <button type="button" class="filter-pill" data-filter="Install Ready">Install Ready</button>
                             <button type="button" class="filter-pill" data-filter="On Hold">On Hold</button>
                         </div>
                     </div>
@@ -165,9 +172,15 @@
             <div class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer Details</h2>
-                    <button type="button" id="header-save-btn" class="btn btn-primary">
-                        Save Changes
-                    </button>
+                    <!-- MODIFIED: Button Group -->
+                    <div class="header-button-group">
+                        <button type="button" id="header-save-btn" class="btn btn-secondary">
+                            Save
+                        </button>
+                        <button type="button" id="header-save-and-progress-btn" class="btn btn-primary">
+                            Save & Progress
+                        </button>
+                    </div>
                 </div>
                 <div id="details-container" data-id="">
                     <div id="loading-overlay">
@@ -185,18 +198,28 @@
                                     <div class="step-label">New Order</div>
                                 </button>
                                 <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Site Survey" data-page="page-site-survey">
+                                <button type="button" class="step" data-status="Site Survey Ready" data-page="page-site-survey">
                                     <div class="step-circle">2</div>
                                     <div class="step-label">Site Survey</div>
                                 </button>
                                 <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="NID" data-page="page-nid">
+                                <button type="button" class="step" data-status="Tory's List" data-page="page-torys-list">
                                     <div class="step-circle">3</div>
-                                    <div class="step-label">NID</div>
+                                    <div class="step-label">Tory's List</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="NID Ready" data-page="page-nid">
+                                    <div class="step-circle">4</div>
+                                    <div class="step-label">NID Ready</div>
+                                </button>
+                                <div class="step-connector"></div>
+                                <button type="button" class="step" data-status="Install Ready" data-page="page-install-ready">
+                                    <div class="step-circle">5</div>
+                                    <div class="step-label">Install Ready</div>
                                 </button>
                                 <div class="step-connector"></div>
                                 <button type="button" class="step" data-status="Completed" data-page="page-install">
-                                    <div class="step-circle">4</div>
+                                    <div class="step-circle">6</div>
                                     <div class="step-label">Completed</div>
                                 </button>
                             </div>
@@ -321,7 +344,7 @@
                         </div> 
                         <div id="page-site-survey" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Site Survey</legend>
+                                <legend class="checklist-title">Site Survey Ready</legend>
                                 <div class="checklist-content">
                                     <div class="form-group">
                                         <label for="site-survey-notes" class="form-label">Site Survey Notes</label>
@@ -338,9 +361,27 @@
                             </fieldset>
                         </div> 
                         
+                        <!-- NEW PAGE: TORY'S LIST -->
+                        <div id="page-torys-list" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">Tory's List</legend>
+                                <div class="checklist-content">
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-torys-list" name="check-torys-list" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-torys-list">Added to Tory's List</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div>
+                        <!-- END NEW PAGE -->
+
                         <div id="page-nid" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">NID Work</legend>
+                                <legend class="checklist-title">NID Ready</legend>
                                 <div class="checklist-content">
                                     <div class="form-group">
                                         <label for="nid-light" class="form-label">Light Reading @ NID</label>
@@ -356,9 +397,27 @@
                             </fieldset>
                         </div>
                         
+                        <!-- NEW PAGE: INSTALL READY -->
+                        <div id="page-install-ready" class="details-page">
+                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
+                                <legend class="checklist-title">Install Ready</legend>
+                                <div class="checklist-content">
+                                    <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="check-install-ready" name="check-install-ready" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-install-ready">Install Ready to Schedule</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div>
+                        <!-- END NEW PAGE -->
+
                         <div id="page-install" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Install Details</legend>
+                                <legend class="checklist-title">Final Install / Completed</legend>
                                 <div class="checklist-content">
                                     <div class="form-group">
                                         <label for="install-date" class="form-label">Install Date</label>
@@ -371,6 +430,17 @@
                                         </div>
                                     </div>
                                     
+                                    <!-- NEW CHECKBOX -->
+                                    <div class="checklist-item" id="exempt-from-stats-wrapper">
+                                        <div class="checklist-item-box">
+                                            <input id="check-exempt-from-stats" name="check-exempt-from-stats" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="check-exempt-from-stats">Exempt from Avg. Install Time</label>
+                                        </div>
+                                    </div>
+                                    <!-- END NEW CHECKBOX -->
+
                                     <div class="checklist-item">
                                         <div class="checklist-item-box">
                                             <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
@@ -448,10 +518,17 @@
 
                         </div> 
                         <div class="action-buttons">
-                            <button type="button" id="update-customer-btn" class="btn btn-primary">
-                                <i data-lucide="save" class="btn-icon"></i>
-                                Save Changes
-                            </button>
+                            <!-- MODIFIED: Button Group -->
+                            <div class="button-group">
+                                <button type="button" id="update-customer-btn" class="btn btn-secondary">
+                                    <i data-lucide="save" class="btn-icon"></i>
+                                    Save Changes
+                                </button>
+                                <button type="button" id="save-and-progress-btn" class="btn btn-primary">
+                                    <i data-lucide="fast-forward" class="btn-icon"></i>
+                                    Save & Progress
+                                </button>
+                            </div>
                             
                             <button type="button" id="on-hold-btn" class="btn btn-warning">
                                 <i data-lucide="pause-circle" class="btn-icon"></i>
