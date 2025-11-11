@@ -203,6 +203,18 @@
                             <input type="hidden" id="details-status" name="details-status" />
                         </div>
 
+                        <!-- NEW: GENERAL NOTES (ALWAYS VISIBLE) -->
+                        <div class="form-group general-notes-group">
+                            <label for="details-general-notes" class="form-label">General Notes</label>
+                            <div class="field-wrapper">
+                                <textarea id="details-general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
+                                <button type="button" class="copy-btn" data-target="details-general-notes">
+                                    <img src="copy.png" alt="Copy" class="icon-copy" />
+                                    <img src="check.png" alt="Copied" class="icon-check" />
+                                </button>
+                            </div>
+                        </div>
+                        
                         <div id="page-pre-install" class="details-page active">
                             <div class="form-group">
                                 <label class="form-label" for="details-customer-name">Customer Name</label>
@@ -391,18 +403,9 @@
                                             </button>
                                         </div>
                                     </div>
-
-                                    <div class="form-group">
-                                        <label for="general-notes" class="form-label">General Notes</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;">
-                                            </textarea>
-                                            <button type="button" class="copy-btn" data-target="general-notes">
-                                                <img src="copy.png" alt="Copy" class="icon-copy" />
-                                                <img src="check.png" alt="Copied" class="icon-check" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                    
+                                    <!-- OLD GENERAL NOTES FIELD REMOVED FROM HERE -->
+                                    
                                 </div>
                             </fieldset>
                             

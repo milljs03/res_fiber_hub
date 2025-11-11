@@ -113,6 +113,7 @@ const el = {
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
     detailsPhoneInput: document.getElementById('details-phone'),
+    detailsGeneralNotes: document.getElementById('details-general-notes'), // NEW
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
@@ -1070,6 +1071,7 @@ const handleAddCustomer = async (e) => {
         secondaryContact: { name: "", phone: "" },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
+        generalNotes: "", // MOVED TO TOP LEVEL
         createdAt: serverTimestamp(), 
         preInstallChecklist: {
             welcomeEmailSent: false,
@@ -1082,7 +1084,7 @@ const handleAddCustomer = async (e) => {
             eeroInfo: false, 
             nidLightReading: "",
             additionalEquipment: "",
-            generalNotes: "",
+            // generalNotes MOVED to top level
             siteSurveyNotes: "",
             installNotes: "" 
         },
@@ -1183,7 +1185,7 @@ const populateDetailsForm = (data) => {
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
-    el.detailsForm['general-notes'].value = data.installDetails?.generalNotes || '';
+    el.detailsGeneralNotes.value = data.generalNotes || ''; // UPDATED
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
     
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
@@ -1329,6 +1331,7 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
         'primaryContact.phone': el.detailsPhoneInput.value,
         
         'status': el.detailsForm['details-status'].value,
+        'generalNotes': el.detailsGeneralNotes.value, // UPDATED
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
         'preInstallChecklist.addedToSiteSurvey': el.detailsForm['check-site-survey'].checked,
         'preInstallChecklist.addedToFiberList': el.detailsForm['check-fiber-list'].checked,
@@ -1338,7 +1341,6 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false) => {
         'installDetails.eeroInfo': el.detailsForm['eero-info'].checked, 
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
         'installDetails.additionalEquipment': el.detailsForm['extra-equip'].value,
-        'installDetails.generalNotes': el.detailsForm['general-notes'].value,
         'installDetails.installNotes': el.detailsForm['install-notes'].value, 
         'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
         'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,

@@ -739,6 +739,12 @@ body {
     display: flex; 
 }
 
+/* NEW: Style for always-visible general notes */
+.general-notes-group {
+    border-bottom: 1px solid #e5e7eb; /* border-gray-200 */
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
+}
 
 /* --- Field & Copy Button Styles --- */
 .field-wrapper {
