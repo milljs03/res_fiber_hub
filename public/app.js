@@ -128,7 +128,9 @@ const el = {
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
     archiveCustomerBtn: document.getElementById('archive-customer-btn'), // NEW
+    unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), // NEW
     completedActionsDiv: document.getElementById('completed-actions-div'), // NEW
+
 
     // --- UPDATED: Stepper and Pages ---
     statusStepper: document.getElementById('status-stepper'),
@@ -590,6 +592,7 @@ const setupEventListeners = () => {
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.archiveCustomerBtn.addEventListener('click', handleArchiveCustomer); // NEW
+    el.unarchiveCustomerBtn.addEventListener('click', handleUnarchiveCustomer); // NEW
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
     // Stepper Click Listener
@@ -1467,6 +1470,10 @@ const updateStepperUI = (currentStatus) => {
     el.deleteCustomerBtn.classList.add('hidden');
     el.headerSaveBtn.classList.add('hidden');
     el.headerSaveAndProgressBtn.classList.add('hidden');
+    // NEW: also hide archive/unarchive buttons by default
+    el.archiveCustomerBtn.classList.add('hidden');
+    el.unarchiveCustomerBtn.classList.add('hidden');
+
 
     allStepButtons.forEach(btn => {
         btn.classList.remove('active', 'completed');
@@ -1483,13 +1490,26 @@ const updateStepperUI = (currentStatus) => {
         // Mark all steps as completed
         allStepButtons.forEach(btn => btn.classList.add('completed'));
         
-        // Disable all form fields
-        el.detailsForm.querySelectorAll('input, textarea, select, button').forEach(elem => {
-            if (!elem.closest('.header-button-group')) { // Don't disable header buttons
-                 elem.disabled = true;
+        // MODIFICATION: Disable form fields but NOT stepper buttons
+        // This allows navigation
+        el.detailsForm.querySelectorAll('input, textarea, select').forEach(elem => {
+            elem.disabled = true;
+        });
+        
+        // Disable all action buttons, but NOT stepper buttons
+        el.detailsForm.querySelectorAll('button').forEach(elem => {
+            if (!elem.closest('#status-stepper') && !elem.closest('.header-button-group')) {
+                elem.disabled = true;
             }
         });
-        return; // No action buttons should be visible
+        
+        // Show "Unarchive" button
+        el.completedActionsDiv.classList.remove('hidden'); // Show the container
+        el.unarchiveCustomerBtn.classList.remove('hidden'); // Show UNarchive
+        el.unarchiveCustomerBtn.disabled = false; // Explicitly enable it
+        el.archiveCustomerBtn.classList.add('hidden');   // Hide archive
+
+        return; // No other action buttons should be visible
     }
 
     // If not Archived, re-enable forms
@@ -1541,6 +1561,8 @@ const updateStepperUI = (currentStatus) => {
     // Show completed actions only on the 'Completed' step
     if (currentStatus === 'Completed') {
         el.completedActionsDiv.classList.remove('hidden');
+        el.archiveCustomerBtn.classList.remove('hidden'); // Show Archive
+        el.unarchiveCustomerBtn.classList.add('hidden'); // Hide Unarchive
     }
 };
 
@@ -1733,7 +1755,33 @@ const handleArchiveCustomer = async (e) => {
     }
 };
 
+const handleUnarchiveCustomer = async (e) => {
+    e.preventDefault();
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId || !customersCollectionRef) return;
+    const customerName = el.detailsCustomerNameInput.value;
 
+    if (await showConfirmModal(`Are you sure you want to unarchive ${customerName}? This will move them back to the 'Completed' list.`)) {
+        try {
+            el.loadingOverlay.style.display = 'flex';
+            const docRef = doc(customersCollectionRef, customerId);
+            // Set status back to "Completed"
+            await updateDoc(docRef, { status: "Completed" });
+            showToast('Customer unarchived.', 'success');
+            
+            // Manually update the UI to reflect the new "Completed" state
+            el.detailsForm.dataset.currentStatus = "Completed";
+            setPageForStatus("Completed");
+            updateStepperUI("Completed");
+            
+        } catch (error) {
+            console.error("Error unarchiving customer: ", error);
+            showToast('Error unarchiving customer.', 'error');
+        } finally {
+            el.loadingOverlay.style.display = 'none';
+        }
+    }
+};
 // --- 6. ACTIONS ---
 const handleSendWelcomeEmail = async (e) => {
     e.preventDefault(); 
