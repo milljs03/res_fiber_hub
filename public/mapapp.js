@@ -39,6 +39,7 @@ const statusColors = {
     'Install Ready': '#059669',     // Green
     'Completed': '#b910b0ff',         // Teal/Green
     'On Hold': '#7c7c7cff',           // Orange
+    'Archived': '#E5E7EB',           // Gray (from style.css)
     'Default': '#d2f35bff'            // Gray
 };
 
@@ -49,7 +50,8 @@ const statusOrder = [
     'NID Ready',
     'Install Ready',
     'Completed',
-    'On Hold'
+    'On Hold',
+    'Archived' // <-- ADDED
 ];
 
 /**
