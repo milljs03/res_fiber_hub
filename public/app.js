@@ -1656,13 +1656,30 @@ const handleCopyBilling = async (e) => {
         const data = docSnap.data();
         const customerName = el.detailsCustomerNameInput.value;
         
+        // --- START NEW BILLING FORMAT ---
+        let formattedDate = 'N/A';
+        const installDateStr = data.installDetails.installDate; // "YYYY-MM-DD"
+        if (installDateStr) {
+            // Using replace(/-/g, '/') ensures correct parsing in Safari/Firefox
+            const date = new Date(installDateStr.replace(/-/g, '/')); 
+            const month = String(date.getMonth() + 1); // GetMonth is 0-indexed
+            const day = String(date.getDate());
+            const year = date.getFullYear();
+            formattedDate = `${month}/${day}/${year}`; // Format as M/D/YYYY
+        }
+
         const billingText = `
+${customerName} was officially turned up for service, below are the details:
+
 Customer Name: ${customerName}
 Address: ${data.address || 'N/A'}
 Service Order: ${data.serviceOrderNumber || 'N/A'}
-Date Installed: ${data.installDetails.installDate || 'N/A'}
+Date Installed: ${formattedDate}
 Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
-        `.trim().replace(/^\s+\n/gm, '\n'); 
+
+Thanks,
+Lincoln
+        `.trim().replace(/^\s+\n/gm, '\n');
 
         const ta = document.createElement('textarea');
         ta.value = billingText;
