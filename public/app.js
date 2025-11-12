@@ -1335,6 +1335,7 @@ const populateDetailsForm = (data) => {
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
+    el.detailsForm['bill-info'].checked = data.postInstallChecklist?.emailSentToBilling || false;
 
     // --- LOGIC CHANGE: This is now handled by handleSelectCustomer ---
     // updateStepperUI(data.status || 'New Order');
@@ -1536,7 +1537,8 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus
         'installDetails.installNotes': el.detailsForm['install-notes'].value, 
         'postInstallChecklist.removedFromFiberList': el.detailsForm['post-check-fiber'].checked,
         'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
-        'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked
+        'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked,
+        'postInstallChecklist.emailSentToBilling': el.detailsForm['bill-info'].checked
     };
 
     try {
