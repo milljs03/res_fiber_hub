@@ -127,6 +127,8 @@ const el = {
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
+    archiveCustomerBtn: document.getElementById('archive-customer-btn'), // NEW
+    completedActionsDiv: document.getElementById('completed-actions-div'), // NEW
 
     // --- UPDATED: Stepper and Pages ---
     statusStepper: document.getElementById('status-stepper'),
@@ -197,7 +199,7 @@ el.signOutBtn.addEventListener('click', () => {
 
 const updateCompletedFilterOptions = (allCustomers) => {
     const completedCustomers = allCustomers.filter(c => 
-        c.status === 'Completed' && c.installDetails?.installDate
+        (c.status === 'Completed' || c.status === 'Archived') && c.installDetails?.installDate
     );
 
     const yearMap = new Map();
@@ -227,7 +229,7 @@ const updateCompletedFilterOptions = (allCustomers) => {
     
     const allOption = document.createElement('option');
     allOption.value = 'All';
-    allOption.textContent = 'All Completed Orders';
+    allOption.textContent = 'All Time'; // Changed text
     el.completedFilterSelect.appendChild(allOption);
 
     // Add Year Options
@@ -527,12 +529,22 @@ const setupEventListeners = () => {
         if (mainFilter === 'Completed') {
             el.activeControlsGroup.classList.add('hidden');
             el.completedControlsGroup.classList.remove('hidden');
+            el.completedFilterGroup.querySelector('label').textContent = 'Completed Date';
             
             currentFilter = 'Completed'; 
             currentCompletedFilter = el.completedFilterSelect.value;
             el.customerListContainer.classList.add('completed-view');
             
-        } else { 
+        } else if (mainFilter === 'Archived') { // NEW
+            el.activeControlsGroup.classList.add('hidden');
+            el.completedControlsGroup.classList.remove('hidden');
+            el.completedFilterGroup.querySelector('label').textContent = 'Archived Date'; // Change label
+            
+            currentFilter = 'Archived'; 
+            currentCompletedFilter = el.completedFilterSelect.value;
+            el.customerListContainer.classList.add('completed-view');
+
+        } else { // Active
             el.activeControlsGroup.classList.remove('hidden');
             el.completedControlsGroup.classList.add('hidden');
             
@@ -577,6 +589,7 @@ const setupEventListeners = () => {
     el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); 
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
+    el.archiveCustomerBtn.addEventListener('click', handleArchiveCustomer); // NEW
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
     // Stepper Click Listener
@@ -811,7 +824,8 @@ const calculateDashboardStats = (customers) => {
         'NID Ready': 0,
         'Install Ready': 0,
         'On Hold': 0,
-        'Completed': 0
+        'Completed': 0,
+        'Archived': 0 // NEW
     };
     
     let totalInstallDays = 0;
@@ -834,10 +848,12 @@ const calculateDashboardStats = (customers) => {
             statusCounts[status]++;
         }
         
+        // Speed breakdown should include all customers, even archived
         const speed = c.serviceSpeed || 'Unknown';
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
-        // --- MODIFICATION: Check for exemption ---
+        // --- MODIFICATION: Check for exemption
+        // Stats should only be calculated on *Completed* customers, not Archived
         if (status === 'Completed' && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
@@ -866,7 +882,7 @@ const calculateDashboardStats = (customers) => {
     });
 
     const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Torys List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
-    const totalCompleted = statusCounts['Completed'];
+    const totalCompleted = statusCounts['Completed']; // Does not include Archived
     
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
     
@@ -919,7 +935,7 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
         <div class="stat-box" style="background-color: #d1fae5; border: 1px solid #a7f3d0;">
             <div class="stat-main-title">Completed Orders</div>
             <div class="stat-main-value" style="color: #065f46;">${totalCompleted + 2673}</div>
-            <p class="stat-breakdown">Total lifetime installs.</p>
+            <p class="stat-breakdown">Total lifetime installs (excluding archived).</p>
         </div>
     `;
     
@@ -961,6 +977,9 @@ const loadCustomers = () => {
 
         if (activeMainTab && activeMainTab.dataset.mainFilter === 'Completed') {
             currentFilter = 'Completed';
+            currentCompletedFilter = el.completedFilterSelect.value;
+        } else if (activeMainTab && activeMainTab.dataset.mainFilter === 'Archived') { // NEW
+            currentFilter = 'Archived';
             currentCompletedFilter = el.completedFilterSelect.value;
         } else {
             currentFilter = activePill ? activePill.dataset.filter : 'All';
@@ -1017,6 +1036,7 @@ const displayCustomers = () => {
     
     let filteredCustomers = [...allCustomers];
     let isCompletedList = (currentFilter === 'Completed');
+    let isArchivedList = (currentFilter === 'Archived'); // NEW
 
     if (isCompletedList) {
         filteredCustomers = filteredCustomers.filter(c => c.status === 'Completed');
@@ -1027,11 +1047,20 @@ const displayCustomers = () => {
             );
         }
 
+    } else if (isArchivedList) { // NEW
+        filteredCustomers = filteredCustomers.filter(c => c.status === 'Archived');
+        
+        if (currentCompletedFilter !== 'All') {
+            filteredCustomers = filteredCustomers.filter(c => 
+                (c.installDetails?.installDate || '').startsWith(currentCompletedFilter)
+            );
+        }
+    
     } else if (currentFilter !== 'All') {
         filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
         
-    } else {
-        filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed');
+    } else { // "All" Active
+        filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed' && c.status !== 'Archived');
     }
 
     if (searchTerm) {
@@ -1041,7 +1070,8 @@ const displayCustomers = () => {
         );
     }
 
-    if (isCompletedList) {
+    // Sort Completed and Archived lists the same way (by date)
+    if (isCompletedList || isArchivedList) {
         filteredCustomers.sort((a, b) => {
             const dateA = a.installDetails?.installDate || '0000-00-00';
             const dateB = b.installDetails?.installDate || '0000-00-00';
@@ -1065,9 +1095,14 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
     let totalCount = customersToRender.length;
     let countMessage = '';
 
+    const filterText = el.completedFilterSelect.options[el.completedFilterSelect.selectedIndex].text;
+
     if (currentFilter === 'Completed') {
-        const filterText = el.completedFilterSelect.options[el.completedFilterSelect.selectedIndex].text;
         countMessage = `Found ${totalCount} completed order(s) for: ${filterText}`;
+        el.completedFilterResults.textContent = countMessage;
+        el.completedFilterResults.classList.remove('hidden');
+    } else if (currentFilter === 'Archived') {
+        countMessage = `Found ${totalCount} archived order(s) for: ${filterText}`;
         el.completedFilterResults.textContent = countMessage;
         el.completedFilterResults.classList.remove('hidden');
     } else {
@@ -1079,6 +1114,8 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
             el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
         } else if (currentFilter === 'Completed' && currentCompletedFilter !== 'All') {
              el.listLoading.textContent = `No completed orders found in this period.`;
+        } else if (currentFilter === 'Archived' && currentCompletedFilter !== 'All') {
+             el.listLoading.textContent = `No archived orders found in this period.`;
         } else if (currentFilter !== 'All') {
             el.listLoading.textContent = `No customers found in stage "${currentFilter}".`;
         } else {
@@ -1101,7 +1138,18 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
             if (!status) return 'status-default';
             // --- APOSTROPHE FIX ---
             const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
-            return `status-${statusSlug}`;
+            // NEW: Add archived case
+            switch (statusSlug) {
+                case 'new-order': return 'status-new-order';
+                case 'site-survey-ready': return 'status-site-survey-ready';
+                case 'torys-list': return 'status-torys-list';
+                case 'nid-ready': return 'status-nid-ready';
+                case 'install-ready': return 'status-install-ready';
+                case 'completed': return 'status-completed';
+                case 'on-hold': return 'status-on-hold';
+                case 'archived': return 'status-archived';
+                default: return 'status-default';
+            }
         };
 
         let createdDate = ''; 
@@ -1109,7 +1157,7 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
             createdDate = new Date(customer.createdAt.seconds * 1000).toLocaleDateString();
         }
         
-        const dateDisplay = (customer.status === 'Completed' && customer.installDetails?.installDate) 
+        const dateDisplay = ( (customer.status === 'Completed' || customer.status === 'Archived') && customer.installDetails?.installDate) 
             ? new Date(customer.installDetails.installDate.replace(/-/g, '/')).toLocaleDateString() : createdDate;
 
         item.innerHTML = `
@@ -1300,6 +1348,9 @@ const handleDeselectCustomer = async (autoSave = false) => {
 };
 
 const populateDetailsForm = (data) => {
+    // Hide completed-specific buttons by default
+    el.completedActionsDiv.classList.add('hidden');
+
     el.detailsCustomerNameInput.value = data.customerName || ''; 
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
     el.detailsAddressInput.value = data.address || '';
@@ -1349,6 +1400,12 @@ const showDetailsPage = (pageId) => {
 };
 
 const setPageForStatus = (status) => {
+    // Archived customers are read-only and should show the 'Completed' page
+    if (status === 'Archived') {
+        showDetailsPage('page-install');
+        return;
+    }
+
     switch (status) {
         case 'Site Survey Ready':
             showDetailsPage('page-site-survey');
@@ -1402,11 +1459,52 @@ const handleToggleOnHold = (e) => {
 const updateStepperUI = (currentStatus) => {
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
+    // Hide all action buttons by default
+    el.completedActionsDiv.classList.add('hidden');
+    el.updateCustomerBtn.classList.add('hidden');
+    el.saveAndProgressBtn.classList.add('hidden');
+    el.onHoldButton.classList.add('hidden');
+    el.deleteCustomerBtn.classList.add('hidden');
+    el.headerSaveBtn.classList.add('hidden');
+    el.headerSaveAndProgressBtn.classList.add('hidden');
+
     allStepButtons.forEach(btn => {
         btn.classList.remove('active', 'completed');
     });
 
     const onHoldBtnText = el.onHoldButton.querySelector('span');
+
+    // If Archived, show read-only view
+    if (currentStatus === 'Archived') {
+        el.onHoldButton.classList.remove('active');
+        if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
+        el.statusStepper.classList.remove('is-on-hold');
+
+        // Mark all steps as completed
+        allStepButtons.forEach(btn => btn.classList.add('completed'));
+        
+        // Disable all form fields
+        el.detailsForm.querySelectorAll('input, textarea, select, button').forEach(elem => {
+            if (!elem.closest('.header-button-group')) { // Don't disable header buttons
+                 elem.disabled = true;
+            }
+        });
+        return; // No action buttons should be visible
+    }
+
+    // If not Archived, re-enable forms
+    el.detailsForm.querySelectorAll('input, textarea, select, button').forEach(elem => {
+        elem.disabled = false;
+    });
+    
+    // Show standard action buttons
+    el.updateCustomerBtn.classList.remove('hidden');
+    el.saveAndProgressBtn.classList.remove('hidden');
+    el.onHoldButton.classList.remove('hidden');
+    el.deleteCustomerBtn.classList.remove('hidden');
+    el.headerSaveBtn.classList.remove('hidden');
+    el.headerSaveAndProgressBtn.classList.remove('hidden');
+
 
     if (currentStatus === 'On Hold') {
         el.onHoldButton.classList.add('active');
@@ -1438,6 +1536,11 @@ const updateStepperUI = (currentStatus) => {
                 newOrderButton.classList.add('active');
             }
         }
+    }
+    
+    // Show completed actions only on the 'Completed' step
+    if (currentStatus === 'Completed') {
+        el.completedActionsDiv.classList.remove('hidden');
     }
 };
 
@@ -1606,6 +1709,30 @@ const handleDeleteCustomer = async (e) => {
         }
     }
 };
+
+// --- NEW: Archive Customer Function ---
+const handleArchiveCustomer = async (e) => {
+    e.preventDefault();
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId || !customersCollectionRef) return;
+    const customerName = el.detailsCustomerNameInput.value;
+
+    if (await showConfirmModal(`Are you sure you want to archive ${customerName}? This will move them from the 'Completed' list to the 'Archived' list.`)) {
+        try {
+            el.loadingOverlay.style.display = 'flex';
+            const docRef = doc(customersCollectionRef, customerId);
+            await updateDoc(docRef, { status: "Archived" });
+            showToast('Customer archived.', 'success');
+            handleDeselectCustomer(false); // Clear panel
+        } catch (error) {
+            console.error("Error archiving customer: ", error);
+            showToast('Error archiving customer.', 'error');
+        } finally {
+            el.loadingOverlay.style.display = 'none';
+        }
+    }
+};
+
 
 // --- 6. ACTIONS ---
 const handleSendWelcomeEmail = async (e) => {

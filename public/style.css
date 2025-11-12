@@ -679,6 +679,11 @@ body {
     background-color: #F3F4F6; /* gray-100 */
     color: #374151; /* gray-700 */
 }
+/* NEW ARCHIVE STYLE */
+.status-archived {
+    background-color: #E5E7EB; /* gray-200 */
+    color: #4B5563; /* gray-600 */
+}
 
 
 /* --- Details Panel --- */

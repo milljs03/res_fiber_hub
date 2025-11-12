@@ -8,15 +8,12 @@
     <link rel="stylesheet" href="style.css">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide script is no longer needed as we are using png icons -->
-    <!-- <script src="https://unpkg.com/lucide-icons@0.309.0"></script> -->
-</head>
+    </head>
 
 <body>
 
     <div id="auth-screen" class="auth-screen">
         <div class="auth-box">
-            <!-- UPDATED ICON -->
             <img src="icons/clock.png" alt="Tracker Icon" class="auth-logo-img" />
             <h1 class="auth-title">CFN Install Tracker</h1>
             <p class="auth-text">Please sign in with your @nptel.com account.</p>
@@ -37,13 +34,11 @@
         <header class="app-header">
             <div class="header-content">
                 <div class="header-title">
-                    <!-- UPDATED ICON -->
                     <img src="icons/clock.png" alt="Tracker Icon" class="header-logo-img" />
                     <h1>CFN Install Tracker</h1>
                 </div>
                 <div class="user-info">
                     <span id="user-email"></span>
-                    <!-- UPDATED ICON -->
                     <a href="map.html" id="view-map-btn" class="btn btn-secondary">
                         <img src="icons/map.png" alt="Map Icon" class="btn-icon-img" />
                         View Map
@@ -53,36 +48,27 @@
             </div>
         </header>
 
-        <!-- DASHBOARD CONTAINER -->
         <div class="dashboard-container">
             <div id="dashboard-card" class="card">
-                <!-- Dashboard Header with Toggle -->
                 <div class="dashboard-header-toggle">
                     <h2 class="card-title">At a Glance</h2>
                     <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
-                        <!-- UPDATED ICON -->
                         <img src="icons/chevron_down.png" alt="Toggle" class="toggle-icon" id="dashboard-toggle-icon">
                     </button>
                     
                 </div>
                 
-                <!-- Collapsible Content Wrapper -->
                 <div id="dashboard-content" class="dashboard-content-collapsible active">
 
                     <div id="dashboard-stats-grid" class="dashboard-stats-grid">
-                        <!-- 1. Active Stat Box -->
                         <div id="stats-summary-active-wrapper" class="stat-wrapper"></div>
                         
-                        <!-- 2. Completed Stat Box -->
                         <div id="stats-summary-completed-wrapper" class="stat-wrapper"></div>
 
-                        <!-- 3. Overall Avg Install Time Stat Box -->
                         <div id="overall-install-time-wrapper" class="stat-wrapper"></div>
                     </div>
 
-                    <!-- Chart Grid (3 columns) -->
                     <div id="dashboard-chart-grid" class="dashboard-stats-grid" style="margin-top: 1.5rem;">
-                        <!-- 1. YTD Installs Chart -->
                         <div id="chart-area-box-ytd" class="chart-area-box">
                             <h3 class="chart-title">YTD Installs</h3>
                             <div id="chart-area" class="chart-area">
@@ -90,7 +76,6 @@
                             </div>
                         </div>
 
-                        <!-- 2. Monthly Avg Install Time Chart -->
                         <div id="chart-area-box-monthly-avg" class="chart-area-box">
                             <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
                             <div id="chart-area-monthly-avg" class="chart-area">
@@ -98,7 +83,6 @@
                             </div>
                         </div>
 
-                        <!-- 3. Service Speed Breakdown Chart -->
                         <div id="chart-area-box-speed" class="chart-area-box">
                             <h3 class="chart-title">Service Speed Breakdown</h3>
                             <div id="chart-area-speed" class="chart-area">
@@ -110,8 +94,6 @@
                 </div>
             </div>
         </div>
-        <!-- END DASHBOARD CONTAINER -->
-
         <div class="main-grid">
 
             <div class="card">
@@ -123,18 +105,16 @@
                 </div>
                 
                 <div class="search-bar-group">
-                    <!-- UPDATED ICON -->
                     <img src="icons/search.png" alt="" class="search-icon" />
                     <input type="text" id="search-bar" class="form-input" placeholder="Search by name or address...">
                 </div>
 
-                <!-- Primary Tab Bar -->
                 <div id="main-list-tabs" class="main-list-tabs">
                     <button type="button" class="main-list-tab active" data-main-filter="Active">Active Orders</button>
                     <button type="button" class="main-list-tab" data-main-filter="Completed">Completed Orders</button>
+                    <button type="button" class="main-list-tab" data-main-filter="Archived">Archived</button>
                 </div>
 
-                <!-- Active View Controls -->
                 <div id="active-controls-group">
                     <div class="form-group">
                         <label for="sort-by" class="form-label">Sort by</label>
@@ -145,14 +125,12 @@
                         </select>
                     </div>
 
-                    <!-- Secondary Filter Pills -->
                     <div class="form-group">
                         <label class="form-label">Filter by Status</label>
                         <div id="filter-pills" class="filter-pills">
                             <button type="button" class="filter-pill active" data-filter="All">All</button>
                             <button type="button" class="filter-pill" data-filter="New Order">New Order</button>
                             <button type="button" class="filter-pill" data-filter="Site Survey Ready">Site Survey Ready</button>
-                            <!-- FIXED: Removed apostrophe from data-filter -->
                             <button type="button" class="filter-pill" data-filter="Torys List">Tory's List</button>
                             <button type="button" class="filter-pill" data-filter="NID Ready">NID Ready</button>
                             <button type="button" class="filter-pill" data-filter="Install Ready">Install Ready</button>
@@ -161,15 +139,12 @@
                     </div>
                 </div>
 
-                <!-- Completed View Controls -->
                 <div id="completed-controls-group" class="hidden">
                     <div id="completed-filter-group" class="form-group">
                         <label for="completed-filter-select" class="form-label">Completed Date</label>
                         <select id="completed-filter-select" class="form-select">
-                            <!-- Options populated by app.js -->
-                        </select>
+                            </select>
                     </div>
-                    <!-- NEW: Filter Results Total -->
                     <div class="form-group">
                         <label class="form-label">Filter Results</label>
                         <div id="completed-filter-results" class="static-field-total hidden"></div>
@@ -184,7 +159,6 @@
             <div class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer Details</h2>
-                    <!-- MODIFIED: Button Group -->
                     <div class="header-button-group">
                         <button type="button" id="header-save-btn" class="btn btn-secondary">
                             Save
@@ -201,7 +175,6 @@
 
                     <form id="details-form" class="card-content">
 
-                        <!-- STATUS STEPPER -->
                         <div class="form-group">
                             <label class="form-label">Status</label>
                             <div id="status-stepper" class="status-stepper">
@@ -215,7 +188,6 @@
                                     <div class="step-label">Site Survey</div>
                                 </button>
                                 <div class="step-connector"></div>
-                                <!-- FIXED: Removed apostrophe from data-status -->
                                 <button type="button" class="step" data-status="Torys List" data-page="page-torys-list">
                                     <div class="step-circle">3</div>
                                     <div class="step-label">Tory's List</div>
@@ -236,17 +208,14 @@
                                     <div class="step-label">Completed</div>
                                 </button>
                             </div>
-                            <!-- This input is no longer used for status, but kept for legacy/forms -->
                             <input type="hidden" id="details-status" name="details-status" />
                         </div>
 
-                        <!-- NEW: GENERAL NOTES (ALWAYS VISIBLE) -->
                         <div class="form-group general-notes-group">
                             <label for="details-general-notes" class="form-label">General Notes</label>
                             <div class="field-wrapper">
                                 <textarea id="details-general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
                                 <button type="button" class="copy-btn" data-target="details-general-notes">
-                                    <!-- UPDATED ICON PATH -->
                                     <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                     <img src="icons/check.png" alt="Copied" class="icon-check" />
                                 </button>
@@ -259,7 +228,6 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-customer-name" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-customer-name">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -270,7 +238,6 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-so-number" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-so-number">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -282,7 +249,6 @@
                                     <textarea id="details-address" rows="3" class="form-textarea" style="padding-right: 2.5rem;">
                                     </textarea>
                                     <button type="button" class="copy-btn" data-target="details-address">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -293,7 +259,6 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-speed" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-speed">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -304,7 +269,6 @@
                                 <div class="field-wrapper">
                                     <input type="email" id="details-email" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-email">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -315,7 +279,6 @@
                                 <div class="field-wrapper">
                                     <input type="tel" id="details-phone" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-phone">
-                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -373,7 +336,6 @@
                                             <textarea id="site-survey-notes" rows="8" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="site-survey-notes">
-                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -383,7 +345,6 @@
                             </fieldset>
                         </div> 
                         
-                        <!-- NEW PAGE: TORY'S LIST -->
                         <div id="page-torys-list" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Tory's List</legend>
@@ -399,8 +360,6 @@
                                 </div>
                             </fieldset>
                         </div>
-                        <!-- END NEW PAGE -->
-
                         <div id="page-nid" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">NID Ready</legend>
@@ -410,7 +369,6 @@
                                         <div class="field-wrapper">
                                             <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
                                             <button type="button" class="copy-btn" data-target="nid-light">
-                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -420,7 +378,6 @@
                             </fieldset>
                         </div>
                         
-                        <!-- NEW PAGE: INSTALL READY -->
                         <div id="page-install-ready" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Install Ready</legend>
@@ -436,8 +393,6 @@
                                 </div>
                             </fieldset>
                         </div>
-                        <!-- END NEW PAGE -->
-
                         <div id="page-install" class="details-page">
                             <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
                                 <legend class="checklist-title">Final Install / Completed</legend>
@@ -447,14 +402,12 @@
                                         <div class="field-wrapper">
                                             <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
                                             <button type="button" class="copy-btn" data-target="install-date">
-                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
                                         </div>
                                     </div>
                                     
-                                    <!-- NEW CHECKBOX -->
                                     <div class="checklist-item" id="exempt-from-stats-wrapper">
                                         <div class="checklist-item-box">
                                             <input id="check-exempt-from-stats" name="check-exempt-from-stats" type="checkbox" class="form-checkbox">
@@ -463,17 +416,12 @@
                                             <label for="check-exempt-from-stats">Exempt from Avg. Install Time</label>
                                         </div>
                                     </div>
-                                    <!-- END NEW CHECKBOX -->
-
-                               
-
                                     <div class="form-group">
                                         <label for="extra-equip" class="form-label">Additional Equipment</label>
                                         <div class="field-wrapper">
                                             <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="extra-equip">
-                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -486,16 +434,13 @@
                                             <textarea id="install-notes" rows="5" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="install-notes">
-                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
                                         </div>
                                     </div>
                                     
-                                    <!-- OLD GENERAL NOTES FIELD REMOVED FROM HERE -->
-                                    
-                                </div>
+                                    </div>
                             </fieldset>
                             
                             <fieldset class="checklist-group" style="border-top: 1px solid #e5e7eb; padding-top: 1.25rem;">
@@ -544,38 +489,35 @@
                                 </div>
                             </fieldset>
 
-                            <div class="action-buttons" style="border-top: 1px solid #e5e7eb; margin-top: 1.25rem;">
+                            <div class="action-buttons hidden" id="completed-actions-div" style="border-top: 1px solid #e5e7eb; margin-top: 1.25rem;">
                                 <button type="button" id="copy-billing-btn" class="btn btn-secondary">
-                                    <!-- UPDATED ICON PATH -->
                                     <img src="icons/copy.png" alt="Copy Info" class="btn-icon-img" />
                                     Copy Info for Billing
+                                </button>
+                                <button type="button" id="archive-customer-btn" class="btn btn-secondary" style="background-color: #f3f4f6; color: #4b5563;">
+                                    <img src="icons/save.png" alt="Archive" class="btn-icon-img" />
+                                    Archive Customer
                                 </button>
                             </div>
 
                         </div> 
                         <div class="action-buttons">
-                            <!-- MODIFIED: Button Group -->
                             <div class="button-group">
                                 <button type="button" id="update-customer-btn" class="btn btn-secondary">
-                                    <!-- UPDATED ICON PATH -->
                                     <img src="icons/save.png" alt="Save" class="btn-icon-img" />
                                     Save Changes
                                 </button>
                                 <button type="button" id="save-and-progress-btn" class="btn btn-primary">
-                                    <!-- UPDATED ICON PATH -->
-                                    <img src="icons/savecont.png" alt="Save" class="btn-icon-img" style="filter: brightness(0) invert(1);" /> <!-- Invert icon for dark btn -->
-                                    Save & Progress
+                                    <img src="icons/savecont.png" alt="Save" class="btn-icon-img" style="filter: brightness(0) invert(1);" /> Save & Progress
                                 </button>
                             </div>
                             
                             <button type="button" id="on-hold-btn" class="btn btn-warning">
-                                <!-- UPDATED ICON PATH -->
                                 <img src="icons/stop.png" alt="On Hold" class="btn-icon-img" />
                                 <span>Toggle On Hold</span>
                             </button>
 
                             <button type="button" id="delete-customer-btn" class="btn btn-danger">
-                                <!-- UPDATED ICON PATH -->
                                 <img src="icons/trash.png" alt="Delete" class="btn-icon-img" />
                                 Delete Customer
                             </button>
@@ -585,7 +527,6 @@
                 </div>
 
                 <div id="details-placeholder" class="details-placeholder">
-                    <!-- UPDATED ICON PATH -->
                     <img src="icons/clock.png" alt="Tracker Icon" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.6;" />
                     <p style="margin-top: 0.5rem;">Select a customer from the list to view their details.</p>
                 </div>
@@ -601,29 +542,24 @@
             <div class="modal-header">
                 <h2 class="card-title">Add New Customer</h2>
                 <button id="modal-close-btn" class="modal-close-btn">
-                    <!-- UPDATED ICON PATH -->
                     <img src="icons/x.png" alt="Close" style="width: 20px; height: 20px;" />
                 </button>
             </div>
             
             <form id="add-customer-form" class="card-content">
-                <!-- PDF Upload Section with Drag and Drop -->
                 <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 1.25rem;">
                     <label class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
                     
                     <div id="pdf-drop-zone" class="pdf-drop-zone">
-                        <!-- UPDATED ICON PATH -->
                         <img src="icons/upload.png" alt="Upload" class="drop-zone-icon" />
                         <p class="drop-zone-text">
                             Drag & drop PDF here, or <span class="browse-link">browse</span>
                         </p>
                         <p id="selected-file-name" class="selected-file-name"></p>
-                        <!-- Hidden file input -->
                         <input type="file" id="pdf-upload" accept=".pdf" class="file-input-hidden">
                     </div>
 
                     <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" disabled>
-                        <!-- UPDATED ICON PATH -->
                         <img src="icons/write.png" alt="Process" class="btn-icon-img" />
                         Process PDF & Autofill
                     </button>
@@ -661,7 +597,6 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary btn-full-width">
-                    <!-- UPDATED ICON PATH -->
                     <img src="icons/save.png" alt="Add" class="btn-icon-img" />
                     Add Customer
                 </button>
@@ -675,18 +610,5 @@
     
     <script type="module" src="app.js"></script>
 
-    <!-- 
-      This script is no longer needed as we are not using lucide icons.
-      However, if you add any back, you can re-enable it.
-    -->
-    <!--
-    <script>
-        window.onload = function() {
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        };
-    </script>
-    -->
-</body>
+    </body>
 </html>
