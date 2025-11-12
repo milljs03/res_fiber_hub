@@ -20,8 +20,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
 // --- Constants ---
-const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"; 
-// FIXED: Apostrophe removed
+const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
+// NEW: Define the workflow steps
 const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'Completed'];
 // --- END CONSTANTS ---
 
@@ -89,6 +89,7 @@ const el = {
     // --- COMPLETED FILTER ELEMENTS ---
     completedFilterGroup: document.getElementById('completed-filter-group'), 
     completedFilterSelect: document.getElementById('completed-filter-select'), 
+    completedFilterResults: document.getElementById('completed-filter-results'), // <-- NEW
 
     // --- DASHBOARD ELEMENTS ---
     statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
@@ -199,32 +200,59 @@ const updateCompletedFilterOptions = (allCustomers) => {
         c.status === 'Completed' && c.installDetails?.installDate
     );
 
-    const dateMap = new Map(); 
+    const yearMap = new Map();
+    const monthMap = new Map();
+
     completedCustomers.forEach(c => {
         const dateString = c.installDetails.installDate; 
         const date = new Date(dateString.replace(/-/g, '/')); 
-        const monthYearKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
-        const monthYearValue = dateString.substring(0, 7); 
         
-        dateMap.set(monthYearValue, monthYearKey);
-    });
+        const yearKey = date.getFullYear().toString();
+        const yearValue = yearKey;
 
-    const sortedDates = Array.from(dateMap).map(([value, text]) => ({ value, text }));
-    sortedDates.sort((a, b) => b.value.localeCompare(a.value));
+        const monthKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
+        const monthValue = dateString.substring(0, 7); 
+        
+        yearMap.set(yearValue, `All ${yearValue}`);
+        monthMap.set(monthValue, monthKey);
+    });
+    
+    const sortedYears = Array.from(yearMap).map(([value, text]) => ({ value, text }));
+    sortedYears.sort((a, b) => b.value.localeCompare(a.value)); // Newest year first
+    
+    const sortedMonths = Array.from(monthMap).map(([value, text]) => ({ value, text }));
+    sortedMonths.sort((a, b) => b.value.localeCompare(a.value)); // Newest month first
     
     el.completedFilterSelect.innerHTML = '';
+    
     const allOption = document.createElement('option');
     allOption.value = 'All';
     allOption.textContent = 'All Completed Orders';
     el.completedFilterSelect.appendChild(allOption);
 
-    sortedDates.forEach(date => {
+    // Add Year Options
+    const yearGroup = document.createElement('optgroup');
+    yearGroup.label = 'By Year';
+    sortedYears.forEach(year => {
         const option = document.createElement('option');
-        option.value = date.value;
-        option.textContent = date.text;
-        el.completedFilterSelect.appendChild(option);
+        option.value = year.value;
+        option.textContent = year.text;
+        yearGroup.appendChild(option);
     });
+    el.completedFilterSelect.appendChild(yearGroup);
+
+    // Add Month Options
+    const monthGroup = document.createElement('optgroup');
+    monthGroup.label = 'By Month';
+    sortedMonths.forEach(month => {
+        const option = document.createElement('option');
+        option.value = month.value;
+        option.textContent = month.text;
+        monthGroup.appendChild(option);
+    });
+    el.completedFilterSelect.appendChild(monthGroup);
     
+    // Ensure the current filter is still valid
     if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
         currentCompletedFilter = 'All';
     }
@@ -406,11 +434,13 @@ const handleDashboardToggle = () => {
     if (isExpanded) {
         el.dashboardContent.classList.remove('active');
         el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
-        el.dashboardToggleIcon.src = 'chevron_up.png';
+        // UPDATED ICON PATH
+        el.dashboardToggleIcon.src = 'icons/chevron_up.png';
     } else {
         el.dashboardContent.classList.add('active');
         el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
-        el.dashboardToggleIcon.src = 'chevron_down.png';
+        // UPDATED ICON PATH
+        el.dashboardToggleIcon.src = 'icons/chevron_down.png';
     }
 };
 
@@ -426,7 +456,7 @@ const initializeApp = () => {
         el.addForm.dataset.listenerAttached = 'true';
     }
     loadCustomers();
-    handleDeselectCustomer();
+    handleDeselectCustomer(false); // Pass false to skip auto-save on init
 };
 
 const setupEventListeners = () => {
@@ -541,36 +571,34 @@ const setupEventListeners = () => {
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, null)); // MODIFIED: Pass null for override
-    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e));
-    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, null)); // MODIFIED: Pass null for override
-    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e));
+    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, false)); // Manual save, not progressing
+    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); 
+    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, false)); // Manual save, not progressing
+    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); 
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
-    // --- MODIFIED: Stepper Click Listener ---
+    // Stepper Click Listener
     el.statusStepper.addEventListener('click', (e) => {
         const stepButton = e.target.closest('.step'); 
         if (!stepButton) return;
 
         e.preventDefault();
-        // const newStatus = stepButton.dataset.status; // No longer need to get status
+        // --- LOGIC CHANGE ---
+        // This button now *only* navigates. It does not change the status.
         const pageId = stepButton.dataset.page;
-
-        // DO NOT change the status or update the stepper UI here.
-        // el.detailsForm['details-status'].value = newStatus;
-        // updateStepperUI(newStatus);
-        
-        // ONLY show the corresponding page.
         showDetailsPage(pageId);
         
-        // We don't need lucide anymore
-        // if (typeof lucide !== 'undefined') {
-        //     lucide.createIcons();
-        // }
+        // We still update the stepper UI to show what's "active" (selected)
+        // but we DO NOT change the form's status value.
+        el.statusStepper.querySelectorAll('.step').forEach(btn => btn.classList.remove('active'));
+        stepButton.classList.add('active');
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
     });
-    // --- END MODIFICATION ---
 
     // On Hold toggle
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
@@ -779,7 +807,7 @@ const calculateDashboardStats = (customers) => {
     const statusCounts = {
         'New Order': 0,
         'Site Survey Ready': 0,
-        'Torys List': 0, // FIXED
+        'Torys List': 0,
         'NID Ready': 0,
         'Install Ready': 0,
         'On Hold': 0,
@@ -796,18 +824,21 @@ const calculateDashboardStats = (customers) => {
 
     customers.forEach(c => {
         // --- DATA NORMALIZATION ---
-        if (c.status === "Tory's List") c.status = "Torys List";
+        let status = c.status;
+        if (status === "Tory's List") {
+            status = "Torys List";
+        }
         // --- END NORMALIZATION ---
 
-        if (statusCounts.hasOwnProperty(c.status)) {
-            statusCounts[c.status]++;
+        if (statusCounts.hasOwnProperty(status)) {
+            statusCounts[status]++;
         }
         
         const speed = c.serviceSpeed || 'Unknown';
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
         // --- MODIFICATION: Check for exemption ---
-        if (c.status === 'Completed' && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
+        if (status === 'Completed' && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
 
@@ -854,11 +885,9 @@ const calculateDashboardStats = (customers) => {
 
 const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTime) => {
     let breakdownHtml = '';
-    // FIXED: Use "Torys List"
     const activeStatuses = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'On Hold'];
     
     activeStatuses.sort((a, b) => {
-        // FIXED: Use "Torys List"
         const order = { 'New Order': 1, 'Site Survey Ready': 2, 'Torys List': 3, 'NID Ready': 4, 'Install Ready': 5, 'On Hold': 6 };
         return order[a] - order[b];
     });
@@ -943,12 +972,18 @@ const loadCustomers = () => {
         if (selectedCustomerId) {
             const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
-                populateDetailsForm(freshData);
-                // --- MODIFIED: Use the saved status to set the page ---
-                const savedStatus = el.detailsForm.dataset.currentStatus || freshData.status;
-                setPageForStatus(savedStatus);
+                // Re-populate form but maintain current view
+                const currentStatus = el.detailsForm.dataset.currentStatus; // Get the "real" status
+                populateDetailsForm(freshData); // This resets the form
+                updateStepperUI(currentStatus); // Re-apply the "real" status to the stepper
+                
+                // Re-select the correct page if it was changed
+                const activeStep = el.statusStepper.querySelector('.step.active');
+                if (activeStep) {
+                    showDetailsPage(activeStep.dataset.page);
+                }
             } else {
-                handleDeselectCustomer();
+                handleDeselectCustomer(false); // Pass false to skip auto-save
             }
         }
         
@@ -1027,11 +1062,23 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
     el.customerListContainer.innerHTML = '';
     el.customerListContainer.appendChild(el.listLoading); 
 
+    let totalCount = customersToRender.length;
+    let countMessage = '';
+
+    if (currentFilter === 'Completed') {
+        const filterText = el.completedFilterSelect.options[el.completedFilterSelect.selectedIndex].text;
+        countMessage = `Found ${totalCount} completed order(s) for: ${filterText}`;
+        el.completedFilterResults.textContent = countMessage;
+        el.completedFilterResults.classList.remove('hidden');
+    } else {
+        el.completedFilterResults.classList.add('hidden');
+    }
+
     if (customersToRender.length === 0) {
         if (searchTerm) {
             el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
         } else if (currentFilter === 'Completed' && currentCompletedFilter !== 'All') {
-             el.listLoading.textContent = `No completed orders found in the selected month.`;
+             el.listLoading.textContent = `No completed orders found in this period.`;
         } else if (currentFilter !== 'All') {
             el.listLoading.textContent = `No customers found in stage "${currentFilter}".`;
         } else {
@@ -1090,10 +1137,14 @@ const openAddCustomerModal = () => {
     el.selectedFileNameDisplay.textContent = '';
     el.processPdfBtn.disabled = true;
 
-    // We don't need lucide anymore
-    // if (typeof lucide !== 'undefined') {
-    //     lucide.createIcons();
-    // }
+    // Use default JS icon logic if lucide fails
+    try {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } catch(e) {
+        console.warn("Lucide icons not available in modal.", e);
+    }
 };
 
 const closeAddCustomerModal = () => {
@@ -1164,13 +1215,13 @@ const handleAddCustomer = async (e) => {
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
 const handleSelectCustomer = async (customerId, customerItem) => {
-    // --- MODIFIED: Pass null for override on auto-save ---
+    // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
     if (selectedCustomerId && selectedCustomerId !== customerId) {
-        await handleUpdateCustomer(null, true, null);
+        await handleUpdateCustomer(null, true, false); // auto-save, do NOT progress
     }
 
     if (selectedCustomerId === customerId) {
-        handleDeselectCustomer();
+        handleDeselectCustomer(true); // pass true to auto-save on deselect
         return;
     }
     selectedCustomerId = customerId;
@@ -1187,40 +1238,45 @@ const handleSelectCustomer = async (customerId, customerItem) => {
         const docRef = doc(customersCollectionRef, customerId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-            let customerData = docSnap.data();
+            let data = docSnap.data();
             // --- DATA NORMALIZATION ---
-            if (customerData.status === "Tory's List") {
-                customerData.status = "Torys List";
+            if (data.status === "Tory's List") {
+                data.status = "Torys List";
             }
             // --- END NORMALIZATION ---
             
-            populateDetailsForm(customerData);
-            // --- MODIFIED: Store the "true" status ---
-            const currentStatus = customerData.status || 'New Order';
-            el.detailsForm.dataset.currentStatus = currentStatus;
-            el.detailsForm.dataset.statusBeforeHold = customerData.statusBeforeHold || 'New Order'; // Store this too
-            // --- END MODIFICATION ---
+            populateDetailsForm(data);
+            // --- LOGIC CHANGE: Set page AND "real" status ---
+            const currentStatus = data.status || 'New Order';
+            el.detailsForm.dataset.currentStatus = currentStatus; // Store the "real" status
+            el.detailsForm.dataset.statusBeforeHold = data.statusBeforeHold || 'New Order';
             setPageForStatus(currentStatus);
+            updateStepperUI(currentStatus); // Set stepper to "real" status
         } else {
             showToast('Could not find customer data.', 'error');
-            handleDeselectCustomer();
+            handleDeselectCustomer(false); // Do not save, just deselect
         }
     } catch (error) {
         console.error("Error fetching document:", error);
         showToast('Error fetching customer details.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
-        // We don't need lucide anymore
-        // if (typeof lucide !== 'undefined') {
-        //     lucide.createIcons();
-        // }
+        
+        // Use default JS icon logic if lucide fails
+        try {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        } catch(e) {
+            console.warn("Lucide icons not available in details.", e);
+        }
     }
 };
 
-const handleDeselectCustomer = async () => {
-    if (selectedCustomerId) {
-        // --- MODIFIED: Pass null for override on auto-save ---
-        await handleUpdateCustomer(null, true, null);
+const handleDeselectCustomer = async (autoSave = false) => {
+    // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
+    if (autoSave && selectedCustomerId) {
+        await handleUpdateCustomer(null, true, false); // auto-save, do NOT progress
     }
 
     selectedCustomerId = null;
@@ -1230,16 +1286,17 @@ const handleDeselectCustomer = async () => {
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
     el.detailsContainer.dataset.id = '';
-    
-    // --- NEW: Clear status cache from form ---
-    el.detailsForm.dataset.currentStatus = '';
+    el.detailsForm.dataset.currentStatus = ''; // Clear stored status
     el.detailsForm.dataset.statusBeforeHold = '';
-    // --- END NEW ---
-
-    // We don't need lucide anymore
-    // if (typeof lucide !== 'undefined') {
-    //     lucide.createIcons();
-    // }
+    
+    // Use default JS icon logic if lucide fails
+    try {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } catch(e) {
+        console.warn("Lucide icons not available in placeholder.", e);
+    }
 };
 
 const populateDetailsForm = (data) => {
@@ -1250,7 +1307,8 @@ const populateDetailsForm = (data) => {
     el.detailsEmailInput.value = data.primaryContact?.email || '';
     el.detailsPhoneInput.value = data.primaryContact?.phone || '';
     
-    el.detailsForm['details-status'].value = data.status || 'New Order';
+    // --- LOGIC CHANGE: This field no longer exists ---
+    // el.detailsForm['details-status'].value = data.status || 'New Order';
     
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
@@ -1267,7 +1325,7 @@ const populateDetailsForm = (data) => {
     
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
-    el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
+    // el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || ''; // This is a duplicate line
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsGeneralNotes.value = data.generalNotes || ''; // UPDATED
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
@@ -1278,7 +1336,8 @@ const populateDetailsForm = (data) => {
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
 
-    updateStepperUI(data.status || 'New Order');
+    // --- LOGIC CHANGE: This is now handled by handleSelectCustomer ---
+    // updateStepperUI(data.status || 'New Order');
 };
 
 const showDetailsPage = (pageId) => {
@@ -1293,7 +1352,7 @@ const setPageForStatus = (status) => {
         case 'Site Survey Ready':
             showDetailsPage('page-site-survey');
             break;
-        case 'Torys List': // FIXED
+        case 'Torys List': // NEW (No apostrophe)
             showDetailsPage('page-torys-list');
             break;
         case 'NID Ready': 
@@ -1312,50 +1371,34 @@ const setPageForStatus = (status) => {
     }
 };
 
-// --- REWRITTEN: handleToggleOnHold ---
-const handleToggleOnHold = async (e) => {
+const handleToggleOnHold = (e) => {
     e.preventDefault(); 
-    
-    const currentSavedStatus = el.detailsForm.dataset.currentStatus;
-    const statusBeforeHold = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-    
-    let statusToSave;
-    let statusToSaveBeforeHold = statusBeforeHold; // Preserve the old "before-hold" status by default
+    // --- LOGIC CHANGE: Get status from dataset ---
+    const currentStatus = el.detailsForm.dataset.currentStatus;
 
-    if (currentSavedStatus === 'On Hold') {
-        // We are toggling *off* hold
-        statusToSave = statusBeforeHold; // Restore the status
+    if (currentStatus === 'On Hold') {
+        const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
+        el.detailsForm.dataset.currentStatus = statusToRestore; // Set "real" status
+        updateStepperUI(statusToRestore);
+        setPageForStatus(statusToRestore);
     } else {
-        // We are toggling *on* hold
-        statusToSave = 'On Hold';
-        statusToSaveBeforeHold = currentSavedStatus; // Store the new "before-hold" status
+        el.detailsForm.dataset.statusBeforeHold = currentStatus; // Store old status
+        el.detailsForm.dataset.currentStatus = 'On Hold'; // Set "real" status
+        updateStepperUI('On Hold');
+        setPageForStatus('On Hold'); 
     }
-
-    // 1. Call handleUpdateCustomer with the new status as an override
-    // We also pass the statusToSaveBeforeHold to be saved in the DB
-    await handleUpdateCustomer(e, false, statusToSave, statusToSaveBeforeHold);
-
-    // 2. If save was successful, update the UI state
-    // (handleUpdateCustomer will show toasts on error)
-    if (!el.loadingOverlay.style.display || el.loadingOverlay.style.display === 'none') {
-        el.detailsForm.dataset.currentStatus = statusToSave;
-        el.detailsForm.dataset.statusBeforeHold = statusToSaveBeforeHold;
-        el.detailsForm['details-status'].value = statusToSave;
-        
-        updateStepperUI(statusToSave);
-        setPageForStatus(statusToSave);
-        
-        // We don't need lucide anymore
-        // if (typeof lucide !== 'undefined') {
-        //     lucide.createIcons();
-        // }
+    
+    // Use default JS icon logic if lucide fails
+    try {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } catch(e) {
+        console.warn("Lucide icons not available in on-hold.", e);
     }
 };
-// --- END REWRITE ---
 
 const updateStepperUI = (currentStatus) => {
-    // const steps = ['New Order', 'Site Survey Ready', 'Tory\'s List', 'NID Ready', 'Install Ready', 'Completed']; 
-    // Use the global constant instead
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
     allStepButtons.forEach(btn => {
@@ -1375,6 +1418,7 @@ const updateStepperUI = (currentStatus) => {
         el.statusStepper.classList.remove('is-on-hold'); 
 
         const statusIndex = STEPS_WORKFLOW.indexOf(currentStatus);
+        
         if (statusIndex !== -1) {
             for (let i = 0; i < allStepButtons.length; i++) {
                 const stepButton = allStepButtons[i];
@@ -1387,6 +1431,7 @@ const updateStepperUI = (currentStatus) => {
                 }
             }
         } else {
+            // Default to first step if status is unknown
             const newOrderButton = el.statusStepper.querySelector('.step[data-status="New Order"]');
             if (newOrderButton) {
                 newOrderButton.classList.add('active');
@@ -1427,22 +1472,43 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-// --- REWRITTEN: handleUpdateCustomer ---
-const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride = null, statusBeforeHoldOverride = null) => {
+// MODIFIED: Added `progressStatus` parameter
+const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus = false) => {
     if (e) {
         e.preventDefault();
     }
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
-    // 1. Determine the status to save
-    const originalStatus = el.detailsForm.dataset.currentStatus;
-    // Use override if provided (from Progress/OnHold), otherwise use the original saved status
-    const newStatus = statusOverride || originalStatus;
+    // --- LOGIC CHANGE: Determine the status to save ---
+    let statusToSave;
+    let statusBeforeHoldToSave = el.detailsForm.dataset.statusBeforeHold || 'New Order';
+
+    const currentSavedStatus = el.detailsForm.dataset.currentStatus;
+
+    if (progressStatus) {
+        // This was a "Save & Progress" click
+        let statusToProgressFrom = currentSavedStatus;
+        if (currentSavedStatus === 'On Hold') {
+            statusToProgressFrom = statusBeforeHoldToSave;
+        }
+        
+        const currentIndex = STEPS_WORKFLOW.indexOf(statusToProgressFrom);
+        if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
+            statusToSave = STEPS_WORKFLOW[currentIndex + 1]; // Progress to the next step
+        } else {
+            statusToSave = statusToProgressFrom; // Already at end, so just save
+        }
+    } else {
+        // This was a "Save" or "Auto-save" click
+        statusToSave = currentSavedStatus; // Keep the status as it was
+    }
     
-    // 2. Determine the statusBeforeHold to save
-    // Use override if provided (from OnHold toggle), otherwise use the one already in the dataset
-    const newStatusBeforeHold = statusBeforeHoldOverride || el.detailsForm.dataset.statusBeforeHold || 'New Order';
+    // If we are saving "On Hold", we must also save the status from before.
+    if (statusToSave === 'On Hold') {
+        statusBeforeHoldToSave = el.detailsForm.dataset.statusBeforeHold;
+    }
+    // --- END LOGIC CHANGE ---
 
     const updatedData = {
         customerName: el.detailsCustomerNameInput.value,
@@ -1452,8 +1518,8 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
         
-        'status': newStatus, // Use the determined status
-        'statusBeforeHold': newStatusBeforeHold, // Save the before-hold status
+        'status': statusToSave, // Use the determined status
+        'statusBeforeHold': statusBeforeHoldToSave, // Save this just in case
         'generalNotes': el.detailsGeneralNotes.value, 
         'exemptFromStats': el.detailsForm['check-exempt-from-stats'].checked, 
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
@@ -1474,78 +1540,47 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, statusOverride
     };
 
     try {
-        el.loadingOverlay.style.display = 'flex';
+        if (!isAutoSave) {
+            el.loadingOverlay.style.display = 'flex';
+        }
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, updatedData);
         
-        // --- IMPORTANT ---
-        // 3. Update the form's "true" status to reflect the saved change
-        el.detailsForm.dataset.currentStatus = newStatus;
-        el.detailsForm.dataset.statusBeforeHold = newStatusBeforeHold;
+        // --- LOGIC CHANGE: Update UI after save ---
+        if (progressStatus) {
+            el.detailsForm.dataset.currentStatus = statusToSave;
+            setPageForStatus(statusToSave);
+            updateStepperUI(statusToSave);
+            
+            // Use default JS icon logic if lucide fails
+            try {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            } catch(e) { console.warn("Lucide icons not available.", e); }
+        }
         
-        // If we overrode the status, update the UI to match
-        if (statusOverride) {
-            el.detailsForm['details-status'].value = statusOverride;
-            updateStepperUI(statusOverride);
-            setPageForStatus(statusOverride);
-            // We don't need lucide anymore
-            // if (typeof lucide !== 'undefined') {
-            //     lucide.createIcons();
-            // }
+        if (!isAutoSave && !progressStatus) {
+            showToast('Customer updated!', 'success');
+        } else if (progressStatus) {
+            showToast(`Saved & Progressed to "${statusToSave}"!`, 'success');
         }
-
-        // Only show toast if it's a manual save, not auto-save
-        if (!isAutoSave) {
-             // Don't show "Saved!" if we just progressed
-            if (statusOverride) {
-                // This toast is handled by the calling function (handleSaveAndProgress)
-            } else {
-                showToast('Customer updated!', 'success');
-            }
-        }
+        
     } catch (error) {
         console.error("Error updating customer: ", error);
         showToast('Error updating customer.', 'error');
     } finally {
-        el.loadingOverlay.style.display = 'none';
+        if (!isAutoSave) {
+            el.loadingOverlay.style.display = 'none';
+        }
     }
 };
-// --- END REWRITE ---
 
-
-// --- REWRITTEN: handleSaveAndProgress ---
+// NEW: Save and Progress Logic
 const handleSaveAndProgress = async (e) => {
     e.preventDefault();
-    
-    // 1. Get the *current saved status* from the dataset
-    const currentStatus = el.detailsForm.dataset.currentStatus;
-    let statusToProgressFrom = currentStatus;
-
-    // If 'On Hold', find the status it was at *before* being put on hold
-    if (currentStatus === 'On Hold') {
-        statusToProgressFrom = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-    }
-
-    const currentIndex = STEPS_WORKFLOW.indexOf(statusToProgressFrom);
-    let nextStatus = null;
-
-    // Find the next step, as long as it's not 'Completed'
-    if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
-        nextStatus = STEPS_WORKFLOW[currentIndex + 1];
-    }
-
-    // 2. Call updateCustomer with the nextStatus as the override.
-    // If nextStatus is null (already 'Completed'), it will just save the current state.
-    await handleUpdateCustomer(e, false, nextStatus);
-
-    if (nextStatus) {
-        showToast(`Saved & Progressed to "${nextStatus}"!`, 'success');
-    } else {
-        // This handles the case where the user is already at "Completed"
-        showToast('Customer saved!', 'success');
-    }
+    await handleUpdateCustomer(e, false, true); // Manual save, *with* progressing
 };
-// --- END REWRITE ---
 
 const handleDeleteCustomer = async (e) => {
     e.preventDefault(); 
@@ -1553,16 +1588,14 @@ const handleDeleteCustomer = async (e) => {
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsCustomerNameInput.value;
     
-    // Use the custom modal instead of window.confirm
-    const confirmed = await showConfirmModal(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`);
-    
-    if (confirmed) {
+    // Use a custom modal for confirm, since window.confirm is blocked
+    if (await showConfirmModal(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
             await deleteDoc(docRef);
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer(); // This already handles deselection and overlay hiding
+            handleDeselectCustomer(false); // Do not auto-save, just clear
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -1571,7 +1604,6 @@ const handleDeleteCustomer = async (e) => {
         }
     }
 };
-
 
 // --- 6. ACTIONS ---
 const handleSendWelcomeEmail = async (e) => {
@@ -1585,13 +1617,12 @@ const handleSendWelcomeEmail = async (e) => {
         showToast('No customer email on file to send to.', 'error');
         return;
     }
-
-    // Use the custom modal instead of window.confirm
-    const confirmed = await showConfirmModal(`Send welcome email to ${customerName} at ${toEmail}?`);
-    if (!confirmed) {
+    
+    // Use a custom modal for confirm, since window.confirm is blocked
+    if (!await showConfirmModal(`Send welcome email to ${customerName} at ${toEmail}?`)) {
         return;
     }
-
+    
     el.loadingOverlay.style.display = 'flex';
     try {
         await addDoc(mailCollectionRef, {
@@ -1662,7 +1693,7 @@ const showToast = (message, type = 'success') => {
  * @param {string} message - The message to display.
  * @returns {Promise<boolean>} - Resolves true if confirmed, false if cancelled.
  */
-function showConfirmModal(message) {
+async function showConfirmModal(message) {
     return new Promise((resolve) => {
         // Check if a modal already exists, remove it
         const oldModal = document.getElementById('confirm-modal-wrapper');
@@ -1707,39 +1738,13 @@ function showConfirmModal(message) {
 
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = 'Cancel';
-        // Apply existing button styles
-        cancelBtn.style = `
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 0.375rem;
-            border: 1px solid #d1d5db;
-            background-color: white;
-            color: #374151;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-        `;
-
+        // Apply existing button styles from style.css
+        cancelBtn.className = 'btn btn-secondary';
+        
         const confirmBtn = document.createElement('button');
         confirmBtn.textContent = 'Continue';
-         // Apply existing button styles
-        confirmBtn.style = `
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 0.375rem;
-            border: 1px solid transparent;
-            background-color: #ef4444; /* Use red for destructive */
-            color: white;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-        `;
+         // Apply existing button styles from style.css
+        confirmBtn.className = 'btn btn-danger'; // Use danger for delete
         
         // Event listeners
         cancelBtn.onclick = () => {

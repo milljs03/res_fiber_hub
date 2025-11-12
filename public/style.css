@@ -6,30 +6,37 @@ body {
     margin: 0;
 }
 
-/* --- NEW STYLES FOR IMG ICONS --- */
-.auth-logo-img {
-    margin: 0 auto;
-    height: 3rem; /* 48px */
-    width: 3rem; /* 48px */
-    object-fit: contain;
-}
-.header-logo-img {
-    height: 2rem; /* 32px */
-    width: 2rem; /* 32px */
-    object-fit: contain;
-}
-.btn-icon-img {
-    width: 1.125rem; /* 18px */
-    height: 1.125rem; /* 18px */
-    margin-right: 0.5rem;
-    object-fit: contain;
-}
-/* --- END NEW STYLES --- */
-
-
 .hidden {
     display: none !important;
 }
+
+/* --- NEW: Icon Styles --- */
+.auth-logo-img {
+    margin: 0 auto;
+    height: 3rem; /* h-12 */
+    width: auto;
+    color: #4f46e5; /* (color is for fallback, but won't apply to img) */
+    opacity: 0.8;
+}
+.header-logo-img {
+    height: 2rem; /* h-8 */
+    width: auto;
+    opacity: 0.8;
+}
+.btn-icon-img {
+    width: 1.125rem; /* 18px */
+    height: 1.125rem;
+    margin-right: 0.5rem;
+}
+.drop-zone-icon {
+    width: 2rem;
+    height: 2rem;
+    color: #9ca3af; /* (won't apply to img) */
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+/* --- END: Icon Styles --- */
+
 
 /* --- Reusable Components --- */
 .btn {
@@ -77,12 +84,12 @@ body {
 .btn-danger {
     background-color: #fef2f2; /* bg-red-100 */
     color: #b91c1c; /* text-red-700 */
+    border-color: #fee2e2;
 }
 .btn-danger:hover:not(:disabled) {
     background-color: #fee2e2; /* hover:bg-red-200 */
 }
 
-/* --- ADD NEW BUTTON STYLE --- */
 .btn-warning {
     background-color: #fef3c7; /* yellow-100 */
     color: #b45309; /* yellow-700 */
@@ -96,17 +103,9 @@ body {
     color: white;
     border-color: #b45309;
 }
-/* --- END NEW BUTTON STYLE --- */
 
 .btn-full-width {
     width: 100%;
-}
-
-.btn-icon {
-    width: 1.125rem; /* 18px */
-    height: 1.125rem;
-    margin-right: 0.5rem;
-    stroke-width: 2.5;
 }
 
 /* --- Form Styles --- */
@@ -173,12 +172,7 @@ body {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
     text-align: center;
 }
-.auth-logo {
-    margin: 0 auto;
-    height: 3rem; /* h-12 */
-    width: auto;
-    color: #4f46e5; /* text-indigo-600 */
-}
+/* Replaced .auth-logo */
 .auth-title {
     margin-top: 1rem;
     font-size: 1.5rem; /* text-2xl */
@@ -219,15 +213,12 @@ body {
     align-items: center;
     gap: 0.5rem; /* space-x-2 */
 }
-.header-title svg {
-    height: 2rem; /* h-8 */
-    width: auto;
-    color: #4f46e5; /* text-indigo-600 */
-}
+/* Replaced .header-title svg */
 .header-title h1 {
     font-size: 1.25rem; /* text-xl */
     font-weight: 700; /* font-bold */
     color: #1f2937; /* text-gray-800 */
+    margin: 0;
 }
 .user-info {
     display: flex;
@@ -246,9 +237,12 @@ body {
     background: none;
     border: none;
     cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
 }
 #sign-out-btn:hover {
     color: #4f46e5; /* hover:text-indigo-600 */
+    background-color: #f9fafb;
 }
 
 /* --- DASHBOARD CONTAINER (NEW) --- */
@@ -332,12 +326,11 @@ body {
     position: relative; /* For loading overlay */
 }
 .card-title {
-    font-size: 1.25rem; /* text-xl */
-    font-weight: 700; /* font-bold */
-    color: #111827; /* text-gray-900 */
-    margin: 0 0 1.25rem 0; /* space-y-5 */
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
 }
-/* Card title is already styled */
 .card-title-header {
     display: flex;
     justify-content: space-between;
@@ -364,12 +357,11 @@ body {
     padding: 0.25rem 0.625rem; /* Reduced padding */
     font-size: 0.8rem; /* Explicitly smaller than default .btn size (0.875rem) */
 }
-/* This style was for lucide, replaced by .btn-icon-img */
-/* #new-customer-btn .btn-icon {
-    width: 0.9rem; 
+#new-customer-btn .btn-icon-img {
+    width: 0.9rem; /* Reduced icon size */
     height: 0.9rem;
-    margin-right: 0.25rem;
-} */
+    margin-right: 0.25rem; /* Increased margin for separation */
+}
 
 /* --- Dashboard Styles (UPDATED FOR 3-COLUMN LAYOUT) --- */
 /* NEW: Dashboard Grid for 3 equal columns (Row 1: Stats) */
@@ -578,11 +570,10 @@ body {
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
-/* --- UPDATED: The Fix --- */
 .customer-item-header {
     display: flex;
     justify-content: space-between;
-    align-items: center; /* Changed from flex-start to center */
+    align-items: center;
     margin-bottom: 0.25rem; 
 }
 .customer-item-name {
@@ -593,9 +584,8 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     padding-right: 0.5rem; 
-    margin: 0; /* NEW: Removed default h3 margin */
+    margin: 0; 
 }
-/* --- End Fix --- */
 
 .customer-item-footer {
     display: flex;
@@ -652,26 +642,23 @@ body {
     background-color: #FEF3C7; /* yellow-100 */
     color: #B45309; /* yellow-700 */
 }
-/* NEW */
 .status-site-survey-ready {
     background-color: #FEF3C7; /* yellow-100 */
     color: #B45309; /* yellow-700 */
 }
+/* APOSTROPHE FIX */
 .status-torys-list {
     background-color: #E0E7FF; /* indigo-100 */
     color: #3730A3; /* indigo-700 */
 }
-/* END NEW */
  .status-install {
     background-color: #E0E7FF; /* indigo-100 */
     color: #3730A3; /* indigo-700 */
 }
-/* NEW */
 .status-install-ready {
     background-color: #D1FAE5; /* green-100 */
     color: #065F46; /* green-700 */
 }
-/* END NEW */
  .status-completed {
     background-color: #D1FAE5; /* green-100 */
     color: #065F46; /* green-700 */
@@ -680,15 +667,13 @@ body {
     background-color: #FEE2E2; /* red-100 (using a new color for NID) */
     color: #991B1B; /* red-700 */
 }
-/* NEW */
 .status-nid-ready {
     background-color: #FEE2E2; /* red-100 (using a new color for NID) */
     color: #991B1B; /* red-700 */
 }
-/* END NEW */
 .status-on-hold {
-    background-color: #fd9898; /* gray-100 */
-    color: #7e1313; /* gray-700 */
+    background-color: #fd9898; /* gray-100 - This is custom */
+    color: #7e1313; /* gray-700 - This is custom */
 }
 .status-default {
     background-color: #F3F4F6; /* gray-100 */
@@ -702,12 +687,7 @@ body {
     color: #6b7280; 
     padding: 4rem 0; 
 }
-.details-placeholder svg {
-    width: 3rem; 
-    height: 3rem; 
-    color: #9ca3af; 
-    margin: 0 auto;
-}
+/* Replaced .details-placeholder svg */
 .details-placeholder p {
     margin-top: 0.5rem;
 }
@@ -719,8 +699,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 0;
-    /* flex-wrap: wrap; REMOVED - no longer needed */
-    margin-bottom: 1.25rem; /* Re-add margin from removed tabs */
+    margin-bottom: 1.25rem; 
 }
 .step {
     display: flex;
@@ -733,8 +712,8 @@ body {
     padding: 0;
     font-family: 'Inter', sans-serif;
     text-align: center;
-    flex: 1; /* Allow steps to take up space */
-    min-width: 60px; /* Prevent shrinking too much */
+    flex: 1; 
+    min-width: 60px; 
 }
 .step-circle {
     width: 2rem; /* 32px */
@@ -835,6 +814,20 @@ body {
     line-height: 1.5rem;
     padding-right: 2.5rem; 
     box-sizing: border-box; 
+}
+/* NEW: Total field for completed filter */
+.static-field-total {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: 'Inter', sans-serif;
+    color: #374151; 
+    background-color: #f9fafb; 
+    border: 1px solid #e5e7eb; 
+    border-radius: 0.375rem; 
+    box-sizing: border-box; 
+    font-weight: 500;
 }
 .copy-btn {
     position: absolute;
@@ -1027,6 +1020,8 @@ body {
     color: #9ca3af; 
     cursor: pointer;
     transition: all 0.2s;
+    width: 2.25rem; /* Ensure consistent size */
+    height: 2.25rem;
 }
 .modal-close-btn:hover {
     background-color: #f3f4f6; 
@@ -1061,18 +1056,13 @@ body {
     border-color: #4f46e5; /* border-indigo-600 */
     background-color: #eef2ff; /* bg-indigo-50 */
 }
-.drop-zone-icon {
-    width: 2rem;
-    height: 2rem;
-    color: #9ca3af; /* text-gray-400 */
-    transition: color 0.2s;
-}
+/* Replaced .drop-zone-icon */
 .pdf-drop-zone:hover .drop-zone-icon,
 .pdf-drop-zone.dragover .drop-zone-icon {
-    color: #6b7280; /* text-gray-500 */
+    opacity: 0.8;
 }
 .pdf-drop-zone.dragover .drop-zone-icon {
-    color: #4f46e5; /* text-indigo-600 */
+    opacity: 1;
 }
 .drop-zone-text {
     font-size: 0.875rem; /* text-sm */

@@ -60,6 +60,7 @@
                 <div class="dashboard-header-toggle">
                     <h2 class="card-title">At a Glance</h2>
                     <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
+                        <!-- UPDATED ICON -->
                         <img src="icons/chevron_down.png" alt="Toggle" class="toggle-icon" id="dashboard-toggle-icon">
                     </button>
                     
@@ -122,6 +123,7 @@
                 </div>
                 
                 <div class="search-bar-group">
+                    <!-- UPDATED ICON -->
                     <img src="icons/search.png" alt="" class="search-icon" />
                     <input type="text" id="search-bar" class="form-input" placeholder="Search by name or address...">
                 </div>
@@ -162,10 +164,15 @@
                 <!-- Completed View Controls -->
                 <div id="completed-controls-group" class="hidden">
                     <div id="completed-filter-group" class="form-group">
-                        <label for="completed-filter-select" class="form-label">Completed Month</label>
+                        <label for="completed-filter-select" class="form-label">Completed Date</label>
                         <select id="completed-filter-select" class="form-select">
                             <!-- Options populated by app.js -->
                         </select>
+                    </div>
+                    <!-- NEW: Filter Results Total -->
+                    <div class="form-group">
+                        <label class="form-label">Filter Results</label>
+                        <div id="completed-filter-results" class="static-field-total hidden"></div>
                     </div>
                 </div>
                 
@@ -229,6 +236,7 @@
                                     <div class="step-label">Completed</div>
                                 </button>
                             </div>
+                            <!-- This input is no longer used for status, but kept for legacy/forms -->
                             <input type="hidden" id="details-status" name="details-status" />
                         </div>
 
@@ -238,6 +246,7 @@
                             <div class="field-wrapper">
                                 <textarea id="details-general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
                                 <button type="button" class="copy-btn" data-target="details-general-notes">
+                                    <!-- UPDATED ICON PATH -->
                                     <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                     <img src="icons/check.png" alt="Copied" class="icon-check" />
                                 </button>
@@ -250,6 +259,7 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-customer-name" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-customer-name">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -260,6 +270,7 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-so-number" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-so-number">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -271,6 +282,7 @@
                                     <textarea id="details-address" rows="3" class="form-textarea" style="padding-right: 2.5rem;">
                                     </textarea>
                                     <button type="button" class="copy-btn" data-target="details-address">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -281,6 +293,7 @@
                                 <div class="field-wrapper">
                                     <input type="text" id="details-speed" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-speed">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -291,6 +304,7 @@
                                 <div class="field-wrapper">
                                     <input type="email" id="details-email" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-email">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -301,6 +315,7 @@
                                 <div class="field-wrapper">
                                     <input type="tel" id="details-phone" class="form-input" style="padding-right: 2.5rem;">
                                     <button type="button" class="copy-btn" data-target="details-phone">
+                                        <!-- UPDATED ICON PATH -->
                                         <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                         <img src="icons/check.png" alt="Copied" class="icon-check" />
                                     </button>
@@ -358,6 +373,7 @@
                                             <textarea id="site-survey-notes" rows="8" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="site-survey-notes">
+                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -394,6 +410,7 @@
                                         <div class="field-wrapper">
                                             <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
                                             <button type="button" class="copy-btn" data-target="nid-light">
+                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -430,6 +447,7 @@
                                         <div class="field-wrapper">
                                             <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
                                             <button type="button" class="copy-btn" data-target="install-date">
+                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -447,14 +465,7 @@
                                     </div>
                                     <!-- END NEW CHECKBOX -->
 
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="eero-info">Eero Insight Info Documented</label>
-                                        </div>
-                                    </div>
+                               
 
                                     <div class="form-group">
                                         <label for="extra-equip" class="form-label">Additional Equipment</label>
@@ -462,6 +473,7 @@
                                             <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="extra-equip">
+                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -474,6 +486,7 @@
                                             <textarea id="install-notes" rows="5" class="form-textarea" style="padding-right: 2.5rem;">
                                             </textarea>
                                             <button type="button" class="copy-btn" data-target="install-notes">
+                                                <!-- UPDATED ICON PATH -->
                                                 <img src="icons/copy.png" alt="Copy" class="icon-copy" />
                                                 <img src="icons/check.png" alt="Copied" class="icon-check" />
                                             </button>
@@ -488,6 +501,14 @@
                             <fieldset class="checklist-group" style="border-top: 1px solid #e5e7eb; padding-top: 1.25rem;">
                                 <legend class="checklist-title">Post-Install Checklist</legend>
                                 <div class="checklist-content">
+                                         <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="eero-info">Eero Insight Info Documented</label>
+                                        </div>
+                                    </div>
                                     <div class="checklist-item">
                                         <div class="checklist-item-box">
                                             <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
@@ -512,12 +533,21 @@
                                             <label for="post-check-repair">Updated Repair Shoppr</label>
                                         </div>
                                     </div>
+                                         <div class="checklist-item">
+                                        <div class="checklist-item-box">
+                                            <input id="bill-info" name="bill-info" type="checkbox" class="form-checkbox">
+                                        </div>
+                                        <div class="checklist-item-label">
+                                            <label for="bill-info">Email Sent to Billing</label>
+                                        </div>
+                                    </div>
                                 </div>
                             </fieldset>
 
                             <div class="action-buttons" style="border-top: 1px solid #e5e7eb; margin-top: 1.25rem;">
                                 <button type="button" id="copy-billing-btn" class="btn btn-secondary">
-                                    <img src="icons/copy.png" alt="Copy Billing" class="btn-icon-img" />
+                                    <!-- UPDATED ICON PATH -->
+                                    <img src="icons/copy.png" alt="Copy Info" class="btn-icon-img" />
                                     Copy Info for Billing
                                 </button>
                             </div>
@@ -527,21 +557,25 @@
                             <!-- MODIFIED: Button Group -->
                             <div class="button-group">
                                 <button type="button" id="update-customer-btn" class="btn btn-secondary">
+                                    <!-- UPDATED ICON PATH -->
                                     <img src="icons/save.png" alt="Save" class="btn-icon-img" />
                                     Save Changes
                                 </button>
                                 <button type="button" id="save-and-progress-btn" class="btn btn-primary">
-                                    <img src="icons/savecont.png" alt="Save & Progress" class="btn-icon-img" />
+                                    <!-- UPDATED ICON PATH -->
+                                    <img src="icons/savecont.png" alt="Save" class="btn-icon-img" style="filter: brightness(0) invert(1);" /> <!-- Invert icon for dark btn -->
                                     Save & Progress
                                 </button>
                             </div>
                             
                             <button type="button" id="on-hold-btn" class="btn btn-warning">
-                                <img src="icons/stop.png" alt="Toggle Hold" class="btn-icon-img" />
+                                <!-- UPDATED ICON PATH -->
+                                <img src="icons/stop.png" alt="On Hold" class="btn-icon-img" />
                                 <span>Toggle On Hold</span>
                             </button>
 
                             <button type="button" id="delete-customer-btn" class="btn btn-danger">
+                                <!-- UPDATED ICON PATH -->
                                 <img src="icons/trash.png" alt="Delete" class="btn-icon-img" />
                                 Delete Customer
                             </button>
@@ -551,7 +585,8 @@
                 </div>
 
                 <div id="details-placeholder" class="details-placeholder">
-                    <img src="icons/check.png" alt="Select" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.5;" />
+                    <!-- UPDATED ICON PATH -->
+                    <img src="icons/clock.png" alt="Tracker Icon" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.6;" />
                     <p style="margin-top: 0.5rem;">Select a customer from the list to view their details.</p>
                 </div>
             </div>
@@ -566,6 +601,7 @@
             <div class="modal-header">
                 <h2 class="card-title">Add New Customer</h2>
                 <button id="modal-close-btn" class="modal-close-btn">
+                    <!-- UPDATED ICON PATH -->
                     <img src="icons/x.png" alt="Close" style="width: 20px; height: 20px;" />
                 </button>
             </div>
@@ -576,6 +612,7 @@
                     <label class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
                     
                     <div id="pdf-drop-zone" class="pdf-drop-zone">
+                        <!-- UPDATED ICON PATH -->
                         <img src="icons/upload.png" alt="Upload" class="drop-zone-icon" />
                         <p class="drop-zone-text">
                             Drag & drop PDF here, or <span class="browse-link">browse</span>
@@ -586,6 +623,7 @@
                     </div>
 
                     <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" disabled>
+                        <!-- UPDATED ICON PATH -->
                         <img src="icons/write.png" alt="Process" class="btn-icon-img" />
                         Process PDF & Autofill
                     </button>
@@ -623,6 +661,7 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary btn-full-width">
+                    <!-- UPDATED ICON PATH -->
                     <img src="icons/save.png" alt="Add" class="btn-icon-img" />
                     Add Customer
                 </button>
