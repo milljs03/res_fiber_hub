@@ -859,8 +859,8 @@ const calculateDashboardStats = (customers) => {
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
         // --- MODIFICATION: Check for exemption
-        // Stats should only be calculated on *Completed* customers, not Archived
-        if (status === 'Completed' && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
+        // Stats should be calculated on 'Completed' AND 'Archived' customers
+        if ((status === 'Completed' || status === 'Archived') && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
 
@@ -888,7 +888,8 @@ const calculateDashboardStats = (customers) => {
     });
 
     const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Torys List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
-    const totalCompleted = statusCounts['Completed']; // Does not include Archived
+    // Include Archived in total completed count
+    const totalCompleted = statusCounts['Completed'] + statusCounts['Archived']; 
     
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
     
@@ -941,7 +942,7 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
         <div class="stat-box" style="background-color: #d1fae5; border: 1px solid #a7f3d0;">
             <div class="stat-main-title">Completed Orders</div>
             <div class="stat-main-value" style="color: #065f46;">${totalCompleted + 2673}</div>
-            <p class="stat-breakdown">Total lifetime installs (excluding archived).</p>
+            <p class="stat-breakdown">Total lifetime installs (includes archived).</p>
         </div>
     `;
     
