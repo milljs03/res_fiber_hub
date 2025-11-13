@@ -15,13 +15,10 @@
     <header class="app-header">
         <div class="header-content">
             <div class="header-title">
-                <img src="icons/write.png" alt="Splicing Icon" class="header-logo-img" />
                 <h1>Admin Splicing</h1>
             </div>
             <div class="user-info">
-                <a href="index.html" class="btn btn-secondary">
-                    <img src="icons/clock.png" alt="Tracker" class="btn-icon-img" />
-                    Back to Tracker
+
                 </a>
             </div>
         </div>
@@ -30,15 +27,20 @@
     <div class="split-container">
         <div class="list-panel">
             <div class="list-header">
-                <h2>NID Ready / Pending Splicing</h2>
+                <h2>Splicing Manager</h2>
                 <div class="header-controls">
                     <span id="pending-count" class="badge">0</span>
                 </div>
             </div>
 
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-view="pending">Pending Assignment</button>
+                <button class="admin-tab" data-view="completed">Completed Splicing</button>
+            </div>
+
             <div id="list-scroll-area">
                 <div id="splicing-list-container" class="drop-container-inner">
-                    <p class="loading-text">Loading NID Ready customers...</p>
+                    <p class="loading-text">Loading customers...</p>
                 </div>
             </div>
         </div>

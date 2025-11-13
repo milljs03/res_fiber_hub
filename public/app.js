@@ -11,7 +11,8 @@ import {
     deleteDoc,
     onSnapshot,
     query,
-    serverTimestamp 
+    serverTimestamp,
+    deleteField 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -89,7 +90,7 @@ const el = {
     // --- COMPLETED FILTER ELEMENTS ---
     completedFilterGroup: document.getElementById('completed-filter-group'), 
     completedFilterSelect: document.getElementById('completed-filter-select'), 
-    completedFilterResults: document.getElementById('completed-filter-results'), // <-- NEW
+    completedFilterResults: document.getElementById('completed-filter-results'), 
 
     // --- DASHBOARD ELEMENTS ---
     statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
@@ -109,7 +110,7 @@ const el = {
     detailsPlaceholder: document.getElementById('details-placeholder'),
     loadingOverlay: document.getElementById('loading-overlay'),
     
-    // Copyable/Editable Fields (UPDATED REFERENCES)
+    // Copyable/Editable Fields
     detailsSoNumberInput: document.getElementById('details-so-number'),
     detailsCustomerNameInput: document.getElementById('details-customer-name'), 
     detailsAddressInput: document.getElementById('details-address'),
@@ -119,11 +120,11 @@ const el = {
     detailsGeneralNotes: document.getElementById('details-general-notes'), 
     
     // Buttons
-    mobileBackBtn: document.getElementById('mobile-back-btn'), // NEW
+    mobileBackBtn: document.getElementById('mobile-back-btn'),
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
     headerSaveBtn: document.getElementById('header-save-btn'), 
     headerSaveAndProgressBtn: document.getElementById('header-save-and-progress-btn'), 
-    headerMoveBackBtn: document.getElementById('header-move-back-btn'), // NEW
+    headerMoveBackBtn: document.getElementById('header-move-back-btn'),
     updateCustomerBtn: document.getElementById('update-customer-btn'), 
     saveAndProgressBtn: document.getElementById('save-and-progress-btn'), 
     copyBillingBtn: document.getElementById('copy-billing-btn'),
@@ -132,7 +133,12 @@ const el = {
     archiveCustomerBtn: document.getElementById('archive-customer-btn'), 
     unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), 
     completedActionsDiv: document.getElementById('completed-actions-div'), 
-
+    
+    // --- NEW NID FIELDS ---
+    spliceCompleteDate: document.getElementById('splice-complete-date'), // New static field
+    detailsNidIssues: document.getElementById('details-nid-issues'), // New hidden field
+    returnSpliceBtn: document.getElementById('return-splice-btn'), // New button
+    
     // --- UPDATED: Stepper and Pages ---
     statusStepper: document.getElementById('status-stepper'),
     detailsPages: document.querySelectorAll('.details-page'),
@@ -585,20 +591,23 @@ const setupEventListeners = () => {
     });
 
     // Details panel
-    el.mobileBackBtn.addEventListener('click', () => handleDeselectCustomer(true)); // NEW: Back to List
+    el.mobileBackBtn.addEventListener('click', () => handleDeselectCustomer(true)); 
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); // Manual save
-    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); // Save & Next (+1)
-    el.headerMoveBackBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, -1)); // Save & Back (-1)
+    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); 
+    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); 
+    el.headerMoveBackBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, -1)); 
     
-    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); // Manual save
-    el.saveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); // Save & Next (+1)
+    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); 
+    el.saveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); 
     
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     el.archiveCustomerBtn.addEventListener('click', handleArchiveCustomer); 
     el.unarchiveCustomerBtn.addEventListener('click', handleUnarchiveCustomer); 
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
+
+    // NEW: Splice Return Listener
+    el.returnSpliceBtn.addEventListener('click', handleReturnSplice); 
     
     // Stepper Click Listener
     el.statusStepper.addEventListener('click', (e) => {
@@ -606,13 +615,11 @@ const setupEventListeners = () => {
         if (!stepButton) return;
 
         e.preventDefault();
-        // --- LOGIC CHANGE ---
         // This button now *only* navigates. It does not change the status.
         const pageId = stepButton.dataset.page;
         showDetailsPage(pageId);
         
         // We still update the stepper UI to show what's "active" (selected)
-        // but we DO NOT change the form's status value.
         el.statusStepper.querySelectorAll('.step').forEach(btn => btn.classList.remove('active'));
         stepButton.classList.add('active');
         
@@ -1213,6 +1220,7 @@ const closeAddCustomerModal = () => {
     el.pdfUploadInput.value = '';
 };
 
+// --- MODIFIED: handleAddCustomer (Added splicingDetails structure) ---
 const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!customersCollectionRef) return;
@@ -1252,10 +1260,21 @@ const handleAddCustomer = async (e) => {
             dropNotes: "", // NEW: Add field for drop notes
             installNotes: "" 
         },
+        // NEW: Splicing Details structure
+        splicingDetails: {
+            handhole: "",
+            strand: "",
+            assignedSplicer: "",
+            notes: "",
+            assigned: false,
+            completedAt: null, // NEW: Splice Completion Timestamp
+            nidIssues: "" // NEW: Splice Rejection Notes
+        },
         postInstallChecklist: {
             removedFromFiberList: false,
             removedFromSiteSurvey: false,
-            updatedRepairShoppr: false
+            updatedRepairShoppr: false,
+            emailSentToBilling: false
         }
     };
 
@@ -1364,9 +1383,11 @@ const handleDeselectCustomer = async (autoSave = false) => {
     }
 };
 
+// --- MODIFIED: populateDetailsForm (Updated with splice data and logic) ---
 const populateDetailsForm = (data) => {
     // Hide completed-specific buttons by default
     el.completedActionsDiv.classList.add('hidden');
+    el.returnSpliceBtn.classList.add('hidden'); // NEW: Hide splice return button
 
     el.detailsCustomerNameInput.value = data.customerName || ''; 
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
@@ -1375,8 +1396,7 @@ const populateDetailsForm = (data) => {
     el.detailsEmailInput.value = data.primaryContact?.email || '';
     el.detailsPhoneInput.value = data.primaryContact?.phone || '';
     
-    // --- LOGIC CHANGE: This field no longer exists ---
-    // el.detailsForm['details-status'].value = data.status || 'New Order';
+    // ... (rest of fields)
     
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
@@ -1385,31 +1405,39 @@ const populateDetailsForm = (data) => {
     
     el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
     
-    el.detailsForm['check-torys-list'].checked = data.torysListChecklist?.added || false; // NEW
+    el.detailsForm['check-torys-list'].checked = data.torysListChecklist?.added || false; 
     
-    // NEW: Populate Drop Notes
     el.detailsForm['drop-notes'].value = data.installDetails?.dropNotes || ''; 
     
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
 
-    el.detailsForm['check-install-ready'].checked = data.installReadyChecklist?.ready || false; // NEW
+    // NEW: Splice Completion Date Field (Read-only on this screen)
+    const spliceCompletedAt = data.splicingDetails?.completedAt?.seconds ? 
+        new Date(data.splicingDetails.completedAt.seconds * 1000).toLocaleDateString() : 'N/A';
+    el.spliceCompleteDate.textContent = spliceCompletedAt;
+    
+    // NEW: Hidden field for splice issues (populated here, used by handleReturnSplice)
+    el.detailsNidIssues.value = data.splicingDetails?.nidIssues || '';
+
+    el.detailsForm['check-install-ready'].checked = data.installReadyChecklist?.ready || false; 
     
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
-    // el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || ''; // This is a duplicate line
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
-    el.detailsGeneralNotes.value = data.generalNotes || ''; // UPDATED
+    el.detailsGeneralNotes.value = data.generalNotes || ''; 
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
     
-    el.detailsForm['check-exempt-from-stats'].checked = data.exemptFromStats || false; // NEW
+    el.detailsForm['check-exempt-from-stats'].checked = data.exemptFromStats || false; 
     
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
     el.detailsForm['post-check-survey'].checked = data.postInstallChecklist?.removedFromSiteSurvey || false;
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
     el.detailsForm['bill-info'].checked = data.postInstallChecklist?.emailSentToBilling || false;
 
-    // --- LOGIC CHANGE: This is now handled by handleSelectCustomer ---
-    // updateStepperUI(data.status || 'New Order');
+    // Conditionally show Splice Return Button in Install Ready status
+    if (data.status === 'Install Ready') {
+        el.returnSpliceBtn.classList.remove('hidden');
+    }
 };
 
 const showDetailsPage = (pageId) => {
@@ -1430,13 +1458,13 @@ const setPageForStatus = (status) => {
         case 'Site Survey Ready':
             showDetailsPage('page-site-survey');
             break;
-        case 'Torys List': // NEW (No apostrophe)
+        case 'Torys List': 
             showDetailsPage('page-torys-list');
             break;
         case 'NID Ready': 
             showDetailsPage('page-nid');
             break;
-        case 'Install Ready': // NEW
+        case 'Install Ready': 
             showDetailsPage('page-install-ready');
             break;
         case 'Completed': 
@@ -1479,7 +1507,7 @@ const handleToggleOnHold = (e) => {
 const updateStepperUI = (currentStatus) => {
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
-    // Hide all action buttons by default
+    // Hide completed-specific buttons by default
     el.completedActionsDiv.classList.add('hidden');
     el.updateCustomerBtn.classList.add('hidden');
     el.saveAndProgressBtn.classList.add('hidden');
@@ -1487,11 +1515,10 @@ const updateStepperUI = (currentStatus) => {
     el.deleteCustomerBtn.classList.add('hidden');
     el.headerSaveBtn.classList.add('hidden');
     el.headerSaveAndProgressBtn.classList.add('hidden');
-    el.headerMoveBackBtn.classList.add('hidden'); // Default hidden
-    // NEW: also hide archive/unarchive buttons by default
+    el.headerMoveBackBtn.classList.add('hidden'); 
     el.archiveCustomerBtn.classList.add('hidden');
     el.unarchiveCustomerBtn.classList.add('hidden');
-
+    el.returnSpliceBtn.classList.add('hidden'); // NEW: Hide splice return button
 
     allStepButtons.forEach(btn => {
         btn.classList.remove('active', 'completed');
@@ -1509,7 +1536,6 @@ const updateStepperUI = (currentStatus) => {
         allStepButtons.forEach(btn => btn.classList.add('completed'));
         
         // MODIFICATION: Disable form fields but NOT stepper buttons
-        // This allows navigation
         el.detailsForm.querySelectorAll('input, textarea, select').forEach(elem => {
             elem.disabled = true;
         });
@@ -1522,10 +1548,10 @@ const updateStepperUI = (currentStatus) => {
         });
         
         // Show "Unarchive" button
-        el.completedActionsDiv.classList.remove('hidden'); // Show the container
-        el.unarchiveCustomerBtn.classList.remove('hidden'); // Show UNarchive
-        el.unarchiveCustomerBtn.disabled = false; // Explicitly enable it
-        el.archiveCustomerBtn.classList.add('hidden');   // Hide archive
+        el.completedActionsDiv.classList.remove('hidden'); 
+        el.unarchiveCustomerBtn.classList.remove('hidden'); 
+        el.unarchiveCustomerBtn.disabled = false; 
+        el.archiveCustomerBtn.classList.add('hidden');   
 
         return; // No other action buttons should be visible
     }
@@ -1621,6 +1647,51 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
+// --- NEW: Splice Rejection Function ---
+const handleReturnSplice = async (e) => {
+    e.preventDefault();
+    const customerId = el.detailsContainer.dataset.id;
+    if (!customerId || !customersCollectionRef) return;
+    const customerName = el.detailsCustomerNameInput.value;
+    
+    // Get the rejection reason from the user
+    const reason = await showPromptModal(
+        `Return ${customerName} to Splicing Admin?`,
+        "Enter the issue (e.g., No light at NID, poor slack loop, etc.):"
+    );
+
+    if (!reason) return; 
+
+    try {
+        el.loadingOverlay.style.display = 'flex';
+        const docRef = doc(customersCollectionRef, customerId);
+
+        // Update document: Move back to NID Ready, clear completion timestamp, add note
+        const updatedData = {
+            status: "NID Ready", // Move customer back to the splicing queue
+            'splicingDetails.completedAt': deleteField(), // Clear completion time
+            'splicingDetails.nidIssues': reason, // Save the rejection note
+            // Prepend a note to General Notes
+            'generalNotes': `[Splice Rejected ${new Date().toLocaleDateString()}] ${reason}\n\n${el.detailsGeneralNotes.value || ''}`
+        };
+
+        await updateDoc(docRef, updatedData);
+        
+        showToast(`Splice rejected for ${customerName}. Returned to NID Ready stage.`, 'error');
+        
+        // Force the UI to reflect the change immediately
+        el.detailsForm.dataset.currentStatus = "NID Ready";
+        setPageForStatus("NID Ready");
+        updateStepperUI("NID Ready");
+
+    } catch (error) {
+        console.error("Error returning splice:", error);
+        showToast('Failed to return splice.', 'error');
+    } finally {
+        el.loadingOverlay.style.display = 'none';
+    }
+};
+
 // MODIFIED: Changed `progressStatus` to `stepDirection` (0=stay, 1=next, -1=back)
 const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection = 0) => {
     if (e) {
@@ -1689,7 +1760,7 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
         'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, 
         
-        // NEW: Save Drop Notes
+        // Save Drop Notes
         'installDetails.dropNotes': el.detailsForm['drop-notes'].value,
 
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
@@ -1702,6 +1773,9 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
         'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked,
         'postInstallChecklist.emailSentToBilling': el.detailsForm['bill-info'].checked
+        
+        // NOTE: splicingDetails are updated only by admin-splicing.js or handleReturnSplice.
+        // We do not overwrite them here.
     };
 
         if (statusToSave === 'Torys List' && currentSavedStatus !== 'Torys List') {
@@ -2026,3 +2100,68 @@ async function showConfirmModal(message) {
         document.body.appendChild(modalWrapper);
     });
 }
+
+
+/**
+ * --- NEW FUNCTION (Adapted from admin-splicing.js) ---
+ * Shows a custom prompt modal, as window.confirm() is blocked.
+ * @param {string} titleText - The modal title.
+ * @param {string} labelText - The message/prompt text.
+ * @returns {Promise<string|null>} - Resolves with the input text if confirmed, null if cancelled.
+ */
+async function showPromptModal(titleText, labelText) {
+    return new Promise((resolve) => {
+        const oldModal = document.getElementById('prompt-modal-wrapper');
+        if (oldModal) oldModal.remove();
+
+        const modalWrapper = document.createElement('div');
+        modalWrapper.id = 'prompt-modal-wrapper';
+        modalWrapper.style = `position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.5); font-family: 'Inter', sans-serif;`;
+        
+        const modalPanel = document.createElement('div');
+        modalPanel.style = `background-color: white; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); max-width: 400px; width: 90%; display: flex; flex-direction: column; gap: 1rem;`;
+        
+        const title = document.createElement('h3');
+        title.textContent = titleText;
+        title.style = 'margin: 0; font-size: 1.125rem; font-weight: 600; color: #1f2937;';
+        
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        label.style = 'font-size: 0.875rem; color: #4b5563;';
+        
+        const input = document.createElement('textarea');
+        input.rows = 3;
+        input.style = 'width: 100%; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem; font-family: inherit; box-sizing: border-box;';
+        input.placeholder = "Type reason here...";
+        
+        const btnGroup = document.createElement('div');
+        btnGroup.style = 'display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.className = 'btn btn-secondary';
+        
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Confirm Return';
+        confirmBtn.className = 'btn btn-danger'; 
+        
+        cancelBtn.onclick = () => { modalWrapper.remove(); resolve(null); };
+        confirmBtn.onclick = () => { 
+            const val = input.value.trim();
+            if (val) {
+                modalWrapper.remove(); 
+                resolve(val);
+            } else {
+                input.style.borderColor = 'red';
+            }
+        };
+        
+        btnGroup.append(cancelBtn, confirmBtn);
+        modalPanel.append(title, label, input, btnGroup);
+        modalWrapper.append(modalPanel);
+        document.body.appendChild(modalWrapper);
+        input.focus();
+    });
+}
+
+window.showPromptModal = showPromptModal;
