@@ -1829,8 +1829,22 @@ const handleCopyBilling = async (e) => {
             return;
         }
         const data = docSnap.data();
-        const customerName = el.detailsCustomerNameInput.value;
         
+        // --- NAME REFORMATTING LOGIC ---
+        const rawName = el.detailsCustomerNameInput.value || '';
+        let formattedName = rawName;
+
+        // Split by spaces and remove empty entries
+        const nameParts = rawName.trim().split(/\s+/);
+        
+        // If there is more than one word, move the first word (Last Name) to the end
+        if (nameParts.length > 1) {
+            const lastName = nameParts.shift(); // Remove the first element
+            nameParts.push(lastName); // Add it to the end
+            formattedName = nameParts.join(' '); // Join back to string
+        }
+        // -------------------------------
+
         // --- START NEW BILLING FORMAT ---
         let formattedDate = 'N/A';
         const installDateStr = data.installDetails.installDate; // "YYYY-MM-DD"
@@ -1844,13 +1858,13 @@ const handleCopyBilling = async (e) => {
         }
 
         const billingText = `
-${customerName} was officially turned up for service, below are the details:
 
-Customer Name: ${customerName}
+
+Customer Name: ${formattedName}
 Address: ${data.address || 'N/A'}
 Service Order: ${data.serviceOrderNumber || 'N/A'}
 Date Installed: ${formattedDate}
-Additional Equipment: ${data.installDetails.additionalEquipment || 'N/A'}
+Additional Equipment:${data.installDetails.additionalEquipment || 'N/A'}
 
 Thanks,
 Lincoln
