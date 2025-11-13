@@ -1114,3 +1114,43 @@ body {
     color: #9ca3af;
     opacity: 1; 
 }
+
+/* --- MOBILE OPTIMIZATIONS (NEW) --- */
+.mobile-only {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* Hide Dashboard on mobile to focus on list */
+    .dashboard-container {
+        display: none !important;
+    }
+
+    /* Ensure grid is 1 column (already default but reinforcing) */
+    .main-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Show Mobile-Only elements when applicable */
+    .mobile-only {
+        display: inline-flex;
+    }
+
+    /* === Mobile View Switching Logic === */
+    
+    /* Default Mobile State: Show List, Hide Details */
+    #details-card {
+        display: none;
+    }
+    #list-card {
+        display: block;
+    }
+
+    /* Active Detail State (Toggled by JS class on body) */
+    body.mobile-details-active #list-card {
+        display: none;
+    }
+    body.mobile-details-active #details-card {
+        display: block;
+    }
+}

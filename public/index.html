@@ -96,7 +96,7 @@
         </div>
         <div class="main-grid">
 
-            <div class="card">
+            <div id="list-card" class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer List</h2>
                     <button id="new-customer-btn" class="btn btn-primary">
@@ -156,10 +156,15 @@
                 </div>
             </div>
 
-            <div class="card">
+            <div id="details-card" class="card">
                 <div class="card-title-header">
                     <h2 class="card-title">Customer Details</h2>
                     <div class="header-button-group">
+                        <button type="button" id="mobile-back-btn" class="btn btn-secondary mobile-only">
+                            <img src="icons/chevron_up.png" alt="Back" class="btn-icon-img" style="transform: rotate(-90deg); margin-right: 0;" />
+                            Back
+                        </button>
+
                         <button type="button" id="header-move-back-btn" class="btn btn-secondary hidden" title="Move Back One Step">
                             <img src="icons/savecont.png" alt="Back" class="btn-icon-img" style="filter: brightness(0); transform: rotate(180deg);" />
                         </button>
@@ -524,6 +529,10 @@
 
                         </div> 
                         <div class="action-buttons">
+                                            <div id="details-placeholder" class="details-placeholder">
+                    <img src="icons/clock.png" alt="Tracker Icon" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.6;" />
+                    <p style="margin-top: 0.5rem;">Select a customer from the list to view their details.</p>
+                </div>
                             <div class="button-group">
                                 <button type="button" id="update-customer-btn" class="btn btn-secondary">
                                     <img src="icons/save.png" alt="Save" class="btn-icon-img" />
@@ -548,10 +557,7 @@
                     </form>
                 </div>
 
-                <div id="details-placeholder" class="details-placeholder">
-                    <img src="icons/clock.png" alt="Tracker Icon" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.6;" />
-                    <p style="margin-top: 0.5rem;">Select a customer from the list to view their details.</p>
-                </div>
+
             </div>
         </div>
     </div>

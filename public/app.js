@@ -119,6 +119,7 @@ const el = {
     detailsGeneralNotes: document.getElementById('details-general-notes'), 
     
     // Buttons
+    mobileBackBtn: document.getElementById('mobile-back-btn'), // NEW
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
     headerSaveBtn: document.getElementById('header-save-btn'), 
     headerSaveAndProgressBtn: document.getElementById('header-save-and-progress-btn'), 
@@ -584,6 +585,7 @@ const setupEventListeners = () => {
     });
 
     // Details panel
+    el.mobileBackBtn.addEventListener('click', () => handleDeselectCustomer(true)); // NEW: Back to List
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
     el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); // Manual save
     el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); // Save & Next (+1)
@@ -1286,6 +1288,10 @@ const handleSelectCustomer = async (customerId, customerItem) => {
     customerItem.classList.add('selected');
     el.detailsPlaceholder.style.display = 'none';
     el.detailsContainer.style.display = 'block';
+    
+    // NEW: Toggle mobile view class on body
+    document.body.classList.add('mobile-details-active');
+
     el.detailsContainer.dataset.id = customerId; 
     el.loadingOverlay.style.display = 'flex'; 
 
@@ -1340,6 +1346,10 @@ const handleDeselectCustomer = async (autoSave = false) => {
     });
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
+    
+    // NEW: Remove mobile view class
+    document.body.classList.remove('mobile-details-active');
+
     el.detailsContainer.dataset.id = '';
     el.detailsForm.dataset.currentStatus = ''; // Clear stored status
     el.detailsForm.dataset.statusBeforeHold = '';
