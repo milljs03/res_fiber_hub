@@ -1693,6 +1693,10 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'postInstallChecklist.emailSentToBilling': el.detailsForm['bill-info'].checked
     };
 
+        if (statusToSave === 'Torys List' && currentSavedStatus !== 'Torys List') {
+        updatedData['torysListChecklist.addedAt'] = serverTimestamp();
+    }
+    
     try {
         if (!isAutoSave) {
             el.loadingOverlay.style.display = 'flex';

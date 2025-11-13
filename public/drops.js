@@ -1,6 +1,6 @@
 import { db, auth } from './firebase.js';
 import { 
-    collection, getDocs, doc, updateDoc, query, where 
+    collection, getDocs, doc, updateDoc, query, where, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
@@ -8,7 +8,7 @@ let map;
 let geocoder;
 let markers = [];
 let customersCollectionRef;
-let dropsData = [];
+// let dropsData = []; // This will now hold only PENDING drops
 
 // --- Initialization ---
 export async function initialize() {
@@ -37,19 +37,26 @@ async function loadDrops() {
         const q = query(customersCollectionRef);
         const snapshot = await getDocs(q);
         
-        dropsData = [];
+        const pendingDrops = [];
+        const completedDrops = [];
         
         snapshot.forEach(doc => {
             const data = doc.data();
             // Filter for Tory's List (handle both spellings)
             if (data.status === "Torys List" || data.status === "Tory's List") {
-                dropsData.push({ id: doc.id, ...data });
+                pendingDrops.push({ id: doc.id, ...data });
+            }
+            // Check for completed drops
+            if (data.torysListChecklist?.completedAt && data.torysListChecklist?.addedAt) {
+                completedDrops.push(data);
             }
         });
 
-        console.log(`Found ${dropsData.length} drops.`);
+        console.log(`Found ${pendingDrops.length} pending drops.`);
+        console.log(`Found ${completedDrops.length} completed drops for analytics.`);
         
-        updateUI();
+        calculateAndDisplayAnalytics(completedDrops);
+        updateUI(pendingDrops); // Pass pending drops to the UI function
         document.getElementById('loading-overlay').style.display = 'none';
 
     } catch (error) {
@@ -58,21 +65,51 @@ async function loadDrops() {
     }
 }
 
+// --- NEW: Analytics Function ---
+function calculateAndDisplayAnalytics(completedDrops) {
+    let totalDropSeconds = 0;
+    let dropsDoneYTD = 0;
+    const currentYear = new Date().getFullYear();
+
+    completedDrops.forEach(drop => {
+        const added = drop.torysListChecklist.addedAt.seconds;
+        const completed = drop.torysListChecklist.completedAt.seconds;
+        totalDropSeconds += (completed - added);
+
+        const completedDate = new Date(completed * 1000);
+        if (completedDate.getFullYear() === currentYear) {
+            dropsDoneYTD++;
+        }
+    });
+
+    let avgDays = "N/A";
+    if (completedDrops.length > 0) {
+        const avgSeconds = totalDropSeconds / completedDrops.length;
+        const avgDaysCalc = avgSeconds / (60 * 60 * 24);
+        avgDays = avgDaysCalc.toFixed(1) + " days";
+    }
+
+    document.getElementById('avg-drop-time').textContent = avgDays;
+    document.getElementById('drops-done-ytd').textContent = dropsDoneYTD;
+}
+
+
 // --- UI Updates ---
-function updateUI() {
+// Modified to accept pendingDrops as an argument
+function updateUI(pendingDrops) {
     // Update Count
-    document.getElementById('drop-count').textContent = dropsData.length;
+    document.getElementById('drop-count').textContent = pendingDrops.length;
     
     // Render List
     const container = document.getElementById('drops-list-container');
     container.innerHTML = '';
     
-    if (dropsData.length === 0) {
+    if (pendingDrops.length === 0) {
         container.innerHTML = '<p class="loading-text">No active drops found.</p>';
         return;
     }
 
-    dropsData.forEach(customer => {
+    pendingDrops.forEach(customer => {
         const card = document.createElement('div');
         card.className = 'drop-card';
         card.dataset.id = customer.id;
@@ -116,16 +153,17 @@ function updateUI() {
     });
 
     // Render Map Pins
-    plotDrops();
+    plotDrops(pendingDrops); // Pass pending drops to plotting
 }
 
 // --- Map Logic ---
-async function plotDrops() {
+// Modified to accept pendingDrops as an argument
+async function plotDrops(pendingDrops) {
     // Clear existing markers
     markers.forEach(m => m.setMap(null));
     markers = [];
 
-    for (const customer of dropsData) {
+    for (const customer of pendingDrops) {
         let coords = customer.coordinates;
 
         // If no coords cached, geocode (and cache if possible)
@@ -214,12 +252,12 @@ async function handleMarkDone(customer) {
         // Update Firestore
         const docRef = doc(customersCollectionRef, customer.id);
         await updateDoc(docRef, { 
-            status: "NID Ready" 
+            status: "NID Ready",
+            'torysListChecklist.completedAt': serverTimestamp() // NEW: Stop the clock
         });
 
-        // Remove from local list and update UI
-        dropsData = dropsData.filter(c => c.id !== customer.id);
-        updateUI();
+        // RE-LOAD all data to update stats and list
+        loadDrops();
         
     } catch (error) {
         console.error("Error updating status:", error);
