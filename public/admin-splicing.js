@@ -69,8 +69,22 @@ function renderUI() {
     if (currentView === 'pending') {
         // Not assigned yet
         customersToShow = allData.filter(c => !c.splicingDetails?.assigned);
-        // Sort oldest drop completion first
-        customersToShow.sort((a, b) => (a.torysListChecklist?.completedAt?.seconds || 0) - (b.torysListChecklist?.completedAt?.seconds || 0));
+        
+        // --- MODIFICATION: Sort rejected splices to the top ---
+        customersToShow.sort((a, b) => {
+            const aIsRejected = !!a.splicingDetails?.nidIssues;
+            const bIsRejected = !!b.splicingDetails?.nidIssues;
+
+            // 1. Prioritize rejected items
+            if (aIsRejected && !bIsRejected) return -1;
+            if (!aIsRejected && bIsRejected) return 1;
+
+            // 2. If both are rejected or not rejected, sort by oldest drop completion
+            const dateA = a.torysListChecklist?.completedAt?.seconds || 0;
+            const dateB = b.torysListChecklist?.completedAt?.seconds || 0;
+            return dateA - dateB;
+        });
+
     } else {
         // Completed by splicer
         customersToShow = allData.filter(c => c.splicingDetails?.completed === true);
@@ -103,6 +117,14 @@ function createCard(customer, viewType) {
     card.dataset.id = customer.id;
     const details = customer.splicingDetails || {};
 
+    // --- MODIFICATION: Check for rejection note ---
+    const rejectionNote = details.nidIssues || "";
+    const isRejected = rejectionNote.length > 0;
+    if (isRejected) {
+        card.classList.add('splice-card-rejected');
+    }
+    // --- END MODIFICATION ---
+
     if (viewType === 'pending') {
         let dropDateStr = "Unknown";
         if (customer.torysListChecklist?.completedAt) {
@@ -118,12 +140,33 @@ function createCard(customer, viewType) {
             <option value="Scott" ${details.assignedSplicer === 'Scott' ? 'selected' : ''}>Scott</option>
         `;
 
+        // --- MODIFICATION: Pre-fill rejection note into notes field ---
+        const notesForSplicer = details.notes || '';
+        // Only add rejection note if it's not already in the splicer notes
+        const finalNotes = isRejected && !notesForSplicer.includes(rejectionNote)
+            ? `[REJECTION]: ${rejectionNote}\n-----------------\n${notesForSplicer}`
+            : notesForSplicer;
+        // --- END MODIFICATION ---
+
+
         card.innerHTML = `
             <div class="card-header">
                 <h3 class="customer-name">${customer.customerName}</h3>
                 <span class="date-badge">Drop Done: ${dropDateStr}</span>
             </div>
             <p class="customer-address">${customer.address}</p>
+
+            <!-- NEW REJECTION NOTE SECTION -->
+            ${isRejected ? `
+            <div class="rejection-note-container">
+                <h4 class="rejection-title">
+                    <img src="icons/alert.png" style="width:14px; height:14px; margin-right:4px;" />
+                    REJECTED SPLICE
+                </h4>
+                <p class="rejection-reason">${rejectionNote}</p>
+            </div>
+            ` : ''}
+
             <div class="splicing-form">
                 <div class="form-row">
                     <div class="form-group-half">
@@ -143,7 +186,7 @@ function createCard(customer, viewType) {
                 </div>
                 <div class="form-group-full">
                     <label>Splicing Notes</label>
-                    <textarea class="form-textarea-sm input-notes" rows="2" placeholder="Notes for splicer...">${details.notes || ''}</textarea>
+                    <textarea class="form-textarea-sm input-notes" rows="2" placeholder="Notes for splicer...">${finalNotes}</textarea>
                 </div>
                 <div class="btn-row">
                     <button class="btn-return" onclick="event.stopPropagation()">
@@ -220,7 +263,8 @@ async function handleRelease(customerId, cardElement) {
             'splicingDetails.assignedSplicer': splicer,
             'splicingDetails.notes': notes,
             'splicingDetails.assigned': true,
-            'splicingDetails.assignedAt': serverTimestamp()
+            'splicingDetails.assignedAt': serverTimestamp(),
+            'splicingDetails.nidIssues': deleteField() // --- MODIFICATION: Clear the rejection note on release
         });
         loadData(); 
     } catch (error) { alert("Failed."); }

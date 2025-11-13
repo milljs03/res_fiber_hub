@@ -108,6 +108,20 @@ html, body {
     background-color: #eef2ff;
 }
 
+/* --- NEW: Style for rejected splice card --- */
+.splice-card.splice-card-rejected {
+    border-color: #ef4444; /* red-500 */
+    border-width: 2px;
+    background-color: #fef2f2; /* red-50 */
+}
+
+.splice-card.splice-card-rejected:hover {
+    border-color: #dc2626; /* red-600 */
+    background-color: #fee2e2; /* red-100 */
+}
+/* --- END NEW --- */
+
+
 .card-header {
     display: flex;
     justify-content: space-between;
@@ -136,6 +150,32 @@ html, body {
     margin: 0 0 1rem 0;
 }
 
+/* --- NEW: Rejection Note Block --- */
+.rejection-note-container {
+    background-color: #fee2e2; /* red-100 */
+    border: 1px solid #fca5a5; /* red-300 */
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.rejection-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #991b1b; /* red-800 */
+    margin: 0 0 0.25rem 0;
+    display: flex;
+    align-items: center;
+}
+.rejection-reason {
+    font-size: 0.875rem;
+    color: #b91c1c; /* red-700 */
+    margin: 0;
+    white-space: pre-wrap; /* Preserve newlines */
+    word-break: break-word;
+}
+/* --- END NEW --- */
+
+
 /* Form Inputs Inside Card */
 .splicing-form {
     background-color: #f9fafb;
@@ -143,6 +183,13 @@ html, body {
     border-radius: 0.375rem;
     padding: 0.75rem;
 }
+
+/* Make rejected form match card */
+.splice-card-rejected .splicing-form {
+    background-color: #fef2f2;
+    border-color: #fee2e2;
+}
+
 
 .form-row {
     display: flex;

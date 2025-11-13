@@ -1435,9 +1435,7 @@ const populateDetailsForm = (data) => {
     el.detailsForm['bill-info'].checked = data.postInstallChecklist?.emailSentToBilling || false;
 
     // Conditionally show Splice Return Button in Install Ready status
-    if (data.status === 'Install Ready') {
-        el.returnSpliceBtn.classList.remove('hidden');
-    }
+    // *** This is now handled in updateStepperUI ***
 };
 
 const showDetailsPage = (pageId) => {
@@ -1518,7 +1516,7 @@ const updateStepperUI = (currentStatus) => {
     el.headerMoveBackBtn.classList.add('hidden'); 
     el.archiveCustomerBtn.classList.add('hidden');
     el.unarchiveCustomerBtn.classList.add('hidden');
-    el.returnSpliceBtn.classList.add('hidden'); // NEW: Hide splice return button
+    el.returnSpliceBtn.classList.add('hidden'); // *** MODIFICATION: Hide by default ***
 
     allStepButtons.forEach(btn => {
         btn.classList.remove('active', 'completed');
@@ -1568,6 +1566,11 @@ const updateStepperUI = (currentStatus) => {
     el.deleteCustomerBtn.classList.remove('hidden');
     el.headerSaveBtn.classList.remove('hidden');
     el.headerSaveAndProgressBtn.classList.remove('hidden');
+
+    // *** MODIFICATION: Show "Return Splice" button on NID Ready or Install Ready pages ***
+    if (currentStatus === 'NID Ready' || currentStatus === 'Install Ready') {
+        el.returnSpliceBtn.classList.remove('hidden');
+    }
 
 
     if (currentStatus === 'On Hold') {
@@ -1647,7 +1650,7 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-// --- NEW: Splice Rejection Function ---
+// --- *** MODIFICATION: Updated Splice Rejection Function *** ---
 const handleReturnSplice = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
@@ -1657,7 +1660,7 @@ const handleReturnSplice = async (e) => {
     // Get the rejection reason from the user
     const reason = await showPromptModal(
         `Return ${customerName} to Splicing Admin?`,
-        "Enter the issue (e.g., No light at NID, poor slack loop, etc.):"
+        "Enter the issue (e.img., No light at NID, poor slack loop, etc.):"
     );
 
     if (!reason) return; 
@@ -1670,6 +1673,9 @@ const handleReturnSplice = async (e) => {
         const updatedData = {
             status: "NID Ready", // Move customer back to the splicing queue
             'splicingDetails.completedAt': deleteField(), // Clear completion time
+            'splicingDetails.assigned': false, // <-- MODIFICATION: Set assigned to false
+            'splicingDetails.assignedSplicer': deleteField(), // <-- MODIFICATION: Clear the splicer
+            'splicingDetails.assignedAt': deleteField(), // <-- MODIFICATION: Clear assignment time
             'splicingDetails.nidIssues': reason, // Save the rejection note
             // Prepend a note to General Notes
             'generalNotes': `[Splice Rejected ${new Date().toLocaleDateString()}] ${reason}\n\n${el.detailsGeneralNotes.value || ''}`
@@ -1677,7 +1683,7 @@ const handleReturnSplice = async (e) => {
 
         await updateDoc(docRef, updatedData);
         
-        showToast(`Splice rejected for ${customerName}. Returned to NID Ready stage.`, 'error');
+        showToast(`Splice rejected for ${customerName}. Returned to Splicing Admin.`, 'error');
         
         // Force the UI to reflect the change immediately
         el.detailsForm.dataset.currentStatus = "NID Ready";
@@ -2107,6 +2113,7 @@ async function showConfirmModal(message) {
  * Shows a custom prompt modal, as window.confirm() is blocked.
  * @param {string} titleText - The modal title.
  * @param {string} labelText - The message/prompt text.
+ *Views: 6,862,692
  * @returns {Promise<string|null>} - Resolves with the input text if confirmed, null if cancelled.
  */
 async function showPromptModal(titleText, labelText) {
