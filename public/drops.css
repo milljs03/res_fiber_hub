@@ -246,7 +246,7 @@ html, body {
     cursor: not-allowed;
 }
 
-/* Map */
+/* Right Panel: Map */
 .map-panel {
     flex: 1;
     position: relative;
@@ -309,4 +309,23 @@ html, body {
     font-size: 1.5rem;
     font-weight: 700;
     color: #111827;
+}
+
+/* --- MOBILE VIEW --- */
+@media (max-width: 768px) {
+    .map-panel {
+        display: none; /* Hide map on small screens */
+    }
+
+    .list-panel {
+        width: 100%; /* Take full width */
+        min-width: 0;
+        border-right: none;
+    }
+    
+    .drop-card {
+        cursor: default; /* Remove grab cursor on mobile */
+    }
+    
+    /* Optional: Hide drag handles or indicators if necessary */
 }
