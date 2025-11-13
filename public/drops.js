@@ -77,16 +77,28 @@ function updateUI() {
         card.className = 'drop-card';
         card.dataset.id = customer.id;
         
+        // Updated card.innerHTML to include a placeholder for notes
         card.innerHTML = `
             <div class="card-header">
                 <h3 class="customer-name">${customer.customerName}</h3>
             </div>
             <p class="customer-address">${customer.address}</p>
+            <p class="drop-notes"></p> <!-- NEW: Notes placeholder -->
             <button class="btn-mark-done" onclick="event.stopPropagation()">
                 <img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" />
                 Mark Drop Done
             </button>
         `;
+
+        // NEW: Safely populate the drop notes
+        const notesEl = card.querySelector('.drop-notes');
+        const dropNotes = customer.installDetails?.dropNotes;
+        if (dropNotes && dropNotes.trim() !== "") {
+            notesEl.textContent = dropNotes;
+        } else {
+            notesEl.textContent = "No drop notes.";
+            notesEl.classList.add('no-notes'); // Add class for styling
+        }
 
         // Card Click -> Pan Map
         card.addEventListener('click', () => {
@@ -141,14 +153,17 @@ async function plotDrops() {
             // Add Info Window
             const infoWindow = new google.maps.InfoWindow({
                 content: `
-                    <div style="padding:5px">
-                        <b>${customer.customerName}</b><br>
+                    <div style="padding:5px; font-family: 'Inter', sans-serif;">
+                        <b style="font-size: 1rem;">${customer.customerName}</b><br>
                         ${customer.address}
+                        <p style="font-style: italic; margin: 4px 0 0 0; color: #374151;">${customer.installDetails?.dropNotes || ''}</p>
                     </div>
                 `
             });
 
             marker.addListener('click', () => {
+                // Close all other info windows
+                markers.forEach(m => m.infoWindow.close());
                 infoWindow.open(map, marker);
                 scrollToCard(customer.id);
             });
@@ -183,7 +198,8 @@ async function geocodeAddress(address, docId) {
 
 // --- Action Handlers ---
 async function handleMarkDone(customer) {
-    if (!confirm(`Mark drop for ${customer.customerName} as DONE? This will move them to 'NID Ready'.`)) {
+    // UPDATED: Use custom modal instead of confirm()
+    if (!await showConfirmModal(`Mark drop for ${customer.customerName} as DONE? This will move them to 'NID Ready'.`)) {
         return;
     }
 
@@ -205,15 +221,16 @@ async function handleMarkDone(customer) {
         dropsData = dropsData.filter(c => c.id !== customer.id);
         updateUI();
         
-        // Simple toast/alert
-        // alert("Drop marked as complete!");
-
     } catch (error) {
         console.error("Error updating status:", error);
         alert("Failed to update status.");
         // Re-enable button if it exists
         const btn = document.querySelector(`.drop-card[data-id="${customer.id}"] .btn-mark-done`);
-        if (btn) btn.disabled = false;
+        if (btn) {
+             btn.disabled = false;
+             // Restore button content
+             btn.innerHTML = `<img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" /> Mark Drop Done`;
+        }
     }
 }
 
@@ -222,21 +239,117 @@ function highlightCustomer(id) {
     // 1. Highlight List Item
     document.querySelectorAll('.drop-card').forEach(c => c.classList.remove('active'));
     const card = document.querySelector(`.drop-card[data-id="${id}"]`);
-    if (card) card.classList.add('active');
+    if (card) {
+        card.classList.add('active');
+    }
 
     // 2. Highlight Map Marker
     const markerObj = markers.find(m => m.id === id);
     if (markerObj) {
         map.panTo(markerObj.marker.getPosition());
         map.setZoom(15);
+        
+        // Close other info windows
+        markers.forEach(m => m.infoWindow.close());
         markerObj.infoWindow.open(map, markerObj.marker);
     }
 }
 
 function scrollToCard(id) {
+    // 1. Highlight List Item
+    document.querySelectorAll('.drop-card').forEach(c => c.classList.remove('active'));
     const card = document.querySelector(`.drop-card[data-id="${id}"]`);
     if (card) {
         card.scrollIntoView({ behavior: "smooth", block: "center" });
         card.classList.add('active');
     }
+
+    // 2. Also open map marker
+    const markerObj = markers.find(m => m.id === id);
+    if (markerObj) {
+        // Close other info windows
+        markers.forEach(m => m.infoWindow.close());
+        markerObj.infoWindow.open(map, markerObj.marker);
+    }
+}
+
+// --- Custom Confirm Modal (copied from app.js) ---
+async function showConfirmModal(message) {
+    return new Promise((resolve) => {
+        // Check if a modal already exists, remove it
+        const oldModal = document.getElementById('confirm-modal-wrapper');
+        if (oldModal) {
+            oldModal.remove();
+        }
+
+        // Create modal elements
+        const modalWrapper = document.createElement('div');
+        modalWrapper.id = 'confirm-modal-wrapper';
+        modalWrapper.style = `
+            position: fixed; inset: 0; z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            font-family: 'Inter', sans-serif;
+        `;
+
+        const modalPanel = document.createElement('div');
+        modalPanel.style = `
+            background-color: white; padding: 1.5rem;
+            border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-width: 400px; width: 90%;
+        `;
+
+        const title = document.createElement('h3');
+        title.textContent = 'Confirm Action';
+        title.style = 'font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem;';
+        
+        const messageP = document.createElement('p');
+        messageP.textContent = message;
+        messageP.style = 'font-size: 0.875rem; color: #4b5563; margin-bottom: 1.5rem;';
+        
+        const buttonGroup = document.createElement('div');
+        buttonGroup.style = 'display: flex; gap: 0.75rem; justify-content: flex-end;';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.className = 'btn btn-secondary'; // Assuming .btn styles are in style.css
+        
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Continue';
+        confirmBtn.className = 'btn btn-danger'; // Assuming .btn styles are in style.css
+
+        // Manually apply btn styles if style.css isn't fully loaded
+        const baseBtnStyles = `
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 0.375rem; border: 1px solid transparent;
+            padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: all 0.2s; cursor: pointer;
+        `;
+        
+        cancelBtn.style = baseBtnStyles + `
+            border-color: #d1d5db; background-color: white; color: #374151;
+        `;
+        confirmBtn.style = baseBtnStyles + `
+            background-color: #ef4444; color: white; border-color: #ef4444;
+        `;
+
+        cancelBtn.onmouseover = () => { cancelBtn.style.backgroundColor = '#f9fafb'; };
+        cancelBtn.onmouseout = () => { cancelBtn.style.backgroundColor = 'white'; };
+        
+        confirmBtn.onmouseover = () => { confirmBtn.style.backgroundColor = '#dc2626'; };
+        confirmBtn.onmouseout = () => { confirmBtn.style.backgroundColor = '#ef4444'; };
+
+
+        cancelBtn.onclick = () => { modalWrapper.remove(); resolve(false); };
+        confirmBtn.onclick = () => { modalWrapper.remove(); resolve(true); };
+        
+        buttonGroup.appendChild(cancelBtn);
+        buttonGroup.appendChild(confirmBtn);
+        modalPanel.appendChild(title);
+        modalPanel.appendChild(messageP);
+        modalPanel.appendChild(buttonGroup);
+        modalWrapper.appendChild(modalPanel);
+        document.body.appendChild(modalWrapper);
+    });
 }
