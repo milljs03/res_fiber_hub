@@ -116,7 +116,7 @@ const el = {
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
     detailsPhoneInput: document.getElementById('details-phone'),
-    detailsGeneralNotes: document.getElementById('details-general-notes'), // NEW
+    detailsGeneralNotes: document.getElementById('details-general-notes'), 
     
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
@@ -1245,8 +1245,8 @@ const handleAddCustomer = async (e) => {
             eeroInfo: false, 
             nidLightReading: "",
             additionalEquipment: "",
-            // generalNotes MOVED to top level
             siteSurveyNotes: "",
+            dropNotes: "", // NEW: Add field for drop notes
             installNotes: "" 
         },
         postInstallChecklist: {
@@ -1375,6 +1375,9 @@ const populateDetailsForm = (data) => {
     el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
     
     el.detailsForm['check-torys-list'].checked = data.torysListChecklist?.added || false; // NEW
+    
+    // NEW: Populate Drop Notes
+    el.detailsForm['drop-notes'].value = data.installDetails?.dropNotes || ''; 
     
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
 
@@ -1674,6 +1677,10 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
         'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
         'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, 
+        
+        // NEW: Save Drop Notes
+        'installDetails.dropNotes': el.detailsForm['drop-notes'].value,
+
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
         'installReadyChecklist.ready': el.detailsForm['check-install-ready'].checked, 
         'installDetails.installDate': el.detailsForm['install-date'].value,
@@ -1876,8 +1883,7 @@ const handleCopyBilling = async (e) => {
 
         // --- BUILD BILLING TEXT ARRAY ---
         const lines = [
-            '',
-            ``, 
+            ``, // Empty line for spacing
             `Customer Name: ${formattedName}`,
             `Address: ${data.address || 'N/A'}`,
             `Service Order: ${data.serviceOrderNumber || 'N/A'}`,
@@ -1891,7 +1897,7 @@ const handleCopyBilling = async (e) => {
             lines.push(`Additional Equipment: ${equip}`);
         }
 
-        lines.push(``); 
+        lines.push(``); // Empty line for spacing
         lines.push(`Thanks,`);
         lines.push(`Lincoln`);
 
