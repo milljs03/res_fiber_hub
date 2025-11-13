@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Splicing | CFN Install Tracker</title>
+    
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="admin-splicing.css">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="header-content">
+            <div class="header-title">
+                <img src="icons/write.png" alt="Splicing Icon" class="header-logo-img" />
+                <h1>Admin Splicing</h1>
+            </div>
+            <div class="user-info">
+                <a href="index.html" class="btn btn-secondary">
+                    <img src="icons/clock.png" alt="Tracker" class="btn-icon-img" />
+                    Back to Tracker
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <div class="split-container">
+        <div class="list-panel">
+            <div class="list-header">
+                <h2>NID Ready / Pending Splicing</h2>
+                <div class="header-controls">
+                    <span id="pending-count" class="badge">0</span>
+                </div>
+            </div>
+
+            <div id="list-scroll-area">
+                <div id="splicing-list-container" class="drop-container-inner">
+                    <p class="loading-text">Loading NID Ready customers...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-panel">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading Data...</p>
+    </div>
+
+    <script>
+        async function initMap() {
+            try {
+                const app = await import('./admin-splicing.js');
+                app.initialize();
+            } catch (error) {
+                console.error("Error loading splicing app:", error);
+                alert("Error loading application. Check console.");
+            }
+        }
+        window.initMap = initMap;
+    </script>
+    
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding" async defer></script>
+</body>
+</html>
