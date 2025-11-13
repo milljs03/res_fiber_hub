@@ -1,0 +1,168 @@
+/* Layout */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent global scroll */
+    display: flex;
+    flex-direction: column;
+}
+
+.split-container {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 4rem); /* Subtract header height */
+    overflow: hidden;
+}
+
+/* Left Panel: List */
+.list-panel {
+    width: 400px;
+    min-width: 320px;
+    background-color: #f9fafb;
+    border-right: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+}
+
+.list-header {
+    padding: 1.25rem;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.list-header h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.badge {
+    background-color: #eff6ff;
+    color: #3b82f6;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+#drops-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+/* Cards */
+.drop-card {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.drop-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.drop-card.active {
+    border-color: #4f46e5;
+    background-color: #eef2ff;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 0.5rem;
+}
+
+.customer-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+}
+
+.customer-address {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0 0 0.75rem 0;
+    line-height: 1.4;
+}
+
+/* Buttons */
+.btn-mark-done {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: #059669; /* Green */
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.btn-mark-done:hover {
+    background-color: #047857;
+}
+
+.btn-mark-done:disabled {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+}
+
+/* Right Panel: Map */
+.map-panel {
+    flex: 1;
+    position: relative;
+}
+
+#map {
+    height: 100%;
+    width: 100%;
+}
+
+/* Loading */
+#loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.9);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinner {
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid #4f46e5;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.loading-text {
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+}

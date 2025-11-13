@@ -1,0 +1,242 @@
+import { db, auth } from './firebase.js';
+import { 
+    collection, getDocs, doc, updateDoc, query, where 
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+let map;
+let geocoder;
+let markers = [];
+let customersCollectionRef;
+let dropsData = [];
+
+// --- Initialization ---
+export async function initialize() {
+    // 1. Setup Map
+    map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 41.500492, lng: -85.829624 }, // Center on New Paris/Syracuse area
+        zoom: 12,
+        mapId: "DROPS_MAP"
+    });
+    geocoder = new google.maps.Geocoder();
+
+    // 2. Auth Check
+    onAuthStateChanged(auth, (user) => {
+        if (user && user.email && user.email.endsWith('@nptel.com')) {
+            customersCollectionRef = collection(db, 'artifacts', 'cfn-install-tracker', 'public', 'data', 'customers');
+            loadDrops();
+        } else {
+            document.getElementById('loading-overlay').innerHTML = '<p style="color:red">Access Denied</p>';
+        }
+    });
+}
+
+// --- Data Loading ---
+async function loadDrops() {
+    try {
+        const q = query(customersCollectionRef);
+        const snapshot = await getDocs(q);
+        
+        dropsData = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Filter for Tory's List (handle both spellings)
+            if (data.status === "Torys List" || data.status === "Tory's List") {
+                dropsData.push({ id: doc.id, ...data });
+            }
+        });
+
+        console.log(`Found ${dropsData.length} drops.`);
+        
+        updateUI();
+        document.getElementById('loading-overlay').style.display = 'none';
+
+    } catch (error) {
+        console.error("Error loading drops:", error);
+        alert("Error loading data");
+    }
+}
+
+// --- UI Updates ---
+function updateUI() {
+    // Update Count
+    document.getElementById('drop-count').textContent = dropsData.length;
+    
+    // Render List
+    const container = document.getElementById('drops-list-container');
+    container.innerHTML = '';
+    
+    if (dropsData.length === 0) {
+        container.innerHTML = '<p class="loading-text">No active drops found.</p>';
+        return;
+    }
+
+    dropsData.forEach(customer => {
+        const card = document.createElement('div');
+        card.className = 'drop-card';
+        card.dataset.id = customer.id;
+        
+        card.innerHTML = `
+            <div class="card-header">
+                <h3 class="customer-name">${customer.customerName}</h3>
+            </div>
+            <p class="customer-address">${customer.address}</p>
+            <button class="btn-mark-done" onclick="event.stopPropagation()">
+                <img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" />
+                Mark Drop Done
+            </button>
+        `;
+
+        // Card Click -> Pan Map
+        card.addEventListener('click', () => {
+            highlightCustomer(customer.id);
+        });
+
+        // Button Click -> Mark Done
+        const btn = card.querySelector('.btn-mark-done');
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click
+            handleMarkDone(customer);
+        });
+
+        container.appendChild(card);
+    });
+
+    // Render Map Pins
+    plotDrops();
+}
+
+// --- Map Logic ---
+async function plotDrops() {
+    // Clear existing markers
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+
+    for (const customer of dropsData) {
+        let coords = customer.coordinates;
+
+        // If no coords cached, geocode (and cache if possible)
+        if (!coords || !coords.lat) {
+            if (customer.address) {
+                coords = await geocodeAddress(customer.address, customer.id);
+            }
+        }
+
+        if (coords) {
+            const marker = new google.maps.Marker({
+                position: coords,
+                map: map,
+                title: customer.customerName,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: "#4F46E5", // Indigo (Tory's List color)
+                    fillOpacity: 1,
+                    strokeColor: "#ffffff",
+                    strokeWeight: 2,
+                }
+            });
+
+            // Add Info Window
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div style="padding:5px">
+                        <b>${customer.customerName}</b><br>
+                        ${customer.address}
+                    </div>
+                `
+            });
+
+            marker.addListener('click', () => {
+                infoWindow.open(map, marker);
+                scrollToCard(customer.id);
+            });
+
+            markers.push({ id: customer.id, marker: marker, infoWindow: infoWindow });
+        }
+    }
+}
+
+// --- Geocoding Helper ---
+async function geocodeAddress(address, docId) {
+    return new Promise((resolve) => {
+        geocoder.geocode({ address: address }, async (results, status) => {
+            if (status === 'OK') {
+                const loc = results[0].geometry.location;
+                const coords = { lat: loc.lat(), lng: loc.lng() };
+                
+                // Cache it asynchronously
+                try {
+                    const docRef = doc(customersCollectionRef, docId);
+                    updateDoc(docRef, { coordinates: coords });
+                } catch(e) { console.error("Cache error", e); }
+
+                resolve(coords);
+            } else {
+                console.warn("Geocode failed:", status);
+                resolve(null);
+            }
+        });
+    });
+}
+
+// --- Action Handlers ---
+async function handleMarkDone(customer) {
+    if (!confirm(`Mark drop for ${customer.customerName} as DONE? This will move them to 'NID Ready'.`)) {
+        return;
+    }
+
+    try {
+        // Show loading state on button
+        const btn = document.querySelector(`.drop-card[data-id="${customer.id}"] .btn-mark-done`);
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Updating...";
+        }
+
+        // Update Firestore
+        const docRef = doc(customersCollectionRef, customer.id);
+        await updateDoc(docRef, { 
+            status: "NID Ready" 
+        });
+
+        // Remove from local list and update UI
+        dropsData = dropsData.filter(c => c.id !== customer.id);
+        updateUI();
+        
+        // Simple toast/alert
+        // alert("Drop marked as complete!");
+
+    } catch (error) {
+        console.error("Error updating status:", error);
+        alert("Failed to update status.");
+        // Re-enable button if it exists
+        const btn = document.querySelector(`.drop-card[data-id="${customer.id}"] .btn-mark-done`);
+        if (btn) btn.disabled = false;
+    }
+}
+
+// --- Interaction Helpers ---
+function highlightCustomer(id) {
+    // 1. Highlight List Item
+    document.querySelectorAll('.drop-card').forEach(c => c.classList.remove('active'));
+    const card = document.querySelector(`.drop-card[data-id="${id}"]`);
+    if (card) card.classList.add('active');
+
+    // 2. Highlight Map Marker
+    const markerObj = markers.find(m => m.id === id);
+    if (markerObj) {
+        map.panTo(markerObj.marker.getPosition());
+        map.setZoom(15);
+        markerObj.infoWindow.open(map, markerObj.marker);
+    }
+}
+
+function scrollToCard(id) {
+    const card = document.querySelector(`.drop-card[data-id="${id}"]`);
+    if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add('active');
+    }
+}

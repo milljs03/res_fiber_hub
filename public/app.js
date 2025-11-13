@@ -121,16 +121,16 @@ const el = {
     // Buttons
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
     headerSaveBtn: document.getElementById('header-save-btn'), 
-    headerSaveAndProgressBtn: document.getElementById('header-save-and-progress-btn'), // NEW
+    headerSaveAndProgressBtn: document.getElementById('header-save-and-progress-btn'), 
+    headerMoveBackBtn: document.getElementById('header-move-back-btn'), // NEW
     updateCustomerBtn: document.getElementById('update-customer-btn'), 
-    saveAndProgressBtn: document.getElementById('save-and-progress-btn'), // NEW
+    saveAndProgressBtn: document.getElementById('save-and-progress-btn'), 
     copyBillingBtn: document.getElementById('copy-billing-btn'),
     deleteCustomerBtn: document.getElementById('delete-customer-btn'),
     onHoldButton: document.getElementById('on-hold-btn'), 
-    archiveCustomerBtn: document.getElementById('archive-customer-btn'), // NEW
-    unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), // NEW
-    completedActionsDiv: document.getElementById('completed-actions-div'), // NEW
-
+    archiveCustomerBtn: document.getElementById('archive-customer-btn'), 
+    unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), 
+    completedActionsDiv: document.getElementById('completed-actions-div'), 
 
     // --- UPDATED: Stepper and Pages ---
     statusStepper: document.getElementById('status-stepper'),
@@ -537,7 +537,7 @@ const setupEventListeners = () => {
             currentCompletedFilter = el.completedFilterSelect.value;
             el.customerListContainer.classList.add('completed-view');
             
-        } else if (mainFilter === 'Archived') { // NEW
+        } else if (mainFilter === 'Archived') { 
             el.activeControlsGroup.classList.add('hidden');
             el.completedControlsGroup.classList.remove('hidden');
             el.completedFilterGroup.querySelector('label').textContent = 'Archived Date'; // Change label
@@ -585,14 +585,17 @@ const setupEventListeners = () => {
 
     // Details panel
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
-    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, false)); // Manual save, not progressing
-    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); 
-    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, false)); // Manual save, not progressing
-    el.saveAndProgressBtn.addEventListener('click', (e) => handleSaveAndProgress(e)); 
+    el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); // Manual save
+    el.headerSaveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); // Save & Next (+1)
+    el.headerMoveBackBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, -1)); // Save & Back (-1)
+    
+    el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); // Manual save
+    el.saveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1)); // Save & Next (+1)
+    
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
-    el.archiveCustomerBtn.addEventListener('click', handleArchiveCustomer); // NEW
-    el.unarchiveCustomerBtn.addEventListener('click', handleUnarchiveCustomer); // NEW
+    el.archiveCustomerBtn.addEventListener('click', handleArchiveCustomer); 
+    el.unarchiveCustomerBtn.addEventListener('click', handleUnarchiveCustomer); 
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
     
     // Stepper Click Listener
@@ -1268,7 +1271,7 @@ const handleAddCustomer = async (e) => {
 const handleSelectCustomer = async (customerId, customerItem) => {
     // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
     if (selectedCustomerId && selectedCustomerId !== customerId) {
-        await handleUpdateCustomer(null, true, false); // auto-save, do NOT progress
+        await handleUpdateCustomer(null, true, 0); // auto-save, stepDirection 0 (stay)
     }
 
     if (selectedCustomerId === customerId) {
@@ -1327,7 +1330,7 @@ const handleSelectCustomer = async (customerId, customerItem) => {
 const handleDeselectCustomer = async (autoSave = false) => {
     // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
     if (autoSave && selectedCustomerId) {
-        await handleUpdateCustomer(null, true, false); // auto-save, do NOT progress
+        await handleUpdateCustomer(null, true, 0); // auto-save, stepDirection 0 (stay)
     }
 
     selectedCustomerId = null;
@@ -1470,6 +1473,7 @@ const updateStepperUI = (currentStatus) => {
     el.deleteCustomerBtn.classList.add('hidden');
     el.headerSaveBtn.classList.add('hidden');
     el.headerSaveAndProgressBtn.classList.add('hidden');
+    el.headerMoveBackBtn.classList.add('hidden'); // Default hidden
     // NEW: also hide archive/unarchive buttons by default
     el.archiveCustomerBtn.classList.add('hidden');
     el.unarchiveCustomerBtn.classList.add('hidden');
@@ -1539,6 +1543,11 @@ const updateStepperUI = (currentStatus) => {
         const statusIndex = STEPS_WORKFLOW.indexOf(currentStatus);
         
         if (statusIndex !== -1) {
+            // Show back button if not on the first step
+            if (statusIndex > 0) {
+                el.headerMoveBackBtn.classList.remove('hidden');
+            }
+
             for (let i = 0; i < allStepButtons.length; i++) {
                 const stepButton = allStepButtons[i];
                 if (stepButton.dataset.status === STEPS_WORKFLOW[i]) {
@@ -1598,8 +1607,8 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-// MODIFIED: Added `progressStatus` parameter
-const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus = false) => {
+// MODIFIED: Changed `progressStatus` to `stepDirection` (0=stay, 1=next, -1=back)
+const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection = 0) => {
     if (e) {
         e.preventDefault();
     }
@@ -1612,22 +1621,33 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus
 
     const currentSavedStatus = el.detailsForm.dataset.currentStatus;
 
-    if (progressStatus) {
-        // This was a "Save & Progress" click
+    if (stepDirection !== 0) {
+        // Movement requested
         let statusToProgressFrom = currentSavedStatus;
         if (currentSavedStatus === 'On Hold') {
             statusToProgressFrom = statusBeforeHoldToSave;
         }
         
         const currentIndex = STEPS_WORKFLOW.indexOf(statusToProgressFrom);
-        if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
-            statusToSave = STEPS_WORKFLOW[currentIndex + 1]; // Progress to the next step
-        } else {
-            statusToSave = statusToProgressFrom; // Already at end, so just save
+        
+        if (stepDirection === 1) {
+            // Moving Forward
+            if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
+                statusToSave = STEPS_WORKFLOW[currentIndex + 1]; 
+            } else {
+                statusToSave = statusToProgressFrom; 
+            }
+        } else if (stepDirection === -1) {
+            // Moving Backward
+            if (currentIndex > 0) {
+                statusToSave = STEPS_WORKFLOW[currentIndex - 1];
+            } else {
+                statusToSave = statusToProgressFrom;
+            }
         }
     } else {
-        // This was a "Save" or "Auto-save" click
-        statusToSave = currentSavedStatus; // Keep the status as it was
+        // This was a "Save" or "Auto-save" click (stay)
+        statusToSave = currentSavedStatus; 
     }
     
     // If we are saving "On Hold", we must also save the status from before.
@@ -1674,7 +1694,7 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus
         await updateDoc(docRef, updatedData);
         
         // --- LOGIC CHANGE: Update UI after save ---
-        if (progressStatus) {
+        if (stepDirection !== 0) {
             el.detailsForm.dataset.currentStatus = statusToSave;
             setPageForStatus(statusToSave);
             updateStepperUI(statusToSave);
@@ -1687,10 +1707,12 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus
             } catch(e) { console.warn("Lucide icons not available.", e); }
         }
         
-        if (!isAutoSave && !progressStatus) {
+        if (!isAutoSave && stepDirection === 0) {
             showToast('Customer updated!', 'success');
-        } else if (progressStatus) {
+        } else if (stepDirection === 1) {
             showToast(`Saved & Progressed to "${statusToSave}"!`, 'success');
+        } else if (stepDirection === -1) {
+            showToast(`Saved & Moved Back to "${statusToSave}"`, 'success');
         }
         
     } catch (error) {
@@ -1701,12 +1723,6 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, progressStatus
             el.loadingOverlay.style.display = 'none';
         }
     }
-};
-
-// NEW: Save and Progress Logic
-const handleSaveAndProgress = async (e) => {
-    e.preventDefault();
-    await handleUpdateCustomer(e, false, true); // Manual save, *with* progressing
 };
 
 const handleDeleteCustomer = async (e) => {
@@ -1755,6 +1771,7 @@ const handleArchiveCustomer = async (e) => {
     }
 };
 
+// --- NEW: Unarchive Customer Function ---
 const handleUnarchiveCustomer = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
@@ -1782,6 +1799,8 @@ const handleUnarchiveCustomer = async (e) => {
         }
     }
 };
+
+
 // --- 6. ACTIONS ---
 const handleSendWelcomeEmail = async (e) => {
     e.preventDefault(); 
@@ -1843,33 +1862,43 @@ const handleCopyBilling = async (e) => {
             nameParts.push(lastName); // Add it to the end
             formattedName = nameParts.join(' '); // Join back to string
         }
-        // -------------------------------
 
-        // --- START NEW BILLING FORMAT ---
+        // --- DATE FORMATTING ---
         let formattedDate = 'N/A';
         const installDateStr = data.installDetails.installDate; // "YYYY-MM-DD"
         if (installDateStr) {
-            // Using replace(/-/g, '/') ensures correct parsing in Safari/Firefox
             const date = new Date(installDateStr.replace(/-/g, '/')); 
-            const month = String(date.getMonth() + 1); // GetMonth is 0-indexed
+            const month = String(date.getMonth() + 1); 
             const day = String(date.getDate());
             const year = date.getFullYear();
-            formattedDate = `${month}/${day}/${year}`; // Format as M/D/YYYY
+            formattedDate = `${month}/${day}/${year}`; 
         }
 
-        const billingText = `
+        // --- BUILD BILLING TEXT ARRAY ---
+        const lines = [
+            '',
+            ``, 
+            `Customer Name: ${formattedName}`,
+            `Address: ${data.address || 'N/A'}`,
+            `Service Order: ${data.serviceOrderNumber || 'N/A'}`,
+            `Speed: ${data.serviceSpeed || 'N/A'}`, // <-- ADDED SPEED HERE
+            `Date Installed: ${formattedDate}`
+        ];
 
+        // Only add this line if there is actual equipment data
+        const equip = data.installDetails.additionalEquipment;
+        if (equip && equip.trim() !== "") {
+            lines.push(`Additional Equipment: ${equip}`);
+        }
 
-Customer Name: ${formattedName}
-Address: ${data.address || 'N/A'}
-Service Order: ${data.serviceOrderNumber || 'N/A'}
-Date Installed: ${formattedDate}
-Additional Equipment:${data.installDetails.additionalEquipment || 'N/A'}
+        lines.push(``); 
+        lines.push(`Thanks,`);
+        lines.push(`Lincoln`);
 
-Thanks,
-Lincoln
-        `.trim().replace(/^\s+\n/gm, '\n');
+        // Join all lines with a newline character
+        const billingText = lines.join('\n');
 
+        // --- COPY TO CLIPBOARD ---
         const ta = document.createElement('textarea');
         ta.value = billingText;
         ta.style.position = 'absolute';
@@ -1879,6 +1908,7 @@ Lincoln
         document.execCommand('copy');
         document.body.removeChild(ta);
         showToast('Billing info copied to clipboard!', 'success');
+
     } catch (error) {
         console.error("Error copying billing info: ", error);
         showToast('Error copying info.', 'error');
