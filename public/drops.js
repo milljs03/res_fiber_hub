@@ -49,7 +49,7 @@ async function loadDrops() {
         
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Filter for Tory's List
+            // Filter for Tory's List (handle both spellings)
             if (data.status === "Torys List" || data.status === "Tory's List") {
                 allPendingDrops.push({ id: doc.id, ...data });
             }
@@ -73,6 +73,20 @@ async function loadDrops() {
     }
 }
 
+// --- Helper: Get Valid Timestamp ---
+function getSortTimestamp(item) {
+    // 1. Try the specific time it was added to the list
+    if (item.torysListChecklist?.addedAt?.seconds) {
+        return item.torysListChecklist.addedAt.seconds;
+    }
+    // 2. Fallback to when the customer was created
+    if (item.createdAt?.seconds) {
+        return item.createdAt.seconds;
+    }
+    // 3. Last resort
+    return 0;
+}
+
 // --- UI Rendering (Sorting & Splitting) ---
 function renderLists() {
     const sortType = document.getElementById('sort-drops').value;
@@ -80,17 +94,16 @@ function renderLists() {
     // 1. Sort Data
     allPendingDrops.sort((a, b) => {
         if (sortType === 'name') {
-            return a.customerName.localeCompare(b.customerName);
+            return (a.customerName || '').localeCompare(b.customerName || '');
         }
         
-        // Get timestamps (default to 0 if missing)
-        const dateA = a.torysListChecklist?.addedAt ? a.torysListChecklist.addedAt.seconds : 0;
-        const dateB = b.torysListChecklist?.addedAt ? b.torysListChecklist.addedAt.seconds : 0;
+        const dateA = getSortTimestamp(a);
+        const dateB = getSortTimestamp(b);
 
         if (sortType === 'newest') {
-            return dateB - dateA;
+            return dateB - dateA; // Descending
         } else { // oldest
-            return dateA - dateB;
+            return dateA - dateB; // Ascending
         }
     });
 
@@ -131,14 +144,17 @@ function createCard(customer) {
     let timeString = "Just added";
     let timeClass = "time-green";
     
-    if (customer.torysListChecklist?.addedAt) {
+    // Use our helper to get the best available time
+    const timestamp = getSortTimestamp(customer);
+    
+    if (timestamp > 0) {
         const now = new Date();
-        const added = new Date(customer.torysListChecklist.addedAt.seconds * 1000);
+        const added = new Date(timestamp * 1000);
         const diffTime = Math.abs(now - added);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
         
-        if (diffDays > 1) timeString = `${diffDays} days ago`;
-        else if (diffDays === 1) timeString = "Yesterday";
+        if (diffDays > 1) timeString = `${diffDays} days`;
+        else if (diffDays === 1) timeString = "1 day";
         else timeString = "Today";
 
         if (diffDays > 14) timeClass = "time-red";
@@ -234,7 +250,7 @@ async function updatePriorityStatus(customerId, isPriority) {
     } catch (error) {
         console.error("Error updating priority:", error);
         alert("Failed to save priority status.");
-        // Revert on error would be ideal here
+        // Revert on error (optional complexity)
     }
 }
 
