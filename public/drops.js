@@ -8,19 +8,26 @@ let map;
 let geocoder;
 let markers = [];
 let customersCollectionRef;
-// let dropsData = []; // This will now hold only PENDING drops
+let allPendingDrops = []; // Store local copy for sorting/filtering
 
 // --- Initialization ---
 export async function initialize() {
     // 1. Setup Map
     map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 41.500492, lng: -85.829624 }, // Center on New Paris/Syracuse area
+        center: { lat: 41.500492, lng: -85.829624 }, 
         zoom: 12,
         mapId: "DROPS_MAP"
     });
     geocoder = new google.maps.Geocoder();
 
-    // 2. Auth Check
+    // 2. Setup UI Listeners
+    document.getElementById('sort-drops').addEventListener('change', () => {
+        renderLists(); // Re-render with new sort
+    });
+
+    setupDragAndDrop();
+
+    // 3. Auth Check
     onAuthStateChanged(auth, (user) => {
         if (user && user.email && user.email.endsWith('@nptel.com')) {
             customersCollectionRef = collection(db, 'artifacts', 'cfn-install-tracker', 'public', 'data', 'customers');
@@ -37,26 +44,27 @@ async function loadDrops() {
         const q = query(customersCollectionRef);
         const snapshot = await getDocs(q);
         
-        const pendingDrops = [];
+        allPendingDrops = [];
         const completedDrops = [];
         
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Filter for Tory's List (handle both spellings)
+            // Filter for Tory's List
             if (data.status === "Torys List" || data.status === "Tory's List") {
-                pendingDrops.push({ id: doc.id, ...data });
+                allPendingDrops.push({ id: doc.id, ...data });
             }
-            // Check for completed drops
+            // Check for completed drops for analytics
             if (data.torysListChecklist?.completedAt && data.torysListChecklist?.addedAt) {
                 completedDrops.push(data);
             }
         });
 
-        console.log(`Found ${pendingDrops.length} pending drops.`);
-        console.log(`Found ${completedDrops.length} completed drops for analytics.`);
+        console.log(`Found ${allPendingDrops.length} pending drops.`);
         
         calculateAndDisplayAnalytics(completedDrops);
-        updateUI(pendingDrops); // Pass pending drops to the UI function
+        renderLists(); // Render the UI
+        plotDrops(allPendingDrops); // Plot map
+        
         document.getElementById('loading-overlay').style.display = 'none';
 
     } catch (error) {
@@ -65,7 +73,172 @@ async function loadDrops() {
     }
 }
 
-// --- NEW: Analytics Function ---
+// --- UI Rendering (Sorting & Splitting) ---
+function renderLists() {
+    const sortType = document.getElementById('sort-drops').value;
+    
+    // 1. Sort Data
+    allPendingDrops.sort((a, b) => {
+        if (sortType === 'name') {
+            return a.customerName.localeCompare(b.customerName);
+        }
+        
+        // Get timestamps (default to 0 if missing)
+        const dateA = a.torysListChecklist?.addedAt ? a.torysListChecklist.addedAt.seconds : 0;
+        const dateB = b.torysListChecklist?.addedAt ? b.torysListChecklist.addedAt.seconds : 0;
+
+        if (sortType === 'newest') {
+            return dateB - dateA;
+        } else { // oldest
+            return dateA - dateB;
+        }
+    });
+
+    // 2. Split into Priority vs Standard
+    const priorityDrops = allPendingDrops.filter(c => c.torysListChecklist?.isPriority === true);
+    const standardDrops = allPendingDrops.filter(c => !c.torysListChecklist?.isPriority);
+
+    // Update Count
+    document.getElementById('drop-count').textContent = allPendingDrops.length;
+
+    // 3. Render Containers
+    renderContainer('priority-list-container', priorityDrops, true);
+    renderContainer('drops-list-container', standardDrops, false);
+}
+
+function renderContainer(containerId, drops, isPriority) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    if (drops.length === 0) {
+        container.innerHTML = `<div class="empty-placeholder">${isPriority ? 'Drag priority drops here' : 'No standard drops pending.'}</div>`;
+        return;
+    }
+
+    drops.forEach(customer => {
+        const card = createCard(customer);
+        container.appendChild(card);
+    });
+}
+
+function createCard(customer) {
+    const card = document.createElement('div');
+    card.className = 'drop-card';
+    card.draggable = true; // Enable dragging
+    card.dataset.id = customer.id;
+    
+    // Calculate Time Outstanding
+    let timeString = "Just added";
+    let timeClass = "time-green";
+    
+    if (customer.torysListChecklist?.addedAt) {
+        const now = new Date();
+        const added = new Date(customer.torysListChecklist.addedAt.seconds * 1000);
+        const diffTime = Math.abs(now - added);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        if (diffDays > 1) timeString = `${diffDays} days ago`;
+        else if (diffDays === 1) timeString = "Yesterday";
+        else timeString = "Today";
+
+        if (diffDays > 14) timeClass = "time-red";
+        else if (diffDays > 7) timeClass = "time-yellow";
+    }
+
+    card.innerHTML = `
+        <div class="card-header">
+            <h3 class="customer-name">${customer.customerName}</h3>
+            <span class="time-badge ${timeClass}">${timeString}</span>
+        </div>
+        <p class="customer-address">${customer.address}</p>
+        <p class="drop-notes ${!customer.installDetails?.dropNotes ? 'no-notes' : ''}">
+            ${customer.installDetails?.dropNotes || 'No drop notes.'}
+        </p>
+        <button class="btn-mark-done" onclick="event.stopPropagation()">
+            <img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" />
+            Mark Drop Done
+        </button>
+    `;
+
+    // Drag Events
+    card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', customer.id);
+        card.classList.add('dragging');
+    });
+
+    card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+    });
+
+    // Click Events
+    card.addEventListener('click', () => highlightCustomer(customer.id));
+    card.querySelector('.btn-mark-done').addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleMarkDone(customer);
+    });
+
+    return card;
+}
+
+// --- Drag and Drop Logic ---
+function setupDragAndDrop() {
+    const priorityZone = document.getElementById('priority-section');
+    const standardZone = document.getElementById('standard-section');
+
+    [priorityZone, standardZone].forEach(zone => {
+        zone.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Allow drop
+            zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('drag-over');
+        });
+
+        zone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            
+            const customerId = e.dataTransfer.getData('text/plain');
+            const isPriorityZone = zone.id === 'priority-section';
+            
+            await updatePriorityStatus(customerId, isPriorityZone);
+        });
+    });
+}
+
+async function updatePriorityStatus(customerId, isPriority) {
+    // 1. Optimistic UI Update
+    const customerIndex = allPendingDrops.findIndex(c => c.id === customerId);
+    if (customerIndex === -1) return;
+
+    // If status hasn't changed, do nothing
+    if (!!allPendingDrops[customerIndex].torysListChecklist?.isPriority === isPriority) return;
+
+    // Update local data
+    if (!allPendingDrops[customerIndex].torysListChecklist) {
+        allPendingDrops[customerIndex].torysListChecklist = {};
+    }
+    allPendingDrops[customerIndex].torysListChecklist.isPriority = isPriority;
+    
+    // Re-render immediately
+    renderLists();
+
+    // 2. Update Firestore
+    try {
+        const docRef = doc(customersCollectionRef, customerId);
+        await updateDoc(docRef, {
+            'torysListChecklist.isPriority': isPriority
+        });
+        console.log(`Updated ${customerId} priority to ${isPriority}`);
+    } catch (error) {
+        console.error("Error updating priority:", error);
+        alert("Failed to save priority status.");
+        // Revert on error would be ideal here
+    }
+}
+
+// --- Analytics ---
 function calculateAndDisplayAnalytics(completedDrops) {
     let totalDropSeconds = 0;
     let dropsDoneYTD = 0;
@@ -93,71 +266,7 @@ function calculateAndDisplayAnalytics(completedDrops) {
     document.getElementById('drops-done-ytd').textContent = dropsDoneYTD;
 }
 
-
-// --- UI Updates ---
-// Modified to accept pendingDrops as an argument
-function updateUI(pendingDrops) {
-    // Update Count
-    document.getElementById('drop-count').textContent = pendingDrops.length;
-    
-    // Render List
-    const container = document.getElementById('drops-list-container');
-    container.innerHTML = '';
-    
-    if (pendingDrops.length === 0) {
-        container.innerHTML = '<p class="loading-text">No active drops found.</p>';
-        return;
-    }
-
-    pendingDrops.forEach(customer => {
-        const card = document.createElement('div');
-        card.className = 'drop-card';
-        card.dataset.id = customer.id;
-        
-        // Updated card.innerHTML to include a placeholder for notes
-        card.innerHTML = `
-            <div class="card-header">
-                <h3 class="customer-name">${customer.customerName}</h3>
-            </div>
-            <p class="customer-address">${customer.address}</p>
-            <p class="drop-notes"></p> <!-- NEW: Notes placeholder -->
-            <button class="btn-mark-done" onclick="event.stopPropagation()">
-                <img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" />
-                Mark Drop Done
-            </button>
-        `;
-
-        // NEW: Safely populate the drop notes
-        const notesEl = card.querySelector('.drop-notes');
-        const dropNotes = customer.installDetails?.dropNotes;
-        if (dropNotes && dropNotes.trim() !== "") {
-            notesEl.textContent = dropNotes;
-        } else {
-            notesEl.textContent = "No drop notes.";
-            notesEl.classList.add('no-notes'); // Add class for styling
-        }
-
-        // Card Click -> Pan Map
-        card.addEventListener('click', () => {
-            highlightCustomer(customer.id);
-        });
-
-        // Button Click -> Mark Done
-        const btn = card.querySelector('.btn-mark-done');
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent card click
-            handleMarkDone(customer);
-        });
-
-        container.appendChild(card);
-    });
-
-    // Render Map Pins
-    plotDrops(pendingDrops); // Pass pending drops to plotting
-}
-
 // --- Map Logic ---
-// Modified to accept pendingDrops as an argument
 async function plotDrops(pendingDrops) {
     // Clear existing markers
     markers.forEach(m => m.setMap(null));
@@ -166,7 +275,6 @@ async function plotDrops(pendingDrops) {
     for (const customer of pendingDrops) {
         let coords = customer.coordinates;
 
-        // If no coords cached, geocode (and cache if possible)
         if (!coords || !coords.lat) {
             if (customer.address) {
                 coords = await geocodeAddress(customer.address, customer.id);
@@ -174,33 +282,36 @@ async function plotDrops(pendingDrops) {
         }
 
         if (coords) {
+            // Determine color based on priority
+            const isPriority = customer.torysListChecklist?.isPriority;
+            const pinColor = isPriority ? "#DC2626" : "#4F46E5"; // Red for Priority, Indigo for standard
+
             const marker = new google.maps.Marker({
                 position: coords,
                 map: map,
                 title: customer.customerName,
                 icon: {
                     path: google.maps.SymbolPath.CIRCLE,
-                    scale: 10,
-                    fillColor: "#4F46E5", // Indigo (Tory's List color)
+                    scale: isPriority ? 12 : 10,
+                    fillColor: pinColor,
                     fillOpacity: 1,
                     strokeColor: "#ffffff",
                     strokeWeight: 2,
                 }
             });
 
-            // Add Info Window
             const infoWindow = new google.maps.InfoWindow({
                 content: `
                     <div style="padding:5px; font-family: 'Inter', sans-serif;">
-                        <b style="font-size: 1rem;">${customer.customerName}</b><br>
-                        ${customer.address}
+                        <b style="font-size: 1rem;">${customer.customerName}</b>
+                        ${isPriority ? '<br><span style="color:#DC2626; font-weight:bold;">PRIORITY</span>' : ''}
+                        <br>${customer.address}
                         <p style="font-style: italic; margin: 4px 0 0 0; color: #374151;">${customer.installDetails?.dropNotes || ''}</p>
                     </div>
                 `
             });
 
             marker.addListener('click', () => {
-                // Close all other info windows
                 markers.forEach(m => m.infoWindow.close());
                 infoWindow.open(map, marker);
                 scrollToCard(customer.id);
@@ -218,176 +329,93 @@ async function geocodeAddress(address, docId) {
             if (status === 'OK') {
                 const loc = results[0].geometry.location;
                 const coords = { lat: loc.lat(), lng: loc.lng() };
-                
-                // Cache it asynchronously
                 try {
                     const docRef = doc(customersCollectionRef, docId);
                     updateDoc(docRef, { coordinates: coords });
                 } catch(e) { console.error("Cache error", e); }
-
                 resolve(coords);
             } else {
-                console.warn("Geocode failed:", status);
                 resolve(null);
             }
         });
     });
 }
 
-// --- Action Handlers ---
+// --- Actions & Helpers ---
 async function handleMarkDone(customer) {
-    // UPDATED: Use custom modal instead of confirm()
-    if (!await showConfirmModal(`Mark drop for ${customer.customerName} as DONE? This will move them to 'NID Ready'.`)) {
+    if (!await showConfirmModal(`Mark drop for ${customer.customerName} as DONE?`)) {
         return;
     }
-
     try {
-        // Show loading state on button
         const btn = document.querySelector(`.drop-card[data-id="${customer.id}"] .btn-mark-done`);
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = "Updating...";
-        }
+        if (btn) { btn.disabled = true; btn.textContent = "Updating..."; }
 
-        // Update Firestore
         const docRef = doc(customersCollectionRef, customer.id);
         await updateDoc(docRef, { 
             status: "NID Ready",
-            'torysListChecklist.completedAt': serverTimestamp() // NEW: Stop the clock
+            'torysListChecklist.completedAt': serverTimestamp() 
         });
-
-        // RE-LOAD all data to update stats and list
         loadDrops();
-        
     } catch (error) {
-        console.error("Error updating status:", error);
-        alert("Failed to update status.");
-        // Re-enable button if it exists
-        const btn = document.querySelector(`.drop-card[data-id="${customer.id}"] .btn-mark-done`);
-        if (btn) {
-             btn.disabled = false;
-             // Restore button content
-             btn.innerHTML = `<img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" /> Mark Drop Done`;
-        }
+        console.error("Error updating:", error);
+        alert("Failed.");
     }
 }
 
-// --- Interaction Helpers ---
 function highlightCustomer(id) {
-    // 1. Highlight List Item
     document.querySelectorAll('.drop-card').forEach(c => c.classList.remove('active'));
     const card = document.querySelector(`.drop-card[data-id="${id}"]`);
-    if (card) {
-        card.classList.add('active');
-    }
+    if (card) card.classList.add('active');
 
-    // 2. Highlight Map Marker
     const markerObj = markers.find(m => m.id === id);
     if (markerObj) {
         map.panTo(markerObj.marker.getPosition());
         map.setZoom(15);
-        
-        // Close other info windows
         markers.forEach(m => m.infoWindow.close());
         markerObj.infoWindow.open(map, markerObj.marker);
     }
 }
 
 function scrollToCard(id) {
-    // 1. Highlight List Item
     document.querySelectorAll('.drop-card').forEach(c => c.classList.remove('active'));
     const card = document.querySelector(`.drop-card[data-id="${id}"]`);
     if (card) {
         card.scrollIntoView({ behavior: "smooth", block: "center" });
         card.classList.add('active');
     }
-
-    // 2. Also open map marker
     const markerObj = markers.find(m => m.id === id);
     if (markerObj) {
-        // Close other info windows
         markers.forEach(m => m.infoWindow.close());
         markerObj.infoWindow.open(map, markerObj.marker);
     }
 }
 
-// --- Custom Confirm Modal (copied from app.js) ---
 async function showConfirmModal(message) {
     return new Promise((resolve) => {
-        // Check if a modal already exists, remove it
         const oldModal = document.getElementById('confirm-modal-wrapper');
-        if (oldModal) {
-            oldModal.remove();
-        }
+        if (oldModal) oldModal.remove();
 
-        // Create modal elements
         const modalWrapper = document.createElement('div');
         modalWrapper.id = 'confirm-modal-wrapper';
-        modalWrapper.style = `
-            position: fixed; inset: 0; z-index: 2000;
-            display: flex; align-items: center; justify-content: center;
-            background-color: rgba(0, 0, 0, 0.5);
-            font-family: 'Inter', sans-serif;
-        `;
-
+        modalWrapper.style = `position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.5); font-family: 'Inter', sans-serif;`;
         const modalPanel = document.createElement('div');
-        modalPanel.style = `
-            background-color: white; padding: 1.5rem;
-            border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            max-width: 400px; width: 90%;
-        `;
-
-        const title = document.createElement('h3');
-        title.textContent = 'Confirm Action';
-        title.style = 'font-size: 1.25rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem;';
+        modalPanel.style = `background-color: white; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); max-width: 400px; width: 90%;`;
+        modalPanel.innerHTML = `<h3 style="font-size:1.25rem;font-weight:600;margin:0 0 0.75rem 0;">Confirm Action</h3><p style="font-size:0.875rem;color:#4b5563;margin-bottom:1.5rem;">${message}</p>`;
+        const btnGroup = document.createElement('div');
+        btnGroup.style = `display:flex;gap:0.75rem;justify-content:flex-end;`;
+        const cancel = document.createElement('button');
+        cancel.textContent = 'Cancel';
+        cancel.style = `padding:0.5rem 1rem;border:1px solid #d1d5db;background:white;border-radius:0.375rem;cursor:pointer;`;
+        const confirm = document.createElement('button');
+        confirm.textContent = 'Continue';
+        confirm.style = `padding:0.5rem 1rem;border:none;background:#ef4444;color:white;border-radius:0.375rem;cursor:pointer;`;
         
-        const messageP = document.createElement('p');
-        messageP.textContent = message;
-        messageP.style = 'font-size: 0.875rem; color: #4b5563; margin-bottom: 1.5rem;';
+        cancel.onclick = () => { modalWrapper.remove(); resolve(false); };
+        confirm.onclick = () => { modalWrapper.remove(); resolve(true); };
         
-        const buttonGroup = document.createElement('div');
-        buttonGroup.style = 'display: flex; gap: 0.75rem; justify-content: flex-end;';
-        
-        const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = 'Cancel';
-        cancelBtn.className = 'btn btn-secondary'; // Assuming .btn styles are in style.css
-        
-        const confirmBtn = document.createElement('button');
-        confirmBtn.textContent = 'Continue';
-        confirmBtn.className = 'btn btn-danger'; // Assuming .btn styles are in style.css
-
-        // Manually apply btn styles if style.css isn't fully loaded
-        const baseBtnStyles = `
-            display: inline-flex; align-items: center; justify-content: center;
-            border-radius: 0.375rem; border: 1px solid transparent;
-            padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            transition: all 0.2s; cursor: pointer;
-        `;
-        
-        cancelBtn.style = baseBtnStyles + `
-            border-color: #d1d5db; background-color: white; color: #374151;
-        `;
-        confirmBtn.style = baseBtnStyles + `
-            background-color: #ef4444; color: white; border-color: #ef4444;
-        `;
-
-        cancelBtn.onmouseover = () => { cancelBtn.style.backgroundColor = '#f9fafb'; };
-        cancelBtn.onmouseout = () => { cancelBtn.style.backgroundColor = 'white'; };
-        
-        confirmBtn.onmouseover = () => { confirmBtn.style.backgroundColor = '#dc2626'; };
-        confirmBtn.onmouseout = () => { confirmBtn.style.backgroundColor = '#ef4444'; };
-
-
-        cancelBtn.onclick = () => { modalWrapper.remove(); resolve(false); };
-        confirmBtn.onclick = () => { modalWrapper.remove(); resolve(true); };
-        
-        buttonGroup.appendChild(cancelBtn);
-        buttonGroup.appendChild(confirmBtn);
-        modalPanel.appendChild(title);
-        modalPanel.appendChild(messageP);
-        modalPanel.appendChild(buttonGroup);
-        modalWrapper.appendChild(modalPanel);
-        document.body.appendChild(modalWrapper);
+        btnGroup.append(cancel, confirm);
+        modalPanel.append(btnGroup);
+        modalWrapper.append(modalPanel);
+        document.body.append(modalWrapper);
     });
 }

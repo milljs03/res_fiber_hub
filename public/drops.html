@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tory's Drops | CFN Install Tracker</title>
     
-    <!-- Load base styles -->
     <link rel="stylesheet" href="style.css">
-    <!-- Load drop-specific styles -->
     <link rel="stylesheet" href="drops.css">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <!-- Header -->
     <header class="app-header">
         <div class="header-content">
             <div class="header-title">
@@ -22,19 +19,24 @@
                 <h1>Tory's Drops</h1>
             </div>
             <div class="user-info">
+                </div>
         </div>
     </header>
 
-    <!-- Main Split Layout -->
     <div class="split-container">
-        <!-- Left Panel: List -->
         <div class="list-panel">
             <div class="list-header">
                 <h2>Pending Drops</h2>
-                <span id="drop-count" class="badge">0</span>
+                <div class="header-controls">
+                    <span id="drop-count" class="badge">0</span>
+                    <select id="sort-drops" class="sort-select">
+                        <option value="oldest">Oldest First</option>
+                        <option value="newest">Newest First</option>
+                        <option value="name">Name (A-Z)</option>
+                    </select>
+                </div>
             </div>
 
-            <!-- NEW: Analytics Panel -->
             <div class="stats-panel">
                 <div class="stat-box">
                     <div class="stat-title">Avg. Drop Time</div>
@@ -45,27 +47,41 @@
                     <div class="stat-value" id="drops-done-ytd">...</div>
                 </div>
             </div>
-            <!-- END: Analytics Panel -->
 
-            <div id="drops-list-container">
-                <!-- Drop Cards will be injected here -->
-                <p class="loading-text">Loading drops...</p>
+            <div id="list-scroll-area">
+                
+                <div id="priority-section" class="drop-zone">
+                    <h3 class="section-title">
+                        <img src="icons/alert.png" style="width:14px; height:14px; margin-right:5px;"> 
+                        Priority Drops
+                    </h3>
+                    <div id="priority-list-container" class="drop-container-inner">
+                        <div class="empty-placeholder">Drag priority drops here</div>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div id="standard-section" class="drop-zone">
+                    <h3 class="section-title">Standard Queue</h3>
+                    <div id="drops-list-container" class="drop-container-inner">
+                        <p class="loading-text">Loading drops...</p>
+                    </div>
+                </div>
+
             </div>
         </div>
 
-        <!-- Right Panel: Map -->
-        <div class_name="map-panel">
+        <div class="map-panel">
             <div id="map"></div>
         </div>
     </div>
 
-    <!-- Loading Overlay -->
     <div id="loading-overlay">
         <div class="spinner"></div>
         <p>Loading Data...</p>
     </div>
 
-    <!-- Scripts -->
     <script>
         async function initMap() {
             try {
