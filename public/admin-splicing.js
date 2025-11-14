@@ -208,6 +208,14 @@ function createCard(customer, viewType) {
             e.stopPropagation(); handleReturn(customer, currentDropNotes);
         });
 
+        // *** START FIX ***
+        // Stop click events on form elements from bubbling up to the card
+        const formElements = card.querySelectorAll('.form-input-sm, .form-textarea-sm, .form-select-sm');
+        formElements.forEach(el => {
+            el.addEventListener('click', (e) => e.stopPropagation());
+        });
+        // *** END FIX ***
+
     } else {
         // Completed View
         let doneDateStr = "Unknown";
