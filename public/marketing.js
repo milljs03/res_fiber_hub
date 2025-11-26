@@ -1,7 +1,7 @@
 import { auth, db } from './firebase.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { 
-    collection, getDocs, writeBatch, doc, query, where, limit, addDoc, setDoc, orderBy, serverTimestamp, getCountFromServer 
+    collection, getDocs, writeBatch, doc, query, where, limit, addDoc, setDoc, deleteDoc, orderBy, serverTimestamp, getCountFromServer 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 let map;
@@ -11,11 +11,13 @@ let currentAddresses = [];
 let currentCampaignId = null; 
 let marketingCollectionRef;
 let campaignsCollectionRef;
+let customersCollectionRef;
+let conversionChart = null;
 
 let el = {};
 
 export function initialize() {
-    console.log("Initializing Marketing Dashboard (Fixed Save)...");
+    console.log("Initializing Marketing Dashboard...");
 
     el = {
         overlay: document.getElementById('loading-overlay'),
@@ -24,15 +26,27 @@ export function initialize() {
         viewList: document.getElementById('view-list'),
         modeNewBtn: document.getElementById('mode-new'),
         modeListBtn: document.getElementById('mode-list'),
+        
         nameInput: document.getElementById('camp-name'),
         dealInput: document.getElementById('camp-deal'),
-        detailsInput: document.getElementById('camp-details'),
+        startInput: document.getElementById('camp-start'),
+        endInput: document.getElementById('camp-end'),
+        statusBadge: document.getElementById('status-badge'), // New
+        
         selectionStats: document.getElementById('selection-stats'),
         selectedCount: document.getElementById('selected-count'),
+        performanceSection: document.getElementById('performance-section'),
+        statPotential: document.getElementById('stat-potential'),
+        statConverted: document.getElementById('stat-converted'),
+        statRate: document.getElementById('stat-rate'),
+        
         drawBtn: document.getElementById('draw-poly-btn'),
         saveBtn: document.getElementById('save-btn'),
+        deleteBtn: document.getElementById('delete-btn'),
         exportBtn: document.getElementById('export-btn'),
         clearBtn: document.getElementById('clear-btn'),
+        refreshStatsBtn: document.getElementById('refresh-stats-btn'),
+        
         listContainer: document.getElementById('campaign-list-container'),
         gisUpload: document.getElementById('gis-upload')
     };
@@ -55,6 +69,7 @@ export function initialize() {
         if (user) {
             marketingCollectionRef = collection(db, 'artifacts', 'cfn-install-tracker', 'public', 'data', 'marketing_points');
             campaignsCollectionRef = collection(db, 'artifacts', 'cfn-install-tracker', 'public', 'data', 'marketing_campaigns');
+            customersCollectionRef = collection(db, 'artifacts', 'cfn-install-tracker', 'public', 'data', 'customers');
             loadCampaignsList();
         } else {
             window.location.href = 'index.html';
@@ -63,32 +78,31 @@ export function initialize() {
 }
 
 function setupEventListeners() {
-    if(el.modeNewBtn) {
-        el.modeNewBtn.addEventListener('click', () => {
-            resetInterface(); 
-            switchView('create');
-        });
-    }
+    if (el.modeNewBtn) el.modeNewBtn.addEventListener('click', () => { resetInterface(); switchView('create'); });
+    if (el.modeListBtn) el.modeListBtn.addEventListener('click', () => switchView('list'));
 
-    if(el.modeListBtn) el.modeListBtn.addEventListener('click', () => switchView('list'));
-
-    if(el.drawBtn) {
-        el.drawBtn.addEventListener('click', () => {
-            drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
-        });
-    }
+    if (el.drawBtn) el.drawBtn.addEventListener('click', () => {
+        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+    });
     
-    if(el.clearBtn) el.clearBtn.addEventListener('click', clearMap);
-    if(el.exportBtn) el.exportBtn.addEventListener('click', exportCurrentSelection);
-    if(el.saveBtn) el.saveBtn.addEventListener('click', saveCampaign);
-    if(el.gisUpload) el.gisUpload.addEventListener('change', handleFileUpload);
+    if (el.clearBtn) el.clearBtn.addEventListener('click', clearMap);
+    if (el.exportBtn) el.exportBtn.addEventListener('click', exportCurrentSelection);
+    if (el.saveBtn) el.saveBtn.addEventListener('click', saveCampaign);
+    if (el.deleteBtn) el.deleteBtn.addEventListener('click', deleteCampaign);
+    if (el.refreshStatsBtn) el.refreshStatsBtn.addEventListener('click', calculateCampaignStats);
     
-    if(el.listContainer) {
+    if (el.gisUpload) el.gisUpload.addEventListener('change', handleFileUpload);
+    
+    if (el.listContainer) {
         el.listContainer.addEventListener('click', (e) => {
             const item = e.target.closest('.campaign-item');
             if (item) loadCampaignToMap(item.dataset.id);
         });
     }
+
+    // Status listeners
+    if (el.startInput) el.startInput.addEventListener('change', updateStatusUI);
+    if (el.endInput) el.endInput.addEventListener('change', updateStatusUI);
 }
 
 function switchView(mode) {
@@ -106,26 +120,71 @@ function switchView(mode) {
     }
 }
 
+// --- STATUS LOGIC ---
+
+function calculateStatus(start, end) {
+    if (!start || !end) return 'Draft';
+    
+    const now = new Date();
+    now.setHours(0,0,0,0); // Compare dates only
+    
+    // Parse dates correctly (fixing timezone offsets)
+    const sParts = start.split('-');
+    const sDate = new Date(sParts[0], sParts[1]-1, sParts[2]);
+    
+    const eParts = end.split('-');
+    const eDate = new Date(eParts[0], eParts[1]-1, eParts[2]);
+
+    if (now < sDate) return 'Pending';
+    if (now > eDate) return 'Completed';
+    return 'Active';
+}
+
+function updateStatusUI() {
+    const sVal = el.startInput.value;
+    const eVal = el.endInput.value;
+    const status = calculateStatus(sVal, eVal);
+    
+    el.statusBadge.textContent = status;
+    
+    // Update classes
+    el.statusBadge.className = 'status-display'; // Reset
+    if (status === 'Draft') el.statusBadge.classList.add('st-draft');
+    else if (status === 'Pending') el.statusBadge.classList.add('st-pending');
+    else if (status === 'Active') el.statusBadge.classList.add('st-active');
+    else if (status === 'Completed') el.statusBadge.classList.add('st-completed');
+}
+
+// --- UI RESET ---
+
 function resetInterface() {
     currentCampaignId = null; 
     el.nameInput.value = "";
     el.dealInput.value = "";
-    el.detailsInput.value = "";
+    el.startInput.value = "";
+    el.endInput.value = "";
+    
+    updateStatusUI(); // Reset to Draft
+
     el.saveBtn.textContent = "Save Campaign";
+    el.saveBtn.disabled = false; 
+    el.deleteBtn.classList.add('hidden');
+    el.performanceSection.classList.add('hidden');
     clearMap();
 }
 
-// --- CAMPAIGN LOGIC ---
+// --- CAMPAIGN CRUD ---
 
 async function saveCampaign() {
     const name = el.nameInput.value.trim();
     if (!name) { alert("Please enter a Campaign Name."); return; }
-    if (currentPolygons.length === 0) { alert("Please draw at least one area."); return; }
+    if (!currentCampaignId && currentPolygons.length === 0) { 
+        alert("Please draw at least one area on the map."); return; 
+    }
 
-    showLoading("Saving Campaign...");
+    showLoading("Saving...");
 
     try {
-        // FIX: Wrap array in an object to avoid "Nested arrays" error in Firestore
         const formattedPolygons = currentPolygons.map(poly => {
             return {
                 points: poly.getPath().getArray().map(coord => ({
@@ -135,13 +194,18 @@ async function saveCampaign() {
             };
         });
 
+        // Calculate status at save time too
+        const status = calculateStatus(el.startInput.value, el.endInput.value);
+
         const campaignData = {
             name: name,
             deal: el.dealInput.value.trim(),
-            details: el.detailsInput.value.trim(),
+            startDate: el.startInput.value,
+            endDate: el.endInput.value,
+            status: status, // Save the calculated status
             updatedAt: serverTimestamp(),
-            addressCount: currentAddresses.length,
-            polygons: formattedPolygons // Now Array of Objects
+            ...(currentAddresses.length > 0 && { addressCount: currentAddresses.length }),
+            ...(formattedPolygons.length > 0 && { polygons: formattedPolygons })
         };
 
         if (currentCampaignId) {
@@ -152,16 +216,36 @@ async function saveCampaign() {
             const docRef = await addDoc(campaignsCollectionRef, campaignData);
             currentCampaignId = docRef.id; 
             el.saveBtn.textContent = "Update Campaign";
+            el.deleteBtn.classList.remove('hidden');
+            el.performanceSection.classList.remove('hidden');
+            calculateCampaignStats(); 
             alert("New Campaign Created!");
         }
         
         hideLoading();
-        switchView('list'); 
 
     } catch (error) {
         console.error(error);
         hideLoading();
-        alert(`Error saving campaign: ${error.message}`);
+        alert(`Error saving: ${error.message}`);
+    }
+}
+
+async function deleteCampaign() {
+    if (!currentCampaignId) return;
+    if (!confirm("DELETE this campaign? This cannot be undone.")) return;
+
+    showLoading("Deleting...");
+    try {
+        await deleteDoc(doc(campaignsCollectionRef, currentCampaignId));
+        hideLoading();
+        alert("Campaign Deleted.");
+        resetInterface();
+        switchView('list');
+    } catch (error) {
+        hideLoading();
+        console.error(error);
+        alert("Delete failed.");
     }
 }
 
@@ -175,24 +259,30 @@ async function loadCampaignsList() {
         
         el.listContainer.innerHTML = '';
         if (snapshot.empty) {
-            el.listContainer.innerHTML = '<p style="text-align: center; color: #9ca3af;">No campaigns saved yet.</p>';
+            el.listContainer.innerHTML = '<p style="text-align: center; color: #9ca3af;">No campaigns saved.</p>';
             return;
         }
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            const date = data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleDateString() : 'N/A';
+            // Recalculate status for display (handle expired campaigns)
+            const currentStatus = calculateStatus(data.startDate, data.endDate);
             
+            const statusClass = currentStatus === 'Active' ? 'st-active' : (currentStatus === 'Completed' ? 'st-completed' : (currentStatus === 'Pending' ? 'st-pending' : 'st-draft'));
+            const bgStyle = currentStatus === 'Active' ? 'background:#dcfce7; color:#166534;' : 
+                           (currentStatus === 'Completed' ? 'background:#dbeafe; color:#1e40af;' : 
+                           (currentStatus === 'Pending' ? 'background:#fef3c7; color:#b45309;' : 'background:#e5e7eb; color:#374151;'));
+
             const div = document.createElement('div');
             div.className = 'campaign-item';
             div.dataset.id = doc.id;
             div.dataset.json = JSON.stringify(data); 
             
             div.innerHTML = `
+                <span class="list-badge" style="${bgStyle}">${currentStatus}</span>
                 <h3 class="campaign-title">${data.name}</h3>
                 <div class="campaign-meta">
-                    ${date} • ${data.addressCount || 0} Addresses<br>
-                    ${data.deal || ''}
+                    ${data.addressCount || 0} Targets • ${data.deal || 'No Offer'}
                 </div>
             `;
             el.listContainer.appendChild(div);
@@ -208,51 +298,194 @@ async function loadCampaignToMap(campaignId) {
     const item = el.listContainer.querySelector(`.campaign-item[data-id="${campaignId}"]`);
     if (!item) return;
     
-    document.querySelectorAll('.campaign-item').forEach(i => i.classList.remove('active'));
-    item.classList.add('active');
-
     const data = JSON.parse(item.dataset.json);
 
     switchView('create');
     
     currentCampaignId = campaignId; 
     el.saveBtn.textContent = "Update Campaign";
+    el.saveBtn.disabled = false; 
+    el.deleteBtn.classList.remove('hidden');
+    el.performanceSection.classList.remove('hidden');
 
     el.nameInput.value = data.name;
     el.dealInput.value = data.deal || "";
-    el.detailsInput.value = data.details || "";
+    el.startInput.value = data.startDate || "";
+    el.endInput.value = data.endDate || "";
+    
+    updateStatusUI(); // Update badge based on loaded dates
+
+    el.statPotential.textContent = data.addressCount || 0;
+    el.statConverted.textContent = "-";
+    el.statRate.textContent = "-";
 
     clearMap();
 
-    // Logic to handle New Format (Array of Objects) vs Legacy (Single Array)
     let pathsToLoad = [];
-
     if (data.polygons) {
-        // New format: Array of { points: [...] }
         pathsToLoad = data.polygons.map(p => p.points);
     } else if (data.polygonPath) {
-        // Legacy format: Array of lat/lngs
         pathsToLoad = [data.polygonPath];
     }
 
-    const bounds = new google.maps.LatLngBounds();
-
-    pathsToLoad.forEach(pathData => {
-        // Ensure pathData is valid array
-        if (!Array.isArray(pathData)) return;
-
-        const path = pathData.map(pt => new google.maps.LatLng(pt.lat, pt.lng));
-        path.forEach(p => bounds.extend(p));
-
-        const newPoly = createPolygon(path);
-        currentPolygons.push(newPoly);
-    });
-
-    map.fitBounds(bounds);
-    fetchAndPlotPoints(); 
+    if (pathsToLoad.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        pathsToLoad.forEach(pathData => {
+            if (!Array.isArray(pathData)) return;
+            const path = pathData.map(pt => new google.maps.LatLng(pt.lat, pt.lng));
+            path.forEach(p => bounds.extend(p));
+            const newPoly = createPolygon(path);
+            currentPolygons.push(newPoly);
+        });
+        map.fitBounds(bounds);
+        
+        fetchAndPlotPoints();
+        setTimeout(calculateCampaignStats, 1000);
+    }
 }
 
-// --- MAP & DRAWING ---
+// --- EFFECTIVENESS & COLORING ---
+
+async function calculateCampaignStats() {
+    if (currentPolygons.length === 0) return;
+    
+    el.refreshStatsBtn.textContent = "Calcul...";
+    el.refreshStatsBtn.disabled = true;
+    
+    try {
+        const q = query(customersCollectionRef);
+        const snapshot = await getDocs(q);
+        
+        let actualSignups = 0;
+        let statusBreakdown = { 'New Order': 0, 'Completed': 0, 'Other': 0 };
+
+        snapshot.forEach(doc => {
+            const cust = doc.data();
+            if (cust.coordinates && cust.coordinates.lat && cust.coordinates.lng) {
+                const latLng = new google.maps.LatLng(cust.coordinates.lat, cust.coordinates.lng);
+                
+                let isInside = false;
+                for (const poly of currentPolygons) {
+                    if (google.maps.geometry.poly.containsLocation(latLng, poly)) {
+                        isInside = true;
+                        break;
+                    }
+                }
+
+                if (isInside) {
+                    actualSignups++;
+                    let cat = 'Other';
+                    if (cust.status === 'New Order') cat = 'New Order';
+                    else if (cust.status === 'Completed') cat = 'Completed';
+                    else if (['Install Ready', 'NID Ready', 'Torys List', 'Site Survey Ready'].includes(cust.status)) cat = 'New Order';
+                    
+                    if (cat === 'New Order') statusBreakdown['New Order']++;
+                    else if (cat === 'Completed') statusBreakdown['Completed']++;
+                    else statusBreakdown['Other']++;
+
+                    addCustomerDotToMap(cust, cat);
+                }
+            }
+        });
+
+        const potential = parseInt(el.statPotential.textContent) || currentAddresses.length;
+        const rate = potential > 0 ? ((actualSignups / potential) * 100).toFixed(1) : 0;
+
+        el.statConverted.textContent = actualSignups;
+        el.statRate.textContent = `${rate}%`;
+
+        renderConversionChart(potential, actualSignups, statusBreakdown);
+
+    } catch (error) {
+        console.error("Stats Error:", error);
+    } finally {
+        el.refreshStatsBtn.textContent = "Refresh";
+        el.refreshStatsBtn.disabled = false;
+    }
+}
+
+function addCustomerDotToMap(customer, category) {
+    const feature = new google.maps.Data.Feature({
+        geometry: new google.maps.Data.Point({ 
+            lat: customer.coordinates.lat, 
+            lng: customer.coordinates.lng 
+        }),
+        properties: {
+            type: 'customer',
+            category: category
+        }
+    });
+    map.data.add(feature);
+}
+
+function updateMapStyle() {
+    map.data.setStyle(feature => {
+        const type = feature.getProperty('type');
+        const category = feature.getProperty('category');
+
+        if (type === 'customer') {
+            let color = '#F59E0B'; 
+            if (category === 'New Order') color = '#3B82F6';
+            if (category === 'Completed') color = '#059669';
+
+            return {
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 5, 
+                    fillColor: color,
+                    fillOpacity: 1,
+                    strokeWeight: 1,
+                    strokeColor: '#ffffff'
+                },
+                zIndex: 10
+            };
+        } else {
+            return {
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 3,
+                    fillColor: '#9CA3AF', 
+                    fillOpacity: 0.5,
+                    strokeWeight: 0
+                },
+                zIndex: 1
+            };
+        }
+    });
+}
+
+function renderConversionChart(potential, signups, breakdown) {
+    const ctx = document.getElementById('conversion-chart');
+    if (!ctx) return;
+    
+    if (conversionChart) conversionChart.destroy();
+
+    conversionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Remaining Targets', 'New Orders', 'Completed', 'Other'],
+            datasets: [{
+                data: [
+                    Math.max(0, potential - signups), 
+                    breakdown['New Order'], 
+                    breakdown['Completed'], 
+                    breakdown['Other']
+                ],
+                backgroundColor: ['#e5e7eb', '#3b82f6', '#059669', '#f59e0b'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }
+            }
+        }
+    });
+}
+
+// --- MAP UTILS ---
 
 function initDrawingManager() {
     drawingManager = new google.maps.drawing.DrawingManager({
@@ -264,9 +497,7 @@ function initDrawingManager() {
             clickable: true, editable: true, zIndex: 1
         }
     });
-
     drawingManager.setMap(map);
-
     google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {
         const newShape = event.overlay;
         currentPolygons.push(newShape);
@@ -274,6 +505,8 @@ function initDrawingManager() {
         drawingManager.setDrawingMode(null);
         fetchAndPlotPoints();
     });
+    
+    updateMapStyle();
 }
 
 function createPolygon(path) {
@@ -297,13 +530,20 @@ function addEditListeners(poly) {
         });
     });
     google.maps.event.addListener(poly, 'dragend', () => fetchAndPlotPoints());
+    google.maps.event.addListener(poly, 'dblclick', () => {
+        poly.setMap(null);
+        currentPolygons = currentPolygons.filter(p => p !== poly);
+        fetchAndPlotPoints();
+    });
 }
 
 async function fetchAndPlotPoints() {
-    if (currentPolygons.length === 0) return;
+    if (currentPolygons.length === 0) {
+        clearDisplayedDots();
+        return;
+    }
 
     showLoading("Updating Map...");
-
     clearDisplayedDots();
     currentAddresses = [];
 
@@ -331,7 +571,6 @@ async function fetchAndPlotPoints() {
             const pt = doc.data();
             if (pt.lng >= minLng && pt.lng <= maxLng) {
                 const latLng = new google.maps.LatLng(pt.lat, pt.lng);
-                
                 let isInsideAny = false;
                 for (const poly of currentPolygons) {
                     if (google.maps.geometry.poly.containsLocation(latLng, poly)) {
@@ -339,7 +578,6 @@ async function fetchAndPlotPoints() {
                         break; 
                     }
                 }
-
                 if (isInsideAny) {
                     addDotToMap(pt);
                     currentAddresses.push(pt.properties);
@@ -349,10 +587,10 @@ async function fetchAndPlotPoints() {
         });
 
         if(el.selectedCount) el.selectedCount.textContent = countInside;
+        if(el.statPotential) el.statPotential.textContent = countInside;
         if(el.selectionStats) el.selectionStats.classList.remove('hidden');
         
         if (countInside > 0) {
-            el.saveBtn.disabled = false;
             el.exportBtn.disabled = false;
         }
 
@@ -366,33 +604,21 @@ async function fetchAndPlotPoints() {
 function addDotToMap(pt) {
     const feature = new google.maps.Data.Feature({
         geometry: new google.maps.Data.Point({ lat: pt.lat, lng: pt.lng }),
-        properties: pt.properties
-    });
-    map.data.add(feature);
-    map.data.setStyle({
-        icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 3,
-            fillColor: '#059669',
-            fillOpacity: 1,
-            strokeWeight: 1,
-            strokeColor: '#ffffff'
+        properties: {
+            type: 'target', 
+            ...pt.properties
         }
     });
+    map.data.add(feature);
 }
 
 function clearMap() {
     currentPolygons.forEach(poly => poly.setMap(null));
     currentPolygons = [];
-    
     clearDisplayedDots();
     currentAddresses = [];
-    
     if(el.selectedCount) el.selectedCount.textContent = "0";
     if(el.selectionStats) el.selectionStats.classList.add('hidden');
-    if(el.saveBtn) el.saveBtn.disabled = true;
-    if(el.exportBtn) el.exportBtn.disabled = true;
-    
     drawingManager.setDrawingMode(null);
 }
 
@@ -400,14 +626,10 @@ function clearDisplayedDots() {
     map.data.forEach(f => map.data.remove(f));
 }
 
-// --- EXPORT & UPLOAD ---
-
 function exportCurrentSelection() {
     if (currentAddresses.length === 0) { alert("No data to export"); return; }
-    
     const headers = Object.keys(currentAddresses[0]);
     const csvRows = [headers.join(',')];
-
     currentAddresses.forEach(row => {
         const values = headers.map(header => {
             const val = row[header] || '';
@@ -415,7 +637,6 @@ function exportCurrentSelection() {
         });
         csvRows.push(values.join(','));
     });
-
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -429,8 +650,7 @@ function exportCurrentSelection() {
 function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-
-    if (confirm("This will REPLACE your address database. Continue?")) {
+    if (confirm("REPLACE address database?")) {
         showLoading("Parsing...");
         setTimeout(() => {
             Papa.parse(file, {
@@ -440,31 +660,24 @@ function handleFileUpload(event) {
                 error: err => { hideLoading(); alert("CSV Error: " + err.message); }
             });
         }, 100);
-    } else {
-        event.target.value = '';
-    }
+    } else { event.target.value = ''; }
 }
 
 async function uploadToFirestore(rawData) {
     const pointsToUpload = [];
-    
     rawData.forEach(row => {
         const cleanRow = {};
         Object.keys(row).forEach(k => {
             const val = row[k];
             if(val !== undefined && val !== null) cleanRow[k.replace(/\./g, '_').trim()] = val;
         });
-
         const keys = Object.keys(row);
         const latKey = keys.find(k => /lat/i.test(k));
         const lonKey = keys.find(k => /lon|lng/i.test(k));
-
         if (latKey && lonKey) {
             const lat = parseFloat(row[latKey]);
             const lng = parseFloat(row[lonKey]);
-            if (!isNaN(lat) && !isNaN(lng)) {
-                pointsToUpload.push({ lat, lng, properties: cleanRow });
-            }
+            if (!isNaN(lat) && !isNaN(lng)) pointsToUpload.push({ lat, lng, properties: cleanRow });
         }
     });
 
@@ -479,10 +692,8 @@ async function uploadToFirestore(rawData) {
             snap.forEach(d => batch.delete(d.ref));
             await batch.commit();
         }
-
         const BATCH_SIZE = 400;
         const totalBatches = Math.ceil(pointsToUpload.length / BATCH_SIZE);
-        
         for (let i = 0; i < totalBatches; i++) {
             const batch = writeBatch(db);
             const chunk = pointsToUpload.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -490,18 +701,15 @@ async function uploadToFirestore(rawData) {
             await batch.commit();
             showLoading(`Uploading... ${Math.round(((i+1)/totalBatches)*100)}%`);
         }
-
         hideLoading();
         alert("Database Updated Successfully!");
-
     } catch (e) {
         console.error(e);
         hideLoading();
-        alert("Upload failed. Check console.");
+        alert("Upload failed.");
     }
 }
 
-// --- HELPERS ---
 function showLoading(text) {
     if (el.loadingText) el.loadingText.textContent = text;
     if (el.overlay) el.overlay.style.display = 'flex';
