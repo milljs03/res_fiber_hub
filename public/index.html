@@ -169,6 +169,12 @@
                             <img src="icons/savecont.png" alt="Back" class="btn-icon-img" style="filter: brightness(0); transform: rotate(180deg);" />
                         </button>
                         
+                        <!-- NEW: SO Data Button -->
+                        <button type="button" id="view-so-btn" class="btn btn-secondary" title="View Raw Service Order Data">
+                            <img src="icons/write.png" alt="SO" class="btn-icon-img" /> SO Data
+                        </button>
+                        <!-- End New Button -->
+                        
                         <button type="button" id="header-save-btn" class="btn btn-secondary">
                             Save
                         </button>
@@ -231,6 +237,21 @@
                             </div>
                         </div>
                         
+                        <!-- NEW: Service Order Raw Data Page with Formatted View -->
+                        <div id="page-service-order" class="details-page">
+                            <div class="form-group">
+                                <label class="form-label">Service Order Snapshot</label>
+                                <p style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem;">
+                                    This is a reconstructed view of the uploaded PDF data.
+                                </p>
+                                <div class="field-wrapper">
+                                    <!-- REPLACED TEXTAREA WITH DIV FOR HTML CONTENT -->
+                                    <div id="service-order-display" class="service-order-paper"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- End New Page -->
+
                         <div id="page-pre-install" class="details-page active">
                             <div class="form-group">
                                 <label class="form-label" for="details-customer-name">Customer Name</label>
