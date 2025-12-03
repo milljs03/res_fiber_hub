@@ -11,6 +11,7 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         body { overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
@@ -114,11 +115,14 @@
     <header class="app-header">
         <div class="header-content">
             <div class="header-title">
-                <img src="icons/map.png" alt="Icon" class="header-logo-img" />
+                <i data-lucide="map" class="header-logo-img"></i>
                 <h1>Marketing Manager</h1>
             </div>
             <div class="user-info">
-                <a href="index.html" class="btn btn-secondary">Back to Tracker</a>
+                <a href="index.html" class="btn btn-secondary">
+                    <i data-lucide="arrow-left" class="btn-icon"></i>
+                    Back to Tracker
+                </a>
             </div>
         </div>
     </header>
@@ -169,8 +173,8 @@
                 <div id="performance-section" class="stats-container hidden">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                         <h3 style="margin:0; font-size:0.9rem;">Effectiveness</h3>
-                        <button id="refresh-stats-btn" class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem;">
-                            <img src="icons/refresh.png" style="width:10px; margin-right:4px;"> Refresh
+                        <button id="refresh-stats-btn" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.7rem; display: flex; align-items: center;">
+                            <i data-lucide="refresh-cw" style="width:12px; height:12px; margin-right:4px;"></i> Refresh
                         </button>
                     </div>
                     
@@ -198,7 +202,7 @@
                     <p class="section-title" style="margin:0 0 0.5rem 0; color:#6b7280; font-size:0.7rem; font-weight:bold;">Map Tools</p>
                     <div class="btn-group">
                         <button id="draw-poly-btn" class="btn btn-secondary">
-                            <img src="icons/write.png" class="btn-icon-img"> Draw Area
+                            <i data-lucide="pen-tool" class="btn-icon"></i> Draw Area
                         </button>
                         <button id="clear-btn" class="btn btn-secondary" style="color:#b91c1c;">Clear Map</button>
                     </div>
@@ -208,13 +212,13 @@
                     </div>
                     
                     <button id="export-btn" class="btn btn-secondary" disabled style="margin-top:0.5rem;">
-                        <img src="icons/save.png" class="btn-icon-img"> Export CSV
+                        <i data-lucide="download" class="btn-icon"></i> Export CSV
                     </button>
                 </div>
                 
                 <div style="padding: 1rem; margin-top: auto; border-top: 1px solid #e5e7eb;">
-                    <label for="gis-upload" class="btn btn-secondary" style="width: 100%; cursor: pointer; font-size: 0.8rem;">
-                        <img src="icons/upload.png" class="btn-icon-img"> Update Address DB
+                    <label for="gis-upload" class="btn btn-secondary" style="width: 100%; cursor: pointer; font-size: 0.8rem; display: flex; justify-content: center; align-items: center;">
+                        <i data-lucide="upload" class="btn-icon"></i> Update Address DB
                     </label>
                     <input type="file" id="gis-upload" accept=".csv" style="display: none;">
                 </div>
@@ -257,6 +261,14 @@
     </script>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMarketingMap&libraries=geocoding,drawing,geometry" async defer></script>
+
+    <script>
+        window.addEventListener('load', () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
 
 </body>
 </html>

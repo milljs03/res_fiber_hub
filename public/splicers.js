@@ -9,7 +9,7 @@ let geocoder;
 let markers = [];
 let customersCollectionRef;
 let allAssignedJobs = [];
-let currentSplicer = 'Rusty'; // Default
+let currentSplicer = 'Greg'; // Default changed from Rusty to Greg
 
 // --- Initialization ---
 export async function initialize() {
@@ -38,6 +38,9 @@ export async function initialize() {
             document.getElementById('loading-overlay').innerHTML = '<p style="color:red">Access Denied</p>';
         }
     });
+    
+    // Ensure initial icons render
+    if (window.lucide) window.lucide.createIcons();
 }
 
 // --- Load Data ---
@@ -93,6 +96,9 @@ function renderList() {
         const card = createCard(customer);
         container.appendChild(card);
     });
+    
+    // Refresh icons for new cards
+    if (window.lucide) window.lucide.createIcons();
 }
 
 function createCard(customer) {
@@ -124,7 +130,7 @@ function createCard(customer) {
         </div>
 
         <button class="btn-complete" onclick="event.stopPropagation()">
-            <img src="icons/check.png" style="width:16px; height:16px; filter: brightness(0) invert(1);" />
+            <i data-lucide="check" style="width:16px; height:16px; margin-right: 6px;"></i>
             Mark Splice Complete
         </button>
     `;

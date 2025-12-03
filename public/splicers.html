@@ -4,23 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Splicer Queue | CFN Install Tracker</title>
-            <link rel="icon" type="image/png" href="icons/clock.png">
+    <link rel="icon" type="image/png" href="icons/clock.png">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="splicers.css">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Load Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
     <header class="app-header">
         <div class="header-content">
             <div class="header-title">
-                <img src="icons/write.png" alt="Splicing Icon" class="header-logo-img" />
+                <i data-lucide="git-merge" class="header-logo-img"></i>
                 <h1>Splicer Queue</h1>
             </div>
             <div class="user-info">
                 <a href="index.html" class="btn btn-secondary">
-                    <img src="icons/clock.png" alt="Tracker" class="btn-icon-img" />
+                    <i data-lucide="arrow-left" class="btn-icon"></i>
                     Back to Tracker
                 </a>
             </div>
@@ -35,8 +37,7 @@
             </div>
 
             <div class="splicer-tabs">
-                <button class="splicer-tab active" data-splicer="Rusty">Rusty</button>
-                <button class="splicer-tab" data-splicer="Greg">Greg</button>
+                <button class="splicer-tab active" data-splicer="Greg">Greg</button>
                 <button class="splicer-tab" data-splicer="Scott">Scott</button>
             </div>
 
@@ -71,5 +72,14 @@
     </script>
     
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMap&libraries=geocoding" async defer></script>
+
+    <!-- Initialize Icons on Load -->
+    <script>
+        window.addEventListener('load', () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        });
+    </script>
 </body>
 </html>

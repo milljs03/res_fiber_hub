@@ -31,7 +31,7 @@ export function initialize() {
         dealInput: document.getElementById('camp-deal'),
         startInput: document.getElementById('camp-start'),
         endInput: document.getElementById('camp-end'),
-        statusBadge: document.getElementById('status-badge'), // New
+        statusBadge: document.getElementById('status-badge'), 
         
         selectionStats: document.getElementById('selection-stats'),
         selectedCount: document.getElementById('selected-count'),
@@ -75,6 +75,9 @@ export function initialize() {
             window.location.href = 'index.html';
         }
     });
+    
+    // Ensure icons render on init
+    if (window.lucide) window.lucide.createIcons();
 }
 
 function setupEventListeners() {
@@ -349,8 +352,10 @@ async function loadCampaignToMap(campaignId) {
 async function calculateCampaignStats() {
     if (currentPolygons.length === 0) return;
     
-    el.refreshStatsBtn.textContent = "Calcul...";
+    // UPDATED: Show spinner state
+    el.refreshStatsBtn.innerHTML = '<i data-lucide="loader-2" class="animate-spin" style="width:12px; height:12px; margin-right:4px;"></i> Calcul...';
     el.refreshStatsBtn.disabled = true;
+    if (window.lucide) window.lucide.createIcons();
     
     try {
         const q = query(customersCollectionRef);
@@ -399,8 +404,10 @@ async function calculateCampaignStats() {
     } catch (error) {
         console.error("Stats Error:", error);
     } finally {
-        el.refreshStatsBtn.textContent = "Refresh";
+        // UPDATED: Restore refresh icon
+        el.refreshStatsBtn.innerHTML = '<i data-lucide="refresh-cw" style="width:12px; height:12px; margin-right:4px;"></i> Refresh';
         el.refreshStatsBtn.disabled = false;
+        if (window.lucide) window.lucide.createIcons();
     }
 }
 

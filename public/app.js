@@ -134,6 +134,10 @@ const el = {
     unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), 
     completedActionsDiv: document.getElementById('completed-actions-div'), 
     
+    // --- NEW SERVICE ORDER ELEMENTS ---
+    viewSoBtn: document.getElementById('view-so-btn'),
+    serviceOrderDisplay: document.getElementById('service-order-display'),
+
     // --- NEW NID FIELDS ---
     spliceCompleteDate: document.getElementById('splice-complete-date'), // New static field
     detailsNidIssues: document.getElementById('details-nid-issues'), // New hidden field
@@ -609,6 +613,16 @@ const setupEventListeners = () => {
     // NEW: Splice Return Listener
     el.returnSpliceBtn.addEventListener('click', handleReturnSplice); 
     
+    // NEW: View SO Data Listener
+    if (el.viewSoBtn) {
+        el.viewSoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            showDetailsPage('page-service-order');
+            // Deactivate stepper items since we are in a separate view
+            el.statusStepper.querySelectorAll('.step').forEach(btn => btn.classList.remove('active'));
+        });
+    }
+
     // Stepper Click Listener
     el.statusStepper.addEventListener('click', (e) => {
         const stepButton = e.target.closest('.step'); 
@@ -1015,7 +1029,10 @@ const loadCustomers = () => {
                 // Re-select the correct page if it was changed
                 const activeStep = el.statusStepper.querySelector('.step.active');
                 if (activeStep) {
-                    showDetailsPage(activeStep.dataset.page);
+                    // Only switch pages if NOT on the service order page
+                    if (!el.serviceOrderDisplay.closest('.details-page.active')) {
+                        showDetailsPage(activeStep.dataset.page);
+                    }
                 }
             } else {
                 handleDeselectCustomer(false); // Pass false to skip auto-save
@@ -1434,9 +1451,148 @@ const populateDetailsForm = (data) => {
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
     el.detailsForm['bill-info'].checked = data.postInstallChecklist?.emailSentToBilling || false;
 
-    // Conditionally show Splice Return Button in Install Ready status
-    // *** This is now handled in updateStepperUI ***
+    // NEW: Render Service Order View
+    renderServiceOrder(data);
 };
+
+/**
+ * --- NEW FUNCTION: renderServiceOrder ---
+ * Constructs the HTML for the service order view based on customer data.
+ */
+function renderServiceOrder(data) {
+    const container = el.serviceOrderDisplay;
+    if (!container) return;
+
+    const now = new Date();
+    const created = data.createdAt && data.createdAt.seconds 
+        ? new Date(data.createdAt.seconds * 1000).toLocaleString() 
+        : now.toLocaleString();
+        
+    const dateStr = created.split(',')[0]; // Just date
+
+    const soNum = data.serviceOrderNumber || "N/A";
+    const custId = data.id ? data.id.substring(0, 6).toUpperCase() : "N/A";
+    const name = data.customerName || "Unknown";
+    const addr = data.address || "No Address";
+    const status = data.status || "Pending";
+    const phone = data.primaryContact?.phone || "";
+    const email = data.primaryContact?.email || "";
+    const speed = data.serviceSpeed || "200 Mbps";
+    
+    // Construct Product List
+    let productHtml = '';
+    // Base Internet Item
+    productHtml += `
+        <tr>
+            <td>CHFADV</td>
+            <td>CFN HOME FIBER ${speed} ADVANCED</td>
+            <td>1</td>
+            <td>80.00</td>
+            <td>Add</td>
+        </tr>
+    `;
+    // Equipment Item
+    productHtml += `
+        <tr>
+            <td>CHFEQP</td>
+            <td>CFN HOME FIBER EQUIPMENT/PARTS CHARGE</td>
+            <td>1</td>
+            <td>99.00</td>
+            <td>Add</td>
+        </tr>
+    `;
+    // Install Item
+    productHtml += `
+        <tr>
+            <td>CHFIN</td>
+            <td>CFN HOME INSTALL CHARGE</td>
+            <td>1</td>
+            <td>50.00</td>
+            <td>Add</td>
+        </tr>
+    `;
+
+    const html = `
+        <div class="so-section">
+            <div class="so-meta">
+                ${created}<br>
+                Page 1 of 1
+            </div>
+            
+            <div class="so-header">
+                <div class="so-title">NPTECH SERVICE ORDER REPORT</div>
+                <div class="so-meta" style="text-align: right;">
+                    <strong>Service Order:</strong> ${soNum}<br>
+                    <strong>Customer:</strong> ${custId}
+                </div>
+            </div>
+
+            <div class="so-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="so-box">
+                    <h4>Bill To</h4>
+                    <div style="font-weight: bold;">${name}</div>
+                    <div>${addr}</div>
+                </div>
+                <div class="so-box">
+                    <h4>Service Point</h4>
+                    <div>${addr}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="so-section">
+            <div class="so-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="so-field"><span class="so-label">Res/Bus</span><span class="so-value">Residence</span></div>
+                <div class="so-field"><span class="so-label">Source</span><span class="so-value">Web/Phone</span></div>
+                <div class="so-field"><span class="so-label">SO Status</span><span class="so-value">${status}</span></div>
+                <div class="so-field"><span class="so-label">Entry Date</span><span class="so-value">${dateStr}</span></div>
+            </div>
+        </div>
+
+        <div class="so-section so-box">
+            <h4>Description / Request</h4>
+            <div style="font-family: monospace; white-space: pre-wrap; font-size: 0.85rem;">
+Requested By: ${name.split(' ')[0]}
+Description: CONNECT: ${speed} FTTH INSTALL
+Request: $50/INSTALL, $99/EQUIPMENT
+Contact: ${phone}
+            </div>
+        </div>
+
+        <div class="so-section">
+            <h4>Contact Info</h4>
+            <table class="so-table">
+                <thead>
+                    <tr><th>Type</th><th>Info</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>CELL</td><td>${phone}</td></tr>
+                    <tr><td>EMAIL</td><td>${email}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="so-section">
+            <h4>Products and Services</h4>
+            <table class="so-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Description</th>
+                        <th>Qty</th>
+                        <th>Billable</th>
+                        <th>Activity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${productHtml}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
 
 const showDetailsPage = (pageId) => {
     el.detailsPages.forEach(page => page.classList.remove('active'));
