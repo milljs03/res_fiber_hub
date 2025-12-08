@@ -1032,14 +1032,20 @@ async function batchUploadPoints(points) {
 
 // --- EXPORT LOGIC WITH UPDATED COLUMNS ---
 async function exportCurrentSelection() {
-    if (currentAddressesRaw.length === 0) { alert("No data to export"); return; }
-    const includeNewOrders = el.includeExistingCb.checked;
-    const includeActiveList = el.includeActiveCustomersCb.checked; 
-    let addressesToExport = [...currentAddressesRaw]; 
+    // 1. Data Source Check
+    const sourceData = (typeof currentAddressesRaw !== 'undefined') ? currentAddressesRaw : currentAddresses;
+    if (!sourceData || sourceData.length === 0) { alert("No data to export"); return; }
+    
+    // 2. Filter Settings
+    const includeNewOrders = el.includeExistingCb ? el.includeExistingCb.checked : true;
+    const includeActiveList = el.includeActiveCustomersCb ? el.includeActiveCustomersCb.checked : true; 
+    
+    let addressesToExport = [...sourceData]; 
     showLoading("Preparing Export...");
 
     try {
-        if (!includeNewOrders) {
+        // --- Filtering Logic (Same as before) ---
+        if (!includeNewOrders && typeof customersCollectionRef !== 'undefined') {
             const custSnapshot = await getDocs(query(customersCollectionRef));
             const existingLocations = [];
             custSnapshot.forEach(doc => {
@@ -1048,23 +1054,15 @@ async function exportCurrentSelection() {
             });
             addressesToExport = addressesToExport.filter(pt => {
                 const ptLoc = new google.maps.LatLng(pt.lat, pt.lng);
-                const isExisting = existingLocations.some(custLoc => {
-                    const distance = google.maps.geometry.spherical.computeDistanceBetween(ptLoc, custLoc);
-                    return distance < 20; 
-                });
-                return !isExisting; 
+                return !existingLocations.some(custLoc => google.maps.geometry.spherical.computeDistanceBetween(ptLoc, custLoc) < 20);
             });
         }
 
-        if (!includeActiveList) {
+        if (!includeActiveList && typeof localActiveCustomers !== 'undefined') {
             const activeLocations = localActiveCustomers.map(ac => new google.maps.LatLng(ac.lat, ac.lng));
             addressesToExport = addressesToExport.filter(pt => {
                 const ptLoc = new google.maps.LatLng(pt.lat, pt.lng);
-                const isActive = activeLocations.some(actLoc => {
-                    const distance = google.maps.geometry.spherical.computeDistanceBetween(ptLoc, actLoc);
-                    return distance < 20; 
-                });
-                return !isActive;
+                return !activeLocations.some(actLoc => google.maps.geometry.spherical.computeDistanceBetween(ptLoc, actLoc) < 20);
             });
         }
     } catch (error) {
@@ -1072,12 +1070,42 @@ async function exportCurrentSelection() {
         alert("Error filtering. Exporting all.");
     }
 
-    // --- STANDARD COLUMNS EXPORT ---
-    // User requested: Name, Physical Address (Split), Mailing Address (Split), Latitude, Longitude, ALL CAPS
-    const csvRows = [['NAME', 'PHYSICAL STREET', 'PHYSICAL CITY', 'PHYSICAL STATE', 'PHYSICAL ZIP', 'MAILING STREET', 'MAILING CITY', 'MAILING STATE', 'MAILING ZIP', 'LATITUDE', 'LONGITUDE'].join(',')];
+    // --- HELPERS ---
+
+    // 1. Title Case Helper (Capitalize first letter of every word)
+    const toTitleCase = (str) => {
+        return String(str || '').toLowerCase().replace(/(?:^|\s)\w/g, match => match.toUpperCase());
+    };
+
+    // 2. Formatting Helper: Adds periods to specific abbreviations if missing (e.g., "St" -> "St.")
+    const formatAbbreviation = (str) => {
+        // Look for common suffixes (St, Rd, Ct, Ave, Dr, Ln, Blvd) that are NOT followed by a period
+        return str.replace(/\b(st|rd|ct|ave|dr|ln|blvd)\b(?!\.)/gi, '$1.');
+    };
+
+    // 3. Comparison Helper: Standardizes addresses for matching (removes punctuation, expands abbreviations)
+    const standardizeForCheck = (str) => {
+        let s = String(str || '').toLowerCase();
+        s = s.replace(/\./g, ''); // Remove all dots
+        
+        // Standardize words to abbreviations so "Street" matches "St"
+        s = s.replace(/\bstreet\b/g, 'st');
+        s = s.replace(/\broad\b/g, 'rd');
+        s = s.replace(/\bcourt\b/g, 'ct');
+        s = s.replace(/\bavenue\b/g, 'ave');
+        s = s.replace(/\bdrive\b/g, 'dr');
+        s = s.replace(/\blane\b/g, 'ln');
+        s = s.replace(/\bboulevard\b/g, 'blvd');
+        return s.trim();
+    };
+
+    // --- CSV GENERATION ---
+    const headers = ['Name', 'Mailing Address', 'City', 'State', 'Zip', 'Property Address'];
+    const csvRows = [headers.join(',')];
     
     addressesToExport.forEach(pt => {
         const props = pt.properties || {};
+        
         const findVal = (patterns) => {
             for (const pat of patterns) {
                 const foundKey = Object.keys(props).find(k => pat.test(k));
@@ -1086,52 +1114,83 @@ async function exportCurrentSelection() {
             return '';
         };
 
-        // --- PHYSICAL ADDRESS ---
-        let pStreet = String(findVal([/geofulladd/i, /full_?add/i, /address/i, /addr/i]) || "").toUpperCase();
-        let pCity = String(findVal([/geocity/i, /city/i, /municipality/i, /post_comm/i]) || "").toUpperCase();
-        let pState = String(findVal([/geostate/i, /state/i, /prov/i]) || "").toUpperCase();
-        let pZip = String(findVal([/esn_zip/i, /zip/i, /postal/i]) || "").toUpperCase();
-        
-        // --- MAILING ADDRESS ---
-        let mStreet = "", mCity = "", mState = "", mZip = "";
+        // --- PREPARE DATA ---
+
+        // 1. Physical Address Components
+        let pStreetRaw = findVal([/geofulladd/i, /full_?add/i, /address/i, /addr/i]);
+        let pCityRaw = findVal([/geocity/i, /city/i, /municipality/i, /post_comm/i]);
+        let pStateRaw = findVal([/geostate/i, /state/i, /prov/i]);
+        let pZipRaw = String(findVal([/esn_zip/i, /zip/i, /postal/i]));
+
+        // Format Physical for Output (Title Case + Add Periods)
+        let pStreet = formatAbbreviation(toTitleCase(pStreetRaw));
+        let pCity = toTitleCase(pCityRaw);
+        let pState = toTitleCase(pStateRaw);
+        let pZip = pZipRaw.toUpperCase(); // ZIP usually stays simple
+
+        // 2. Mailing Address Components
+        let mStreetRaw = "", mCityRaw = "", mStateRaw = "", mZipRaw = "";
 
         if (props.mailing_address) {
-            // Attempt to parse "STREET, CITY STATE ZIP" format
-            const parsed = parseMailingString(props.mailing_address);
-            mStreet = parsed.street.toUpperCase();
-            mCity = parsed.city.toUpperCase();
-            mState = parsed.state.toUpperCase();
-            mZip = parsed.zip.toUpperCase();
+            if (typeof parseMailingString === 'function') {
+                const parsed = parseMailingString(props.mailing_address);
+                mStreetRaw = parsed.street;
+                mCityRaw = parsed.city;
+                mStateRaw = parsed.state;
+                mZipRaw = parsed.zip;
+            } else {
+                mStreetRaw = props.mailing_address;
+            }
         } else {
-            // Fallback to Physical
-            mStreet = pStreet;
-            mCity = pCity;
-            mState = pState;
-            mZip = pZip;
+            // Fallback
+            mStreetRaw = pStreetRaw;
+            mCityRaw = pCityRaw;
+            mStateRaw = pStateRaw;
+            mZipRaw = pZipRaw;
         }
 
-        // --- NAME ---
-        let friendlyName = "COMMUNITY MEMBER";
+        // Format Mailing for Output
+        let mStreet = formatAbbreviation(toTitleCase(mStreetRaw));
+        let mCity = toTitleCase(mCityRaw);
+        let mState = toTitleCase(mStateRaw);
+        let mZip = mZipRaw;
+
+        // 3. Name
+        let friendlyName = "Community Member";
         if (props.resident_name) {
-            friendlyName = formatName(props.resident_name);
-        } 
-        else if (pCity && pCity !== "CURRENT RESIDENT") {
-            friendlyName = `${pCity} COMMUNITY MEMBER`;
+            friendlyName = toTitleCase(typeof formatName === 'function' ? formatName(props.resident_name) : props.resident_name);
+        } else if (pCityRaw && pCityRaw.toUpperCase() !== "CURRENT RESIDENT") {
+            friendlyName = `${pCity} Community Member`;
         }
 
+        // --- MATCHING LOGIC ---
+        
+        // Construct Full Physical Address string for the CSV column
+        const fullPhysicalForExport = `${pStreet} ${pCity}, ${pState} ${pZip}`.trim();
+        
+        // Construct Standardized Versions for Comparison
+        // We use the raw values (or partially cleaned) to ignore casing/dots, 
+        // but we specifically run standardizeForCheck to handle "Street" vs "St"
+        const normMailingStreet = standardizeForCheck(mStreetRaw);
+        const normFullPhysical = standardizeForCheck(`${pStreetRaw} ${pCityRaw} ${pStateRaw} ${pZipRaw}`);
+
+        let finalPropertyAddress = fullPhysicalForExport;
+
+        // CHECK: If the standardized physical address contains the standardized mailing street
+        if (normMailingStreet && normFullPhysical.includes(normMailingStreet)) {
+            finalPropertyAddress = ""; // Hide if they match
+        }
+
+        // 4. Build CSV Row
         const row = [
             `"${friendlyName}"`,
-            `"${pStreet.replace(/"/g, '""')}"`,
-            `"${pCity.replace(/"/g, '""')}"`,
-            `"${pState.replace(/"/g, '""')}"`,
-            `"${pZip.replace(/"/g, '""')}"`,
             `"${mStreet.replace(/"/g, '""')}"`,
             `"${mCity.replace(/"/g, '""')}"`,
             `"${mState.replace(/"/g, '""')}"`,
             `"${mZip.replace(/"/g, '""')}"`,
-            pt.lat,
-            pt.lng
+            `"${finalPropertyAddress.replace(/"/g, '""')}"`
         ];
+        
         csvRows.push(row.join(','));
     });
 
@@ -1139,7 +1198,7 @@ async function exportCurrentSelection() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${el.nameInput.value || 'campaign'}_export.csv`;
+    a.download = `${el.nameInput.value || 'campaign'}_addresses.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
