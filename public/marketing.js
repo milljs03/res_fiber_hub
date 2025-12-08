@@ -1031,50 +1031,120 @@ async function batchUploadPoints(points) {
 }
 
 // --- EXPORT LOGIC WITH UPDATED COLUMNS ---
-function exportCurrentSelection() {
-    if (currentAddresses.length === 0) { alert("No data to export"); return; }
+async function exportCurrentSelection() {
+    if (currentAddressesRaw.length === 0) { alert("No data to export"); return; }
+    const includeNewOrders = el.includeExistingCb.checked;
+    const includeActiveList = el.includeActiveCustomersCb.checked; 
+    let addressesToExport = [...currentAddressesRaw]; 
+    showLoading("Preparing Export...");
 
-    // Define the specific headers requested
-    const headers = ['Name', 'Mailing Address', 'City', 'State', 'Zip', 'Full Address'];
-    const csvRows = [headers.join(',')];
+    try {
+        if (!includeNewOrders) {
+            const custSnapshot = await getDocs(query(customersCollectionRef));
+            const existingLocations = [];
+            custSnapshot.forEach(doc => {
+                const c = doc.data();
+                if (c.coordinates && c.coordinates.lat && c.coordinates.lng) existingLocations.push(new google.maps.LatLng(c.coordinates.lat, c.coordinates.lng));
+            });
+            addressesToExport = addressesToExport.filter(pt => {
+                const ptLoc = new google.maps.LatLng(pt.lat, pt.lng);
+                const isExisting = existingLocations.some(custLoc => {
+                    const distance = google.maps.geometry.spherical.computeDistanceBetween(ptLoc, custLoc);
+                    return distance < 20; 
+                });
+                return !isExisting; 
+            });
+        }
 
-    currentAddresses.forEach(row => {
-        // Helper to find keys case-insensitively since DB keys might vary slightly
-        const getVal = (searchKey) => {
-            const foundKey = Object.keys(row).find(k => k.toLowerCase() === searchKey.toLowerCase());
-            return foundKey ? row[foundKey] : '';
+        if (!includeActiveList) {
+            const activeLocations = localActiveCustomers.map(ac => new google.maps.LatLng(ac.lat, ac.lng));
+            addressesToExport = addressesToExport.filter(pt => {
+                const ptLoc = new google.maps.LatLng(pt.lat, pt.lng);
+                const isActive = activeLocations.some(actLoc => {
+                    const distance = google.maps.geometry.spherical.computeDistanceBetween(ptLoc, actLoc);
+                    return distance < 20; 
+                });
+                return !isActive;
+            });
+        }
+    } catch (error) {
+        console.error("Export Filter Error:", error);
+        alert("Error filtering. Exporting all.");
+    }
+
+    // --- STANDARD COLUMNS EXPORT ---
+    // User requested: Name, Physical Address (Split), Mailing Address (Split), Latitude, Longitude, ALL CAPS
+    const csvRows = [['NAME', 'PHYSICAL STREET', 'PHYSICAL CITY', 'PHYSICAL STATE', 'PHYSICAL ZIP', 'MAILING STREET', 'MAILING CITY', 'MAILING STATE', 'MAILING ZIP', 'LATITUDE', 'LONGITUDE'].join(',')];
+    
+    addressesToExport.forEach(pt => {
+        const props = pt.properties || {};
+        const findVal = (patterns) => {
+            for (const pat of patterns) {
+                const foundKey = Object.keys(props).find(k => pat.test(k));
+                if (foundKey && props[foundKey]) return props[foundKey];
+            }
+            return '';
         };
 
-        // specific logic to find 'Address' or 'Physical Address' for the concatenation
-        const physAddr = getVal('Address') || getVal('Physical Address') || getVal('Street');
-        const city = getVal('City');
-        const state = getVal('State');
-        const zip = getVal('Zip');
+        // --- PHYSICAL ADDRESS ---
+        let pStreet = String(findVal([/geofulladd/i, /full_?add/i, /address/i, /addr/i]) || "").toUpperCase();
+        let pCity = String(findVal([/geocity/i, /city/i, /municipality/i, /post_comm/i]) || "").toUpperCase();
+        let pState = String(findVal([/geostate/i, /state/i, /prov/i]) || "").toUpperCase();
+        let pZip = String(findVal([/esn_zip/i, /zip/i, /postal/i]) || "").toUpperCase();
+        
+        // --- MAILING ADDRESS ---
+        let mStreet = "", mCity = "", mState = "", mZip = "";
 
-        // Concatenate "Full Address" (e.g., "68495 Jackson St. New Paris, IN 46553")
-        const fullAddressString = `${physAddr} ${city}, ${state} ${zip}`.trim();
+        if (props.mailing_address) {
+            // Attempt to parse "STREET, CITY STATE ZIP" format
+            const parsed = parseMailingString(props.mailing_address);
+            mStreet = parsed.street.toUpperCase();
+            mCity = parsed.city.toUpperCase();
+            mState = parsed.state.toUpperCase();
+            mZip = parsed.zip.toUpperCase();
+        } else {
+            // Fallback to Physical
+            mStreet = pStreet;
+            mCity = pCity;
+            mState = pState;
+            mZip = pZip;
+        }
 
-        // Build the row array matching the 'headers' order
-        const values = [
-            `"${(getVal('Name') || '').replace(/"/g, '""')}"`,
-            `"${(getVal('Mailing Address') || getVal('Mailing') || '').replace(/"/g, '""')}"`,
-            `"${(city || '').replace(/"/g, '""')}"`,
-            `"${(state || '').replace(/"/g, '""')}"`,
-            `"${(zip || '').replace(/"/g, '""')}"`,
-            `"${fullAddressString.replace(/"/g, '""')}"`
+        // --- NAME ---
+        let friendlyName = "COMMUNITY MEMBER";
+        if (props.resident_name) {
+            friendlyName = formatName(props.resident_name);
+        } 
+        else if (pCity && pCity !== "CURRENT RESIDENT") {
+            friendlyName = `${pCity} COMMUNITY MEMBER`;
+        }
+
+        const row = [
+            `"${friendlyName}"`,
+            `"${pStreet.replace(/"/g, '""')}"`,
+            `"${pCity.replace(/"/g, '""')}"`,
+            `"${pState.replace(/"/g, '""')}"`,
+            `"${pZip.replace(/"/g, '""')}"`,
+            `"${mStreet.replace(/"/g, '""')}"`,
+            `"${mCity.replace(/"/g, '""')}"`,
+            `"${mState.replace(/"/g, '""')}"`,
+            `"${mZip.replace(/"/g, '""')}"`,
+            pt.lat,
+            pt.lng
         ];
-
-        csvRows.push(values.join(','));
+        csvRows.push(row.join(','));
     });
 
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${el.nameInput.value || 'campaign'}_addresses.csv`;
+    a.download = `${el.nameInput.value || 'campaign'}_export.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    
+    hideLoading();
 }
 
 function parseMailingString(str) {
