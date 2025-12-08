@@ -11,6 +11,7 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Load Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
@@ -211,16 +212,40 @@
                         <span id="selected-count">0</span> addresses in area
                     </div>
                     
+                    <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: flex-end;">
+                        <input type="checkbox" id="include-existing-cb" class="form-checkbox" style="margin-right: 0.5rem;">
+                        <label for="include-existing-cb" style="font-size: 0.8rem; color: #374151; cursor: pointer;">Include New Orders/Pending</label>
+                    </div>
+
+                    <!-- NEW CHECKBOX FOR ACTIVE CUSTOMERS -->
+                    <div style="margin-top: 0.25rem; display: flex; align-items: center; justify-content: flex-end;">
+                        <input type="checkbox" id="include-active-customers-cb" class="form-checkbox" style="margin-right: 0.5rem;">
+                        <label for="include-active-customers-cb" style="font-size: 0.8rem; color: #374151; cursor: pointer;">Include Active Customer List</label>
+                    </div>
+
                     <button id="export-btn" class="btn btn-secondary" disabled style="margin-top:0.5rem;">
                         <i data-lucide="download" class="btn-icon"></i> Export CSV
                     </button>
                 </div>
                 
-                <div style="padding: 1rem; margin-top: auto; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 1rem; margin-top: auto; border-top: 1px solid #e5e7eb; display:flex; gap:0.5rem; flex-direction:column;">
                     <label for="gis-upload" class="btn btn-secondary" style="width: 100%; cursor: pointer; font-size: 0.8rem; display: flex; justify-content: center; align-items: center;">
                         <i data-lucide="upload" class="btn-icon"></i> Update Address DB
                     </label>
                     <input type="file" id="gis-upload" accept=".csv" style="display: none;">
+
+                    <!-- Elkhart Tax Record Upload -->
+                    <label for="tax-record-upload" class="btn btn-secondary" style="width: 100%; cursor: pointer; font-size: 0.8rem; display: flex; justify-content: center; align-items: center; border-color: #d97706; color: #d97706;">
+                        <i data-lucide="file-text" class="btn-icon"></i> Upload Tax (Elkhart)
+                    </label>
+                    <input type="file" id="tax-record-upload" accept=".txt,.csv" style="display: none;">
+
+                    <!-- NEW: Kosciusko Tax Record Upload -->
+                    <label for="tax-record-kosciusko-upload" class="btn btn-secondary" style="width: 100%; cursor: pointer; font-size: 0.8rem; display: flex; justify-content: center; align-items: center; border-color: #7c3aed; color: #7c3aed; margin-top: 0.5rem;">
+                        <i data-lucide="file-text" class="btn-icon"></i> Upload Tax (Kosciusko)
+                    </label>
+                    <input type="file" id="tax-record-kosciusko-upload" accept=".txt,.csv" style="display: none;">
+
                 </div>
             </div>
 
@@ -238,6 +263,7 @@
                 <div class="legend-item"><div class="dot" style="background:#9ca3af;"></div> Potential Target</div>
                 <div class="legend-item"><div class="dot" style="background:#3b82f6;"></div> New Order</div>
                 <div class="legend-item"><div class="dot" style="background:#059669;"></div> Completed</div>
+                <div class="legend-item"><div class="dot" style="background:#1e40af;"></div> Active Customer (List)</div>
                 <div class="legend-item"><div class="dot" style="background:#f59e0b;"></div> Other</div>
             </div>
 
@@ -262,6 +288,7 @@
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBThTYangHjueZ0WM7apmXNHrec5gD78WI&callback=initMarketingMap&libraries=geocoding,drawing,geometry" async defer></script>
 
+    <!-- Initialize Icons on Load -->
     <script>
         window.addEventListener('load', () => {
             if (window.lucide) {

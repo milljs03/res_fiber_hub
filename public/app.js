@@ -20,11 +20,14 @@ import {
     onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+// --- NEW: Import Storage functions ---
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
 // --- Constants ---
 const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
-// NEW: Define the workflow steps
+// Define the workflow steps
 const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'Completed'];
-// --- END CONSTANTS ---
+// --- END Constants ---
 
 // --- Global State ---
 let currentUserId = null;
@@ -37,6 +40,10 @@ let allCustomers = [];
 let currentSort = 'name'; 
 let currentFilter = 'All'; 
 let currentCompletedFilter = 'All'; 
+
+// NEW: Storage & Temp URL
+const storage = getStorage();
+let tempUploadedPdfUrl = null;
 
 // Chart instances (declared at top level)
 let myChart = null; 
@@ -82,21 +89,20 @@ const el = {
     sortBy: document.getElementById('sort-by'), 
     filterPillsContainer: document.getElementById('filter-pills'), 
     
-    // --- NEW TAB ELEMENTS ---
+    // Tab Elements
     mainListTabs: document.getElementById('main-list-tabs'),
     activeControlsGroup: document.getElementById('active-controls-group'),
     completedControlsGroup: document.getElementById('completed-controls-group'),
     
-    // --- COMPLETED FILTER ELEMENTS ---
+    // Completed Filter Elements
     completedFilterGroup: document.getElementById('completed-filter-group'), 
     completedFilterSelect: document.getElementById('completed-filter-select'), 
     completedFilterResults: document.getElementById('completed-filter-results'), 
 
-    // --- DASHBOARD ELEMENTS ---
+    // Dashboard Elements
     statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
     statsSummaryCompletedWrapper: document.getElementById('stats-summary-completed-wrapper'),
     installationsChart: document.getElementById('installations-chart'),
-    // KPIs
     overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
     monthlyInstallChart: document.getElementById('monthly-install-chart'), 
     speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
@@ -134,16 +140,15 @@ const el = {
     unarchiveCustomerBtn: document.getElementById('unarchive-customer-btn'), 
     completedActionsDiv: document.getElementById('completed-actions-div'), 
     
-    // --- NEW SERVICE ORDER ELEMENTS ---
+    // NEW: View SO Button
     viewSoBtn: document.getElementById('view-so-btn'),
-    serviceOrderDisplay: document.getElementById('service-order-display'),
 
-    // --- NEW NID FIELDS ---
-    spliceCompleteDate: document.getElementById('splice-complete-date'), // New static field
-    detailsNidIssues: document.getElementById('details-nid-issues'), // New hidden field
-    returnSpliceBtn: document.getElementById('return-splice-btn'), // New button
+    // NID Fields
+    spliceCompleteDate: document.getElementById('splice-complete-date'), 
+    detailsNidIssues: document.getElementById('details-nid-issues'), 
+    returnSpliceBtn: document.getElementById('return-splice-btn'), 
     
-    // --- UPDATED: Stepper and Pages ---
+    // Stepper and Pages
     statusStepper: document.getElementById('status-stepper'),
     detailsPages: document.querySelectorAll('.details-page'),
     
@@ -151,7 +156,7 @@ const el = {
     toast: document.getElementById('toast-notification')
 };
 
-// --- 1. AUTHENTICATION (Updated to set shared collection paths) ---
+// --- 1. AUTHENTICATION ---
 onAuthStateChanged(auth, (user) => {
     handleAuthentication(user);
 });
@@ -169,7 +174,7 @@ const handleAuthentication = (user) => {
         
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
-        initializeApp();
+        initializeApp(); // Ensure we initialize after auth
     } else {
         currentUserId = null;
         customersCollectionRef = null;
@@ -233,19 +238,18 @@ const updateCompletedFilterOptions = (allCustomers) => {
     });
     
     const sortedYears = Array.from(yearMap).map(([value, text]) => ({ value, text }));
-    sortedYears.sort((a, b) => b.value.localeCompare(a.value)); // Newest year first
+    sortedYears.sort((a, b) => b.value.localeCompare(a.value)); 
     
     const sortedMonths = Array.from(monthMap).map(([value, text]) => ({ value, text }));
-    sortedMonths.sort((a, b) => b.value.localeCompare(a.value)); // Newest month first
+    sortedMonths.sort((a, b) => b.value.localeCompare(a.value)); 
     
     el.completedFilterSelect.innerHTML = '';
     
     const allOption = document.createElement('option');
     allOption.value = 'All';
-    allOption.textContent = 'All Time'; // Changed text
+    allOption.textContent = 'All Time'; 
     el.completedFilterSelect.appendChild(allOption);
 
-    // Add Year Options
     const yearGroup = document.createElement('optgroup');
     yearGroup.label = 'By Year';
     sortedYears.forEach(year => {
@@ -256,7 +260,6 @@ const updateCompletedFilterOptions = (allCustomers) => {
     });
     el.completedFilterSelect.appendChild(yearGroup);
 
-    // Add Month Options
     const monthGroup = document.createElement('optgroup');
     monthGroup.label = 'By Month';
     sortedMonths.forEach(month => {
@@ -267,7 +270,6 @@ const updateCompletedFilterOptions = (allCustomers) => {
     });
     el.completedFilterSelect.appendChild(monthGroup);
     
-    // Ensure the current filter is still valid
     if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
         currentCompletedFilter = 'All';
     }
@@ -284,12 +286,7 @@ const renderSpeedBreakdownChart = (speedCounts) => {
     const speedLabels = Object.keys(speedCounts);
     const speedData = Object.values(speedCounts);
     
-    const colors = [
-        '#4f46e5', // Indigo
-        '#065f46', // Green
-        '#d97706', // Yellow/Orange
-        '#9ca3af'  // Gray (for unknown)
-    ];
+    const colors = ['#4f46e5', '#065f46', '#d97706', '#9ca3af'];
 
     speedChart = new Chart(el.speedBreakdownChart, {
         type: 'doughnut',
@@ -307,14 +304,7 @@ const renderSpeedBreakdownChart = (speedCounts) => {
             maintainAspectRatio: false,
             cutout: '60%',
             plugins: {
-                legend: {
-                    position: 'right',
-                    align: 'middle',
-                    labels: {
-                        boxWidth: 10,
-                        padding: 10
-                    }
-                },
+                legend: { position: 'right', align: 'middle', labels: { boxWidth: 10, padding: 10 } },
                 tooltip: {
                     callbacks: {
                         label: (context) => {
@@ -361,30 +351,18 @@ const renderMonthlyAverageChart = (monthlyAverages) => {
             maintainAspectRatio: false,
             scales: {
                 x: { grid: { display: false } },
-                y: {
-                    beginAtZero: true,
-                    ticks: { precision: 0, maxTicksLimit: 5 },
-                    title: { display: false }
-                }
+                y: { beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 5 }, title: { display: false } }
             },
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (context) => `Avg: ${context.raw} days`
-                    }
-                }
+                tooltip: { callbacks: { label: (context) => `Avg: ${context.raw} days` } }
             }
         }
     });
 };
 
 const renderChart = (ytdInstalls, currentYear) => {
-    const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ];
-
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const chartLabels = [];
     const chartData = [];
 
@@ -398,10 +376,7 @@ const renderChart = (ytdInstalls, currentYear) => {
         myChart.destroy();
     }
 
-    if (!el.installationsChart) {
-        console.error("Chart canvas (installations-chart) not found.");
-        return;
-    }
+    if (!el.installationsChart) return;
 
     const Chart = window.Chart;
 
@@ -421,21 +396,8 @@ const renderChart = (ytdInstalls, currentYear) => {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: false
-                    },
-                    ticks: {
-                        precision: 0,
-                        maxTicksLimit: 5
-                    }
-                }
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, title: { display: false }, ticks: { precision: 0, maxTicksLimit: 5 } }
             }
         }
     });
@@ -449,14 +411,13 @@ const handleDashboardToggle = () => {
     if (isExpanded) {
         el.dashboardContent.classList.remove('active');
         el.dashboardToggleBtn.setAttribute('aria-expanded', 'false');
-        // UPDATED ICON PATH
-        el.dashboardToggleIcon.src = 'icons/chevron_up.png';
+        el.dashboardToggleIcon.setAttribute('data-lucide', 'chevron-up');
     } else {
         el.dashboardContent.classList.add('active');
         el.dashboardToggleBtn.setAttribute('aria-expanded', 'true');
-        // UPDATED ICON PATH
-        el.dashboardToggleIcon.src = 'icons/chevron_down.png';
+        el.dashboardToggleIcon.setAttribute('data-lucide', 'chevron-down');
     }
+    if (window.lucide) window.lucide.createIcons();
 };
 
 
@@ -472,6 +433,9 @@ const initializeApp = () => {
     }
     loadCustomers();
     handleDeselectCustomer(false); // Pass false to skip auto-save on init
+    
+    // Initialize icons on app load
+    if (window.lucide) window.lucide.createIcons();
 };
 
 const setupEventListeners = () => {
@@ -483,7 +447,7 @@ const setupEventListeners = () => {
     // Form submission
     el.addForm.addEventListener('submit', handleAddCustomer);
     
-    // PDF Processing Listeners (Click & Drag-and-Drop)
+    // PDF Processing Listeners
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
     
     // Drag and Drop Events
@@ -503,25 +467,19 @@ const setupEventListeners = () => {
             updateSelectedFileDisplay();
         }
     });
-    // Standard file input change event
     el.pdfUploadInput.addEventListener('change', updateSelectedFileDisplay);
 
-
-    // Dashboard Toggle Listener
+    // Dashboard Toggle
     el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle); 
 
-    // Search
-    el.searchBar.addEventListener('input', (e) => {
-        displayCustomers();
-    });
-
-    // Sort Listener
+    // Search & Sort
+    el.searchBar.addEventListener('input', () => displayCustomers());
     el.sortBy.addEventListener('change', (e) => {
         currentSort = e.target.value;
         displayCustomers();
     });
 
-    // Completed Filter Listener
+    // Completed Filter
     el.completedFilterSelect.addEventListener('change', (e) => {
         currentCompletedFilter = e.target.value;
         displayCustomers();
@@ -532,9 +490,7 @@ const setupEventListeners = () => {
         const tab = e.target.closest('.main-list-tab');
         if (!tab) return;
         
-        el.mainListTabs.querySelectorAll('.main-list-tab').forEach(t => {
-            t.classList.remove('active');
-        });
+        el.mainListTabs.querySelectorAll('.main-list-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
 
         const mainFilter = tab.dataset.mainFilter;
@@ -543,7 +499,6 @@ const setupEventListeners = () => {
             el.activeControlsGroup.classList.add('hidden');
             el.completedControlsGroup.classList.remove('hidden');
             el.completedFilterGroup.querySelector('label').textContent = 'Completed Date';
-            
             currentFilter = 'Completed'; 
             currentCompletedFilter = el.completedFilterSelect.value;
             el.customerListContainer.classList.add('completed-view');
@@ -551,8 +506,7 @@ const setupEventListeners = () => {
         } else if (mainFilter === 'Archived') { 
             el.activeControlsGroup.classList.add('hidden');
             el.completedControlsGroup.classList.remove('hidden');
-            el.completedFilterGroup.querySelector('label').textContent = 'Archived Date'; // Change label
-            
+            el.completedFilterGroup.querySelector('label').textContent = 'Archived Date';
             currentFilter = 'Archived'; 
             currentCompletedFilter = el.completedFilterSelect.value;
             el.customerListContainer.classList.add('completed-view');
@@ -560,13 +514,11 @@ const setupEventListeners = () => {
         } else { // Active
             el.activeControlsGroup.classList.remove('hidden');
             el.completedControlsGroup.classList.add('hidden');
-            
             const activePill = el.filterPillsContainer.querySelector('.filter-pill.active');
             currentFilter = activePill ? activePill.dataset.filter : 'All';
             currentCompletedFilter = 'All'; 
             el.customerListContainer.classList.remove('completed-view');
         }
-
         displayCustomers();
     });
 
@@ -576,11 +528,8 @@ const setupEventListeners = () => {
         if (!pill) return;
 
         if (el.mainListTabs.querySelector('.main-list-tab[data-main-filter="Active"]').classList.contains('active')) {
-            el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => {
-                p.classList.remove('active');
-            });
+            el.filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
             pill.classList.add('active');
-    
             currentFilter = pill.dataset.filter;
             displayCustomers();
         }
@@ -594,7 +543,7 @@ const setupEventListeners = () => {
         }
     });
 
-    // Details panel
+    // Details panel actions
     el.mobileBackBtn.addEventListener('click', () => handleDeselectCustomer(true)); 
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
     el.headerSaveBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0)); 
@@ -610,36 +559,19 @@ const setupEventListeners = () => {
     el.unarchiveCustomerBtn.addEventListener('click', handleUnarchiveCustomer); 
     el.detailsForm.addEventListener('click', handleDetailsFormClick);
 
-    // NEW: Splice Return Listener
+    // Splice Return
     el.returnSpliceBtn.addEventListener('click', handleReturnSplice); 
     
-    // NEW: View SO Data Listener
-    if (el.viewSoBtn) {
-        el.viewSoBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            showDetailsPage('page-service-order');
-            // Deactivate stepper items since we are in a separate view
-            el.statusStepper.querySelectorAll('.step').forEach(btn => btn.classList.remove('active'));
-        });
-    }
-
-    // Stepper Click Listener
+    // Stepper Click
     el.statusStepper.addEventListener('click', (e) => {
         const stepButton = e.target.closest('.step'); 
         if (!stepButton) return;
-
         e.preventDefault();
-        // This button now *only* navigates. It does not change the status.
         const pageId = stepButton.dataset.page;
         showDetailsPage(pageId);
-        
-        // We still update the stepper UI to show what's "active" (selected)
         el.statusStepper.querySelectorAll('.step').forEach(btn => btn.classList.remove('active'));
         stepButton.classList.add('active');
-        
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+        if (window.lucide) window.lucide.createIcons();
     });
 
     // On Hold toggle
@@ -648,7 +580,6 @@ const setupEventListeners = () => {
 
 // --- PDF PROCESSING FUNCTIONS ---
 
-// Helper to update UI when file is selected
 const updateSelectedFileDisplay = () => {
     const file = el.pdfUploadInput.files[0];
     if (file) {
@@ -671,10 +602,7 @@ const getPdfData = (file) => {
 
 const extractTextFromPdf = async (data) => {
     try {
-        if (!window.pdfjsLib) {
-             throw new Error("PDF.js library not found.");
-        }
-
+        if (!window.pdfjsLib) throw new Error("PDF.js library not found.");
         const pdf = await window.pdfjsLib.getDocument({ data }).promise;
         const page = await pdf.getPage(1);
         const textContent = await page.getTextContent();
@@ -685,6 +613,7 @@ const extractTextFromPdf = async (data) => {
     }
 };
 
+// UPDATED: Improved parsing function
 const parseServiceOrderText = (rawText) => {
     const normalizedText = rawText
         .replace(/(\r\n|\n|\r)/gm, '\n') 
@@ -698,7 +627,7 @@ const parseServiceOrderText = (rawText) => {
         address: '',
         primaryEmail: '',
         primaryPhone: '',
-        serviceSpeed: '200 Mbps' 
+        serviceSpeed: '' 
     };
 
     const findMatch = (pattern, cleanup = (v) => v.trim()) => {
@@ -715,50 +644,27 @@ const parseServiceOrderText = (rawText) => {
     
     if (addressBlockMatch && addressBlockMatch[1]) {
         const addressLines = addressBlockMatch[1].split('\n').map(line => line.trim()).filter(line => line.length > 0);
-        
-        console.log("--- DEBUG PARSING START ---");
-        console.log("Address Lines (Cleaned/Trimmed):", addressLines);
-
-
         if (addressLines.length >= 2) {
             let lastName = addressLines[0]; 
             let rawAddressAndNames = addressLines.slice(1).join(' '); 
             let firstNames = ''; 
             let finalAddressString = rawAddressAndNames;
             
-            console.log("Last Name (Line 1):", lastName);
-            console.log("Raw Address/Names (Line 2+):", rawAddressAndNames);
-            
             const prefixMatch = rawAddressAndNames.match(/^([^0-9]*?)\s*(\d.*)/);
 
             if (prefixMatch) {
                 firstNames = prefixMatch[1].trim();
                 finalAddressString = prefixMatch[2].trim();
-                
-                console.log("Extracted First Names from Address Prefix:", firstNames);
-                console.log("Extracted Street Address Start:", finalAddressString);
-
             } else {
-                console.log("No street number detected at address start. Keeping raw line for address.");
                 finalAddressString = rawAddressAndNames;
             }
             
             let combinedNames = '';
-            
-            if (firstNames.length > 0) {
-                combinedNames = `${firstNames} ${lastName}`;
-            } else if (lastName.includes(' ')) {
-                combinedNames = lastName;
-            } else {
-                combinedNames = lastName;
-            }
+            if (firstNames.length > 0) combinedNames = `${firstNames} ${lastName}`;
+            else combinedNames = lastName;
             
             data.customerName = combinedNames; 
-            
-            data.address = finalAddressString
-                .replace(/,/g, ' ')        
-                .replace(/\s+/g, ' ')      
-                .trim();                   
+            data.address = finalAddressString.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();                   
 
         } else if (addressLines.length === 1) {
             data.customerName = addressLines[0];
@@ -767,35 +673,31 @@ const parseServiceOrderText = (rawText) => {
     }
 
     const cellMatch = normalizedText.match(/CELL\s*\n\s*(\d{10})/);
-    if (cellMatch) {
-         data.primaryPhone = cellMatch[1];
-    }
+    if (cellMatch) data.primaryPhone = cellMatch[1];
     
     const emailMatch = normalizedText.match(/EMAIL\s*\n\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    if (emailMatch) {
-        data.primaryEmail = emailMatch[1];
-    }
+    if (emailMatch) data.primaryEmail = emailMatch[1];
 
-    const speedMatch = normalizedText.match(/CONNECT\s*(\d+)\s*(MEG|MBPS|GB|GIG)/i);
+    // --- IMPROVED SPEED PARSING ---
+    let speedMatch = normalizedText.match(/CONNECT\s*(\d+)\s*(MEG|MBPS|GB|GIG)/i);
+    if (!speedMatch) speedMatch = normalizedText.match(/(\d+)\s*(Mbps|Gbps|Meg|Gig)/i);
+
     if (speedMatch) {
         let speedValue = speedMatch[1].trim();
         let speedUnit = speedMatch[2].toUpperCase();
         
-        if (speedUnit === 'GIG' || speedValue === '1' || speedUnit === 'GB') {
+        if (speedUnit.startsWith('G') || (speedValue === '1' && speedUnit.startsWith('G'))) {
             data.serviceSpeed = '1 Gbps';
-        } else if (speedUnit === 'MEG' || speedUnit === 'MBPS') {
-            data.serviceSpeed = `${speedValue} Mbps`;
+        } else if (speedUnit.startsWith('M')) {
+            if (speedValue === '1000') data.serviceSpeed = '1 Gbps';
+            else data.serviceSpeed = `${speedValue} Mbps`;
         }
     }
-    
-    console.log("--- DEBUG PARSING END ---");
-    console.log("Final Parsed Data:", data);
-    console.log("---------------------------");
     
     return data;
 };
 
-
+// UPDATED: Handle Upload + Parse
 const handlePdfProcessing = async () => {
     if (!window.pdfjsLib) {
          showToast('PDF.js library not loaded. Check network connection.', 'error');
@@ -810,12 +712,18 @@ const handlePdfProcessing = async () => {
 
     el.processPdfBtn.disabled = true;
     el.pdfStatusMsg.style.color = '#4f46e5';
-    el.pdfStatusMsg.textContent = 'Processing PDF locally...';
+    el.pdfStatusMsg.textContent = 'Uploading and processing PDF...';
     
     try {
+        // 1. Upload to Firebase Storage
+        const storageRef = ref(storage, `artifacts/${currentAppId}/public/service_orders/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        tempUploadedPdfUrl = await getDownloadURL(snapshot.ref);
+        console.log("PDF Uploaded successfully:", tempUploadedPdfUrl);
+
+        // 2. Extract Data for Autofill
         const arrayBuffer = await getPdfData(file);
         const rawText = await extractTextFromPdf(arrayBuffer);
-        
         const data = parseServiceOrderText(rawText);
         
         el.soNumberInput.value = data.serviceOrderNumber || '';
@@ -824,37 +732,37 @@ const handlePdfProcessing = async () => {
         el.customerEmailInput.value = data.primaryEmail || '';
         el.customerPhoneInput.value = data.primaryPhone || '';
         
-        const speed = data.serviceSpeed;
+        const speed = data.serviceSpeed; 
         const options = Array.from(el.serviceSpeedInput.options).map(opt => opt.value);
-        const bestMatch = options.find(opt => speed && opt.toLowerCase().includes(speed.toLowerCase()));
-        
-        el.serviceSpeedInput.value = bestMatch || options.find(opt => opt.includes('200')) || options[0];
+        let selectedOption = null;
 
-        el.pdfStatusMsg.textContent = 'PDF processed and form successfully autofilled! Review details before saving.';
+        if (speed) {
+            const speedLower = speed.toLowerCase().replace(/\s/g, ''); 
+            selectedOption = options.find(opt => {
+                const optLower = opt.toLowerCase().replace(/\s/g, '');
+                return optLower.includes(speedLower) || speedLower.includes(optLower);
+            });
+        }
+
+        el.serviceSpeedInput.value = selectedOption || options.find(opt => opt.includes('200')) || options[0];
+
+        el.pdfStatusMsg.textContent = 'PDF uploaded & form autofilled! Ready to add.';
         el.pdfStatusMsg.style.color = '#065F46'; 
         
     } catch (error) {
         console.error("PDF Processing Failed:", error);
-        el.pdfStatusMsg.textContent = `Error processing PDF: ${error.message}. Try manual entry.`;
+        el.pdfStatusMsg.textContent = `Error: ${error.message}. Try manual entry.`;
         el.pdfStatusMsg.style.color = '#ef4444'; 
         showToast('PDF processing failed.', 'error');
+        tempUploadedPdfUrl = null; 
     } finally {
         el.processPdfBtn.disabled = false;
-        // DO NOT clear input here so user sees what they selected.
-        // It gets cleared on modal close instead.
     }
 };
 
 const calculateDashboardStats = (customers) => {
     const statusCounts = {
-        'New Order': 0,
-        'Site Survey Ready': 0,
-        'Torys List': 0,
-        'NID Ready': 0,
-        'Install Ready': 0,
-        'On Hold': 0,
-        'Completed': 0,
-        'Archived': 0 // NEW
+        'New Order': 0, 'Site Survey Ready': 0, 'Torys List': 0, 'NID Ready': 0, 'Install Ready': 0, 'On Hold': 0, 'Completed': 0, 'Archived': 0 
     };
     
     let totalInstallDays = 0;
@@ -866,23 +774,14 @@ const calculateDashboardStats = (customers) => {
     const currentYear = new Date().getFullYear();
 
     customers.forEach(c => {
-        // --- DATA NORMALIZATION ---
         let status = c.status;
-        if (status === "Tory's List") {
-            status = "Torys List";
-        }
-        // --- END NORMALIZATION ---
+        if (status === "Tory's List") status = "Torys List";
 
-        if (statusCounts.hasOwnProperty(status)) {
-            statusCounts[status]++;
-        }
+        if (statusCounts.hasOwnProperty(status)) statusCounts[status]++;
         
-        // Speed breakdown should include all customers, even archived
         const speed = c.serviceSpeed || 'Unknown';
         speedCounts[speed] = (speedCounts[speed] || 0) + 1;
 
-        // --- MODIFICATION: Check for exemption
-        // Stats should be calculated on 'Completed' AND 'Archived' customers
         if ((status === 'Completed' || status === 'Archived') && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
             const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
             const dateCreated = new Date(c.createdAt.seconds * 1000);
@@ -897,9 +796,7 @@ const calculateDashboardStats = (customers) => {
             const installMonth = String(dateInstalled.getMonth() + 1).padStart(2, '0');
             const monthKey = `${installYear}-${installMonth}`;
             
-            if (!monthlyInstallTimes[monthKey]) {
-                monthlyInstallTimes[monthKey] = { totalDays: 0, count: 0 };
-            }
+            if (!monthlyInstallTimes[monthKey]) monthlyInstallTimes[monthKey] = { totalDays: 0, count: 0 };
             monthlyInstallTimes[monthKey].totalDays += diffDays;
             monthlyInstallTimes[monthKey].count++;
             
@@ -911,7 +808,6 @@ const calculateDashboardStats = (customers) => {
     });
 
     const totalActive = statusCounts['New Order'] + statusCounts['Site Survey Ready'] + statusCounts['Torys List'] + statusCounts['NID Ready'] + statusCounts['Install Ready'] + statusCounts['On Hold'];
-    // Include Archived in total completed count
     const totalCompleted = statusCounts['Completed'] + statusCounts['Archived']; 
     
     const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
@@ -941,7 +837,6 @@ const renderDashboard = (totalActive, totalCompleted, statusCounts, overallAvgTi
     if (totalActive > 0) {
         const pillsHtml = activeStatuses.map(status => {
             if (statusCounts[status] > 0) {
-                // --- APOSTROPHE FIX ---
                 const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
                 return `<span class="status-pill status-${statusSlug}">${status} - ${statusCounts[status]}</span>`;
             }
@@ -992,11 +887,7 @@ const loadCustomers = () => {
         allCustomers = []; 
         snapshot.forEach((doc) => {
             let data = doc.data();
-            // --- DATA NORMALIZATION ---
-            if (data.status === "Tory's List") {
-                data.status = "Torys List";
-            }
-            // --- END NORMALIZATION ---
+            if (data.status === "Tory's List") data.status = "Torys List";
             allCustomers.push({ id: doc.id, ...data });
         });
         
@@ -1008,7 +899,7 @@ const loadCustomers = () => {
         if (activeMainTab && activeMainTab.dataset.mainFilter === 'Completed') {
             currentFilter = 'Completed';
             currentCompletedFilter = el.completedFilterSelect.value;
-        } else if (activeMainTab && activeMainTab.dataset.mainFilter === 'Archived') { // NEW
+        } else if (activeMainTab && activeMainTab.dataset.mainFilter === 'Archived') {
             currentFilter = 'Archived';
             currentCompletedFilter = el.completedFilterSelect.value;
         } else {
@@ -1021,41 +912,28 @@ const loadCustomers = () => {
         if (selectedCustomerId) {
             const freshData = allCustomers.find(c => c.id === selectedCustomerId);
             if (freshData) {
-                // Re-populate form but maintain current view
-                const currentStatus = el.detailsForm.dataset.currentStatus; // Get the "real" status
-                populateDetailsForm(freshData); // This resets the form
-                updateStepperUI(currentStatus); // Re-apply the "real" status to the stepper
+                const currentStatus = el.detailsForm.dataset.currentStatus; 
+                populateDetailsForm(freshData); 
+                updateStepperUI(currentStatus); 
                 
-                // Re-select the correct page if it was changed
                 const activeStep = el.statusStepper.querySelector('.step.active');
-                if (activeStep) {
-                    // Only switch pages if NOT on the service order page
-                    if (!el.serviceOrderDisplay.closest('.details-page.active')) {
-                        showDetailsPage(activeStep.dataset.page);
-                    }
-                }
+                if (activeStep) showDetailsPage(activeStep.dataset.page);
             } else {
-                handleDeselectCustomer(false); // Pass false to skip auto-save
+                handleDeselectCustomer(false); 
             }
         }
         
-        // --- NEW: Check for customerId from URL ---
         const urlParams = new URLSearchParams(window.location.search);
         const customerIdFromUrl = urlParams.get('customerId');
         if (customerIdFromUrl) {
             const customerToSelect = allCustomers.find(c => c.id === customerIdFromUrl);
             const customerItem = document.querySelector(`.customer-item[data-id="${customerIdFromUrl}"]`);
-            
             if (customerToSelect && customerItem) {
                 handleSelectCustomer(customerToSelect.id, customerItem);
-                // Scroll to the item in the list
                 customerItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            
-            // Clean up the URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-        // --- END NEW ---
 
     }, (error) => {
         console.error("Error loading customers: ", error);
@@ -1069,30 +947,21 @@ const displayCustomers = () => {
     
     let filteredCustomers = [...allCustomers];
     let isCompletedList = (currentFilter === 'Completed');
-    let isArchivedList = (currentFilter === 'Archived'); // NEW
+    let isArchivedList = (currentFilter === 'Archived'); 
 
     if (isCompletedList) {
         filteredCustomers = filteredCustomers.filter(c => c.status === 'Completed');
-        
         if (currentCompletedFilter !== 'All') {
-            filteredCustomers = filteredCustomers.filter(c => 
-                (c.installDetails?.installDate || '').startsWith(currentCompletedFilter)
-            );
+            filteredCustomers = filteredCustomers.filter(c => (c.installDetails?.installDate || '').startsWith(currentCompletedFilter));
         }
-
-    } else if (isArchivedList) { // NEW
+    } else if (isArchivedList) { 
         filteredCustomers = filteredCustomers.filter(c => c.status === 'Archived');
-        
         if (currentCompletedFilter !== 'All') {
-            filteredCustomers = filteredCustomers.filter(c => 
-                (c.installDetails?.installDate || '').startsWith(currentCompletedFilter)
-            );
+            filteredCustomers = filteredCustomers.filter(c => (c.installDetails?.installDate || '').startsWith(currentCompletedFilter));
         }
-    
     } else if (currentFilter !== 'All') {
         filteredCustomers = filteredCustomers.filter(c => c.status === currentFilter);
-        
-    } else { // "All" Active
+    } else { 
         filteredCustomers = filteredCustomers.filter(c => c.status !== 'Completed' && c.status !== 'Archived');
     }
 
@@ -1103,7 +972,6 @@ const displayCustomers = () => {
         );
     }
 
-    // Sort Completed and Archived lists the same way (by date)
     if (isCompletedList || isArchivedList) {
         filteredCustomers.sort((a, b) => {
             const dateA = a.installDetails?.installDate || '0000-00-00';
@@ -1145,10 +1013,8 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
     if (customersToRender.length === 0) {
         if (searchTerm) {
             el.listLoading.textContent = `No customers found matching "${searchTerm}".`;
-        } else if (currentFilter === 'Completed' && currentCompletedFilter !== 'All') {
-             el.listLoading.textContent = `No completed orders found in this period.`;
-        } else if (currentFilter === 'Archived' && currentCompletedFilter !== 'All') {
-             el.listLoading.textContent = `No archived orders found in this period.`;
+        } else if ((currentFilter === 'Completed' || currentFilter === 'Archived') && currentCompletedFilter !== 'All') {
+             el.listLoading.textContent = `No orders found in this period.`;
         } else if (currentFilter !== 'All') {
             el.listLoading.textContent = `No customers found in stage "${currentFilter}".`;
         } else {
@@ -1163,15 +1029,11 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
         const item = document.createElement('div');
         item.className = 'customer-item';
         item.dataset.id = customer.id;
-        if (customer.id === selectedCustomerId) {
-            item.classList.add('selected');
-        }
+        if (customer.id === selectedCustomerId) item.classList.add('selected');
 
         const getStatusClass = (status) => {
             if (!status) return 'status-default';
-            // --- APOSTROPHE FIX ---
             const statusSlug = status.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
-            // NEW: Add archived case
             switch (statusSlug) {
                 case 'new-order': return 'status-new-order';
                 case 'site-survey-ready': return 'status-site-survey-ready';
@@ -1202,7 +1064,6 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
                 <p class="customer-item-address">${customer.address || 'N/A'}</p>
                 <p class="customer-item-date">${dateDisplay}</p>
             </div>
-            <p class="search-address" style="display: none;">${customer.address || ''}</p>
         `;
         el.customerListContainer.appendChild(item);
     });
@@ -1214,18 +1075,9 @@ const renderCustomerList = (customersToRender, searchTerm = '') => {
 const openAddCustomerModal = () => {
     el.addCustomerModal.classList.add('show');
     el.pdfStatusMsg.textContent = ''; 
-    // Ensure selected file text is cleared on re-open
     el.selectedFileNameDisplay.textContent = '';
     el.processPdfBtn.disabled = true;
-
-    // Use default JS icon logic if lucide fails
-    try {
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    } catch(e) {
-        console.warn("Lucide icons not available in modal.", e);
-    }
+    if (window.lucide) window.lucide.createIcons();
 };
 
 const closeAddCustomerModal = () => {
@@ -1237,7 +1089,6 @@ const closeAddCustomerModal = () => {
     el.pdfUploadInput.value = '';
 };
 
-// --- MODIFIED: handleAddCustomer (Added splicingDetails structure) ---
 const handleAddCustomer = async (e) => {
     e.preventDefault();
     if (!customersCollectionRef) return;
@@ -1253,45 +1104,23 @@ const handleAddCustomer = async (e) => {
         secondaryContact: { name: "", phone: "" },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
-        generalNotes: "", // MOVED TO TOP LEVEL
-        exemptFromStats: false, // NEW
+        generalNotes: "", 
+        exemptFromStats: false, 
+        serviceOrderPdfUrl: tempUploadedPdfUrl || null, // Updated to use upload URL
         createdAt: serverTimestamp(), 
         preInstallChecklist: {
-            welcomeEmailSent: false,
-            addedToSiteSurvey: false,
-            addedToFiberList: false,
-            addedToRepairShoppr: false
+            welcomeEmailSent: false, addedToSiteSurvey: false, addedToFiberList: false, addedToRepairShoppr: false
         },
-        torysListChecklist: { // NEW
-            added: false
-        },
-        installReadyChecklist: { // NEW
-            ready: false
-        },
+        torysListChecklist: { added: false },
+        installReadyChecklist: { ready: false },
         installDetails: {
-            installDate: "",
-            eeroInfo: false, 
-            nidLightReading: "",
-            additionalEquipment: "",
-            siteSurveyNotes: "",
-            dropNotes: "", // NEW: Add field for drop notes
-            installNotes: "" 
+            installDate: "", eeroInfo: false, nidLightReading: "", additionalEquipment: "", siteSurveyNotes: "", dropNotes: "", installNotes: "" 
         },
-        // NEW: Splicing Details structure
         splicingDetails: {
-            handhole: "",
-            strand: "",
-            assignedSplicer: "",
-            notes: "",
-            assigned: false,
-            completedAt: null, // NEW: Splice Completion Timestamp
-            nidIssues: "" // NEW: Splice Rejection Notes
+            handhole: "", strand: "", assignedSplicer: "", notes: "", assigned: false, completedAt: null, nidIssues: "" 
         },
         postInstallChecklist: {
-            removedFromFiberList: false,
-            removedFromSiteSurvey: false,
-            updatedRepairShoppr: false,
-            emailSentToBilling: false
+            removedFromFiberList: false, removedFromSiteSurvey: false, updatedRepairShoppr: false, emailSentToBilling: false
         }
     };
 
@@ -1299,6 +1128,7 @@ const handleAddCustomer = async (e) => {
         await addDoc(customersCollectionRef, newCustomer);
         showToast('Customer added successfully!', 'success');
         closeAddCustomerModal();
+        tempUploadedPdfUrl = null;
     } catch (error) {
         console.error("Error adding customer: ", error);
         showToast('Error adding customer.', 'error');
@@ -1308,24 +1138,20 @@ const handleAddCustomer = async (e) => {
 
 // --- 5. DETAILS PANEL (UPDATE / DELETE) ---
 const handleSelectCustomer = async (customerId, customerItem) => {
-    // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
     if (selectedCustomerId && selectedCustomerId !== customerId) {
-        await handleUpdateCustomer(null, true, 0); // auto-save, stepDirection 0 (stay)
+        await handleUpdateCustomer(null, true, 0); 
     }
 
     if (selectedCustomerId === customerId) {
-        handleDeselectCustomer(true); // pass true to auto-save on deselect
+        handleDeselectCustomer(true); 
         return;
     }
     selectedCustomerId = customerId;
-    document.querySelectorAll('.customer-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+    document.querySelectorAll('.customer-item').forEach(item => item.classList.remove('selected'));
     customerItem.classList.add('selected');
     el.detailsPlaceholder.style.display = 'none';
     el.detailsContainer.style.display = 'block';
     
-    // NEW: Toggle mobile view class on body
     document.body.classList.add('mobile-details-active');
 
     el.detailsContainer.dataset.id = customerId; 
@@ -1336,75 +1162,48 @@ const handleSelectCustomer = async (customerId, customerItem) => {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             let data = docSnap.data();
-            // --- DATA NORMALIZATION ---
-            if (data.status === "Tory's List") {
-                data.status = "Torys List";
-            }
-            // --- END NORMALIZATION ---
+            if (data.status === "Tory's List") data.status = "Torys List";
             
             populateDetailsForm(data);
-            // --- LOGIC CHANGE: Set page AND "real" status ---
             const currentStatus = data.status || 'New Order';
-            el.detailsForm.dataset.currentStatus = currentStatus; // Store the "real" status
+            el.detailsForm.dataset.currentStatus = currentStatus; 
             el.detailsForm.dataset.statusBeforeHold = data.statusBeforeHold || 'New Order';
             setPageForStatus(currentStatus);
-            updateStepperUI(currentStatus); // Set stepper to "real" status
+            updateStepperUI(currentStatus); 
         } else {
             showToast('Could not find customer data.', 'error');
-            handleDeselectCustomer(false); // Do not save, just deselect
+            handleDeselectCustomer(false); 
         }
     } catch (error) {
         console.error("Error fetching document:", error);
         showToast('Error fetching customer details.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
-        
-        // Use default JS icon logic if lucide fails
-        try {
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        } catch(e) {
-            console.warn("Lucide icons not available in details.", e);
-        }
+        if (window.lucide) window.lucide.createIcons();
     }
 };
 
 const handleDeselectCustomer = async (autoSave = false) => {
-    // --- LOGIC CHANGE: Auto-save previous customer *without* progressing ---
     if (autoSave && selectedCustomerId) {
-        await handleUpdateCustomer(null, true, 0); // auto-save, stepDirection 0 (stay)
+        await handleUpdateCustomer(null, true, 0); 
     }
 
     selectedCustomerId = null;
-    document.querySelectorAll('.customer-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+    document.querySelectorAll('.customer-item').forEach(item => item.classList.remove('selected'));
     el.detailsPlaceholder.style.display = 'block';
     el.detailsContainer.style.display = 'none';
-    
-    // NEW: Remove mobile view class
     document.body.classList.remove('mobile-details-active');
 
     el.detailsContainer.dataset.id = '';
-    el.detailsForm.dataset.currentStatus = ''; // Clear stored status
+    el.detailsForm.dataset.currentStatus = ''; 
     el.detailsForm.dataset.statusBeforeHold = '';
     
-    // Use default JS icon logic if lucide fails
-    try {
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    } catch(e) {
-        console.warn("Lucide icons not available in placeholder.", e);
-    }
+    if (window.lucide) window.lucide.createIcons();
 };
 
-// --- MODIFIED: populateDetailsForm (Updated with splice data and logic) ---
 const populateDetailsForm = (data) => {
-    // Hide completed-specific buttons by default
     el.completedActionsDiv.classList.add('hidden');
-    el.returnSpliceBtn.classList.add('hidden'); // NEW: Hide splice return button
+    el.returnSpliceBtn.classList.add('hidden');
 
     el.detailsCustomerNameInput.value = data.customerName || ''; 
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
@@ -1413,37 +1212,26 @@ const populateDetailsForm = (data) => {
     el.detailsEmailInput.value = data.primaryContact?.email || '';
     el.detailsPhoneInput.value = data.primaryContact?.phone || '';
     
-    // ... (rest of fields)
-    
     el.detailsForm['check-welcome-email'].checked = data.preInstallChecklist?.welcomeEmailSent || false;
     el.detailsForm['check-site-survey'].checked = data.preInstallChecklist?.addedToSiteSurvey || false;
     el.detailsForm['check-fiber-list'].checked = data.preInstallChecklist?.addedToFiberList || false;
     el.detailsForm['check-repair-shoppr'].checked = data.preInstallChecklist?.addedToRepairShoppr || false;
-    
     el.detailsForm['site-survey-notes'].value = data.installDetails?.siteSurveyNotes || '';
-    
     el.detailsForm['check-torys-list'].checked = data.torysListChecklist?.added || false; 
-    
     el.detailsForm['drop-notes'].value = data.installDetails?.dropNotes || ''; 
-    
     el.detailsForm['nid-light'].value = data.installDetails?.nidLightReading || '';
 
-    // NEW: Splice Completion Date Field (Read-only on this screen)
     const spliceCompletedAt = data.splicingDetails?.completedAt?.seconds ? 
         new Date(data.splicingDetails.completedAt.seconds * 1000).toLocaleDateString() : 'N/A';
     el.spliceCompleteDate.textContent = spliceCompletedAt;
-    
-    // NEW: Hidden field for splice issues (populated here, used by handleReturnSplice)
     el.detailsNidIssues.value = data.splicingDetails?.nidIssues || '';
 
     el.detailsForm['check-install-ready'].checked = data.installReadyChecklist?.ready || false; 
-    
     el.detailsForm['install-date'].value = data.installDetails?.installDate || '';
     el.detailsForm['eero-info'].checked = data.installDetails?.eeroInfo || false; 
     el.detailsForm['extra-equip'].value = data.installDetails?.additionalEquipment || '';
     el.detailsGeneralNotes.value = data.generalNotes || ''; 
     el.detailsForm['install-notes'].value = data.installDetails?.installNotes || ''; 
-    
     el.detailsForm['check-exempt-from-stats'].checked = data.exemptFromStats || false; 
     
     el.detailsForm['post-check-fiber'].checked = data.postInstallChecklist?.removedFromFiberList || false;
@@ -1451,217 +1239,66 @@ const populateDetailsForm = (data) => {
     el.detailsForm['post-check-repair'].checked = data.postInstallChecklist?.updatedRepairShoppr || false;
     el.detailsForm['bill-info'].checked = data.postInstallChecklist?.emailSentToBilling || false;
 
-    // NEW: Render Service Order View
-    renderServiceOrder(data);
+    // --- NEW: View SO Logic ---
+    if (el.viewSoBtn) {
+        const newBtn = el.viewSoBtn.cloneNode(true);
+        el.viewSoBtn.parentNode.replaceChild(newBtn, el.viewSoBtn);
+        el.viewSoBtn = newBtn;
+
+        if (data.serviceOrderPdfUrl) {
+            el.viewSoBtn.disabled = false;
+            el.viewSoBtn.onclick = () => window.open(data.serviceOrderPdfUrl, '_blank');
+            el.viewSoBtn.title = "View Original Service Order PDF";
+            if (window.lucide) lucide.createIcons(); 
+        } else {
+            el.viewSoBtn.disabled = true;
+            el.viewSoBtn.title = "No Service Order PDF available";
+        }
+    }
 };
-
-/**
- * --- NEW FUNCTION: renderServiceOrder ---
- * Constructs the HTML for the service order view based on customer data.
- */
-function renderServiceOrder(data) {
-    const container = el.serviceOrderDisplay;
-    if (!container) return;
-
-    const now = new Date();
-    const created = data.createdAt && data.createdAt.seconds 
-        ? new Date(data.createdAt.seconds * 1000).toLocaleString() 
-        : now.toLocaleString();
-        
-    const dateStr = created.split(',')[0]; // Just date
-
-    const soNum = data.serviceOrderNumber || "N/A";
-    const custId = data.id ? data.id.substring(0, 6).toUpperCase() : "N/A";
-    const name = data.customerName || "Unknown";
-    const addr = data.address || "No Address";
-    const status = data.status || "Pending";
-    const phone = data.primaryContact?.phone || "";
-    const email = data.primaryContact?.email || "";
-    const speed = data.serviceSpeed || "200 Mbps";
-    
-    // Construct Product List
-    let productHtml = '';
-    // Base Internet Item
-    productHtml += `
-        <tr>
-            <td>CHFADV</td>
-            <td>CFN HOME FIBER ${speed} ADVANCED</td>
-            <td>1</td>
-            <td>80.00</td>
-            <td>Add</td>
-        </tr>
-    `;
-    // Equipment Item
-    productHtml += `
-        <tr>
-            <td>CHFEQP</td>
-            <td>CFN HOME FIBER EQUIPMENT/PARTS CHARGE</td>
-            <td>1</td>
-            <td>99.00</td>
-            <td>Add</td>
-        </tr>
-    `;
-    // Install Item
-    productHtml += `
-        <tr>
-            <td>CHFIN</td>
-            <td>CFN HOME INSTALL CHARGE</td>
-            <td>1</td>
-            <td>50.00</td>
-            <td>Add</td>
-        </tr>
-    `;
-
-    const html = `
-        <div class="so-section">
-            <div class="so-meta">
-                ${created}<br>
-                Page 1 of 1
-            </div>
-            
-            <div class="so-header">
-                <div class="so-title">NPTECH SERVICE ORDER REPORT</div>
-                <div class="so-meta" style="text-align: right;">
-                    <strong>Service Order:</strong> ${soNum}<br>
-                    <strong>Customer:</strong> ${custId}
-                </div>
-            </div>
-
-            <div class="so-grid" style="grid-template-columns: 1fr 1fr;">
-                <div class="so-box">
-                    <h4>Bill To</h4>
-                    <div style="font-weight: bold;">${name}</div>
-                    <div>${addr}</div>
-                </div>
-                <div class="so-box">
-                    <h4>Service Point</h4>
-                    <div>${addr}</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="so-section">
-            <div class="so-grid" style="grid-template-columns: repeat(4, 1fr);">
-                <div class="so-field"><span class="so-label">Res/Bus</span><span class="so-value">Residence</span></div>
-                <div class="so-field"><span class="so-label">Source</span><span class="so-value">Web/Phone</span></div>
-                <div class="so-field"><span class="so-label">SO Status</span><span class="so-value">${status}</span></div>
-                <div class="so-field"><span class="so-label">Entry Date</span><span class="so-value">${dateStr}</span></div>
-            </div>
-        </div>
-
-        <div class="so-section so-box">
-            <h4>Description / Request</h4>
-            <div style="font-family: monospace; white-space: pre-wrap; font-size: 0.85rem;">
-Requested By: ${name.split(' ')[0]}
-Description: CONNECT: ${speed} FTTH INSTALL
-Request: $50/INSTALL, $99/EQUIPMENT
-Contact: ${phone}
-            </div>
-        </div>
-
-        <div class="so-section">
-            <h4>Contact Info</h4>
-            <table class="so-table">
-                <thead>
-                    <tr><th>Type</th><th>Info</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>CELL</td><td>${phone}</td></tr>
-                    <tr><td>EMAIL</td><td>${email}</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="so-section">
-            <h4>Products and Services</h4>
-            <table class="so-table">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th>Description</th>
-                        <th>Qty</th>
-                        <th>Billable</th>
-                        <th>Activity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${productHtml}
-                </tbody>
-            </table>
-        </div>
-    `;
-
-    container.innerHTML = html;
-}
 
 const showDetailsPage = (pageId) => {
     el.detailsPages.forEach(page => page.classList.remove('active'));
-    
     const targetPage = document.getElementById(pageId);
     if (targetPage) targetPage.classList.add('active');
 };
 
 const setPageForStatus = (status) => {
-    // Archived customers are read-only and should show the 'Completed' page
     if (status === 'Archived') {
         showDetailsPage('page-install');
         return;
     }
-
     switch (status) {
-        case 'Site Survey Ready':
-            showDetailsPage('page-site-survey');
-            break;
-        case 'Torys List': 
-            showDetailsPage('page-torys-list');
-            break;
-        case 'NID Ready': 
-            showDetailsPage('page-nid');
-            break;
-        case 'Install Ready': 
-            showDetailsPage('page-install-ready');
-            break;
-        case 'Completed': 
-            showDetailsPage('page-install');
-            break;
-        case 'New Order':
-        case 'On Hold':
-        default:
-            showDetailsPage('page-pre-install');
+        case 'Site Survey Ready': showDetailsPage('page-site-survey'); break;
+        case 'Torys List': showDetailsPage('page-torys-list'); break;
+        case 'NID Ready': showDetailsPage('page-nid'); break;
+        case 'Install Ready': showDetailsPage('page-install-ready'); break;
+        case 'Completed': showDetailsPage('page-install'); break;
+        case 'New Order': case 'On Hold': default: showDetailsPage('page-pre-install');
     }
 };
 
 const handleToggleOnHold = (e) => {
     e.preventDefault(); 
-    // --- LOGIC CHANGE: Get status from dataset ---
     const currentStatus = el.detailsForm.dataset.currentStatus;
 
     if (currentStatus === 'On Hold') {
         const statusToRestore = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-        el.detailsForm.dataset.currentStatus = statusToRestore; // Set "real" status
+        el.detailsForm.dataset.currentStatus = statusToRestore; 
         updateStepperUI(statusToRestore);
         setPageForStatus(statusToRestore);
     } else {
-        el.detailsForm.dataset.statusBeforeHold = currentStatus; // Store old status
-        el.detailsForm.dataset.currentStatus = 'On Hold'; // Set "real" status
+        el.detailsForm.dataset.statusBeforeHold = currentStatus; 
+        el.detailsForm.dataset.currentStatus = 'On Hold'; 
         updateStepperUI('On Hold');
         setPageForStatus('On Hold'); 
     }
-    
-    // Use default JS icon logic if lucide fails
-    try {
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-    } catch(e) {
-        console.warn("Lucide icons not available in on-hold.", e);
-    }
+    if (window.lucide) window.lucide.createIcons();
 };
 
 const updateStepperUI = (currentStatus) => {
     const allStepButtons = el.statusStepper.querySelectorAll('.step');
 
-    // Hide completed-specific buttons by default
     el.completedActionsDiv.classList.add('hidden');
     el.updateCustomerBtn.classList.add('hidden');
     el.saveAndProgressBtn.classList.add('hidden');
@@ -1672,50 +1309,34 @@ const updateStepperUI = (currentStatus) => {
     el.headerMoveBackBtn.classList.add('hidden'); 
     el.archiveCustomerBtn.classList.add('hidden');
     el.unarchiveCustomerBtn.classList.add('hidden');
-    el.returnSpliceBtn.classList.add('hidden'); // *** MODIFICATION: Hide by default ***
+    el.returnSpliceBtn.classList.add('hidden'); 
 
-    allStepButtons.forEach(btn => {
-        btn.classList.remove('active', 'completed');
-    });
+    allStepButtons.forEach(btn => btn.classList.remove('active', 'completed'));
 
     const onHoldBtnText = el.onHoldButton.querySelector('span');
 
-    // If Archived, show read-only view
     if (currentStatus === 'Archived') {
         el.onHoldButton.classList.remove('active');
         if (onHoldBtnText) onHoldBtnText.textContent = 'Toggle On Hold';
         el.statusStepper.classList.remove('is-on-hold');
-
-        // Mark all steps as completed
         allStepButtons.forEach(btn => btn.classList.add('completed'));
         
-        // MODIFICATION: Disable form fields but NOT stepper buttons
-        el.detailsForm.querySelectorAll('input, textarea, select').forEach(elem => {
-            elem.disabled = true;
-        });
-        
-        // Disable all action buttons, but NOT stepper buttons
+        el.detailsForm.querySelectorAll('input, textarea, select').forEach(elem => elem.disabled = true);
         el.detailsForm.querySelectorAll('button').forEach(elem => {
             if (!elem.closest('#status-stepper') && !elem.closest('.header-button-group')) {
                 elem.disabled = true;
             }
         });
         
-        // Show "Unarchive" button
         el.completedActionsDiv.classList.remove('hidden'); 
         el.unarchiveCustomerBtn.classList.remove('hidden'); 
         el.unarchiveCustomerBtn.disabled = false; 
         el.archiveCustomerBtn.classList.add('hidden');   
-
-        return; // No other action buttons should be visible
+        return; 
     }
 
-    // If not Archived, re-enable forms
-    el.detailsForm.querySelectorAll('input, textarea, select, button').forEach(elem => {
-        elem.disabled = false;
-    });
+    el.detailsForm.querySelectorAll('input, textarea, select, button').forEach(elem => elem.disabled = false);
     
-    // Show standard action buttons
     el.updateCustomerBtn.classList.remove('hidden');
     el.saveAndProgressBtn.classList.remove('hidden');
     el.onHoldButton.classList.remove('hidden');
@@ -1723,11 +1344,9 @@ const updateStepperUI = (currentStatus) => {
     el.headerSaveBtn.classList.remove('hidden');
     el.headerSaveAndProgressBtn.classList.remove('hidden');
 
-    // *** MODIFICATION: Show "Return Splice" button on NID Ready or Install Ready pages ***
     if (currentStatus === 'NID Ready' || currentStatus === 'Install Ready') {
         el.returnSpliceBtn.classList.remove('hidden');
     }
-
 
     if (currentStatus === 'On Hold') {
         el.onHoldButton.classList.add('active');
@@ -1742,35 +1361,25 @@ const updateStepperUI = (currentStatus) => {
         const statusIndex = STEPS_WORKFLOW.indexOf(currentStatus);
         
         if (statusIndex !== -1) {
-            // Show back button if not on the first step
-            if (statusIndex > 0) {
-                el.headerMoveBackBtn.classList.remove('hidden');
-            }
+            if (statusIndex > 0) el.headerMoveBackBtn.classList.remove('hidden');
 
             for (let i = 0; i < allStepButtons.length; i++) {
                 const stepButton = allStepButtons[i];
                 if (stepButton.dataset.status === STEPS_WORKFLOW[i]) {
-                    if (i < statusIndex) {
-                        stepButton.classList.add('completed');
-                    } else if (i === statusIndex) {
-                        stepButton.classList.add('active');
-                    }
+                    if (i < statusIndex) stepButton.classList.add('completed');
+                    else if (i === statusIndex) stepButton.classList.add('active');
                 }
             }
         } else {
-            // Default to first step if status is unknown
             const newOrderButton = el.statusStepper.querySelector('.step[data-status="New Order"]');
-            if (newOrderButton) {
-                newOrderButton.classList.add('active');
-            }
+            if (newOrderButton) newOrderButton.classList.add('active');
         }
     }
     
-    // Show completed actions only on the 'Completed' step
     if (currentStatus === 'Completed') {
         el.completedActionsDiv.classList.remove('hidden');
-        el.archiveCustomerBtn.classList.remove('hidden'); // Show Archive
-        el.unarchiveCustomerBtn.classList.add('hidden'); // Hide Unarchive
+        el.archiveCustomerBtn.classList.remove('hidden'); 
+        el.unarchiveCustomerBtn.classList.add('hidden'); 
     }
 };
 
@@ -1806,14 +1415,12 @@ const handleDetailsFormClick = (e) => {
     }
 };
 
-// --- *** MODIFICATION: Updated Splice Rejection Function *** ---
 const handleReturnSplice = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsCustomerNameInput.value;
     
-    // Get the rejection reason from the user
     const reason = await showPromptModal(
         `Return ${customerName} to Splicing Admin?`,
         "Enter the issue (e.img., No light at NID, poor slack loop, etc.):"
@@ -1825,23 +1432,19 @@ const handleReturnSplice = async (e) => {
         el.loadingOverlay.style.display = 'flex';
         const docRef = doc(customersCollectionRef, customerId);
 
-        // Update document: Move back to NID Ready, clear completion timestamp, add note
         const updatedData = {
-            status: "NID Ready", // Move customer back to the splicing queue
-            'splicingDetails.completedAt': deleteField(), // Clear completion time
-            'splicingDetails.assigned': false, // <-- MODIFICATION: Set assigned to false
-            'splicingDetails.assignedSplicer': deleteField(), // <-- MODIFICATION: Clear the splicer
-            'splicingDetails.assignedAt': deleteField(), // <-- MODIFICATION: Clear assignment time
-            'splicingDetails.nidIssues': reason, // Save the rejection note
-            // Prepend a note to General Notes
+            status: "NID Ready", 
+            'splicingDetails.completedAt': deleteField(), 
+            'splicingDetails.assigned': false, 
+            'splicingDetails.assignedSplicer': deleteField(), 
+            'splicingDetails.assignedAt': deleteField(), 
+            'splicingDetails.nidIssues': reason, 
             'generalNotes': `[Splice Rejected ${new Date().toLocaleDateString()}] ${reason}\n\n${el.detailsGeneralNotes.value || ''}`
         };
 
         await updateDoc(docRef, updatedData);
-        
         showToast(`Splice rejected for ${customerName}. Returned to Splicing Admin.`, 'error');
         
-        // Force the UI to reflect the change immediately
         el.detailsForm.dataset.currentStatus = "NID Ready";
         setPageForStatus("NID Ready");
         updateStepperUI("NID Ready");
@@ -1851,57 +1454,37 @@ const handleReturnSplice = async (e) => {
         showToast('Failed to return splice.', 'error');
     } finally {
         el.loadingOverlay.style.display = 'none';
+        if (window.lucide) window.lucide.createIcons();
     }
 };
 
-// MODIFIED: Changed `progressStatus` to `stepDirection` (0=stay, 1=next, -1=back)
 const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection = 0) => {
-    if (e) {
-        e.preventDefault();
-    }
+    if (e) e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
     if (!customerId || !customersCollectionRef) return;
 
-    // --- LOGIC CHANGE: Determine the status to save ---
     let statusToSave;
     let statusBeforeHoldToSave = el.detailsForm.dataset.statusBeforeHold || 'New Order';
-
     const currentSavedStatus = el.detailsForm.dataset.currentStatus;
 
     if (stepDirection !== 0) {
-        // Movement requested
         let statusToProgressFrom = currentSavedStatus;
-        if (currentSavedStatus === 'On Hold') {
-            statusToProgressFrom = statusBeforeHoldToSave;
-        }
+        if (currentSavedStatus === 'On Hold') statusToProgressFrom = statusBeforeHoldToSave;
         
         const currentIndex = STEPS_WORKFLOW.indexOf(statusToProgressFrom);
         
         if (stepDirection === 1) {
-            // Moving Forward
-            if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) {
-                statusToSave = STEPS_WORKFLOW[currentIndex + 1]; 
-            } else {
-                statusToSave = statusToProgressFrom; 
-            }
+            if (currentIndex !== -1 && currentIndex < STEPS_WORKFLOW.length - 1) statusToSave = STEPS_WORKFLOW[currentIndex + 1]; 
+            else statusToSave = statusToProgressFrom; 
         } else if (stepDirection === -1) {
-            // Moving Backward
-            if (currentIndex > 0) {
-                statusToSave = STEPS_WORKFLOW[currentIndex - 1];
-            } else {
-                statusToSave = statusToProgressFrom;
-            }
+            if (currentIndex > 0) statusToSave = STEPS_WORKFLOW[currentIndex - 1];
+            else statusToSave = statusToProgressFrom;
         }
     } else {
-        // This was a "Save" or "Auto-save" click (stay)
         statusToSave = currentSavedStatus; 
     }
     
-    // If we are saving "On Hold", we must also save the status from before.
-    if (statusToSave === 'On Hold') {
-        statusBeforeHoldToSave = el.detailsForm.dataset.statusBeforeHold;
-    }
-    // --- END LOGIC CHANGE ---
+    if (statusToSave === 'On Hold') statusBeforeHoldToSave = el.detailsForm.dataset.statusBeforeHold;
 
     const updatedData = {
         customerName: el.detailsCustomerNameInput.value,
@@ -1910,9 +1493,8 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         serviceSpeed: el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': el.detailsPhoneInput.value,
-        
-        'status': statusToSave, // Use the determined status
-        'statusBeforeHold': statusBeforeHoldToSave, // Save this just in case
+        'status': statusToSave, 
+        'statusBeforeHold': statusBeforeHoldToSave, 
         'generalNotes': el.detailsGeneralNotes.value, 
         'exemptFromStats': el.detailsForm['check-exempt-from-stats'].checked, 
         'preInstallChecklist.welcomeEmailSent': el.detailsForm['check-welcome-email'].checked,
@@ -1921,10 +1503,7 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'preInstallChecklist.addedToRepairShoppr': el.detailsForm['check-repair-shoppr'].checked,
         'installDetails.siteSurveyNotes': el.detailsForm['site-survey-notes'].value,
         'torysListChecklist.added': el.detailsForm['check-torys-list'].checked, 
-        
-        // Save Drop Notes
         'installDetails.dropNotes': el.detailsForm['drop-notes'].value,
-
         'installDetails.nidLightReading': el.detailsForm['nid-light'].value, 
         'installReadyChecklist.ready': el.detailsForm['check-install-ready'].checked, 
         'installDetails.installDate': el.detailsForm['install-date'].value,
@@ -1935,51 +1514,33 @@ const handleUpdateCustomer = async (e = null, isAutoSave = false, stepDirection 
         'postInstallChecklist.removedFromSiteSurvey': el.detailsForm['post-check-survey'].checked,
         'postInstallChecklist.updatedRepairShoppr': el.detailsForm['post-check-repair'].checked,
         'postInstallChecklist.emailSentToBilling': el.detailsForm['bill-info'].checked
-        
-        // NOTE: splicingDetails are updated only by admin-splicing.js or handleReturnSplice.
-        // We do not overwrite them here.
     };
 
-        if (statusToSave === 'Torys List' && currentSavedStatus !== 'Torys List') {
+    if (statusToSave === 'Torys List' && currentSavedStatus !== 'Torys List') {
         updatedData['torysListChecklist.addedAt'] = serverTimestamp();
     }
     
     try {
-        if (!isAutoSave) {
-            el.loadingOverlay.style.display = 'flex';
-        }
+        if (!isAutoSave) el.loadingOverlay.style.display = 'flex';
         const docRef = doc(customersCollectionRef, customerId);
         await updateDoc(docRef, updatedData);
         
-        // --- LOGIC CHANGE: Update UI after save ---
         if (stepDirection !== 0) {
             el.detailsForm.dataset.currentStatus = statusToSave;
             setPageForStatus(statusToSave);
             updateStepperUI(statusToSave);
-            
-            // Use default JS icon logic if lucide fails
-            try {
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-            } catch(e) { console.warn("Lucide icons not available.", e); }
+            if (window.lucide) window.lucide.createIcons();
         }
         
-        if (!isAutoSave && stepDirection === 0) {
-            showToast('Customer updated!', 'success');
-        } else if (stepDirection === 1) {
-            showToast(`Saved & Progressed to "${statusToSave}"!`, 'success');
-        } else if (stepDirection === -1) {
-            showToast(`Saved & Moved Back to "${statusToSave}"`, 'success');
-        }
+        if (!isAutoSave && stepDirection === 0) showToast('Customer updated!', 'success');
+        else if (stepDirection === 1) showToast(`Saved & Progressed to "${statusToSave}"!`, 'success');
+        else if (stepDirection === -1) showToast(`Saved & Moved Back to "${statusToSave}"`, 'success');
         
     } catch (error) {
         console.error("Error updating customer: ", error);
         showToast('Error updating customer.', 'error');
     } finally {
-        if (!isAutoSave) {
-            el.loadingOverlay.style.display = 'none';
-        }
+        if (!isAutoSave) el.loadingOverlay.style.display = 'none';
     }
 };
 
@@ -1989,14 +1550,13 @@ const handleDeleteCustomer = async (e) => {
     if (!customerId || !customersCollectionRef) return;
     const customerName = el.detailsCustomerNameInput.value;
     
-    // Use a custom modal for confirm, since window.confirm is blocked
     if (await showConfirmModal(`Are you sure you want to delete customer ${customerName}? This cannot be undone.`)) {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
             await deleteDoc(docRef);
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer(false); // Do not auto-save, just clear
+            handleDeselectCustomer(false); 
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -2006,7 +1566,6 @@ const handleDeleteCustomer = async (e) => {
     }
 };
 
-// --- NEW: Archive Customer Function ---
 const handleArchiveCustomer = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
@@ -2019,7 +1578,7 @@ const handleArchiveCustomer = async (e) => {
             const docRef = doc(customersCollectionRef, customerId);
             await updateDoc(docRef, { status: "Archived" });
             showToast('Customer archived.', 'success');
-            handleDeselectCustomer(false); // Clear panel
+            handleDeselectCustomer(false); 
         } catch (error) {
             console.error("Error archiving customer: ", error);
             showToast('Error archiving customer.', 'error');
@@ -2029,7 +1588,6 @@ const handleArchiveCustomer = async (e) => {
     }
 };
 
-// --- NEW: Unarchive Customer Function ---
 const handleUnarchiveCustomer = async (e) => {
     e.preventDefault();
     const customerId = el.detailsContainer.dataset.id;
@@ -2040,14 +1598,13 @@ const handleUnarchiveCustomer = async (e) => {
         try {
             el.loadingOverlay.style.display = 'flex';
             const docRef = doc(customersCollectionRef, customerId);
-            // Set status back to "Completed"
             await updateDoc(docRef, { status: "Completed" });
             showToast('Customer unarchived.', 'success');
             
-            // Manually update the UI to reflect the new "Completed" state
             el.detailsForm.dataset.currentStatus = "Completed";
             setPageForStatus("Completed");
             updateStepperUI("Completed");
+            if (window.lucide) window.lucide.createIcons();
             
         } catch (error) {
             console.error("Error unarchiving customer: ", error);
@@ -2072,7 +1629,6 @@ const handleSendWelcomeEmail = async (e) => {
         return;
     }
     
-    // Use a custom modal for confirm, since window.confirm is blocked
     if (!await showConfirmModal(`Send welcome email to ${customerName} at ${toEmail}?`)) {
         return;
     }
@@ -2107,23 +1663,17 @@ const handleCopyBilling = async (e) => {
         }
         const data = docSnap.data();
         
-        // --- NAME REFORMATTING LOGIC ---
         const rawName = el.detailsCustomerNameInput.value || '';
         let formattedName = rawName;
-
-        // Split by spaces and remove empty entries
         const nameParts = rawName.trim().split(/\s+/);
-        
-        // If there is more than one word, move the first word (Last Name) to the end
         if (nameParts.length > 1) {
-            const lastName = nameParts.shift(); // Remove the first element
-            nameParts.push(lastName); // Add it to the end
-            formattedName = nameParts.join(' '); // Join back to string
+            const lastName = nameParts.shift(); 
+            nameParts.push(lastName); 
+            formattedName = nameParts.join(' '); 
         }
 
-        // --- DATE FORMATTING ---
         let formattedDate = 'N/A';
-        const installDateStr = data.installDetails.installDate; // "YYYY-MM-DD"
+        const installDateStr = data.installDetails.installDate; 
         if (installDateStr) {
             const date = new Date(installDateStr.replace(/-/g, '/')); 
             const month = String(date.getMonth() + 1); 
@@ -2132,30 +1682,24 @@ const handleCopyBilling = async (e) => {
             formattedDate = `${month}/${day}/${year}`; 
         }
 
-        // --- BUILD BILLING TEXT ARRAY ---
         const lines = [
-            ``, // Empty line for spacing
+            ``, 
             `Customer Name: ${formattedName}`,
             `Address: ${data.address || 'N/A'}`,
             `Service Order: ${data.serviceOrderNumber || 'N/A'}`,
-            `Speed: ${data.serviceSpeed || 'N/A'}`, // <-- ADDED SPEED HERE
+            `Speed: ${data.serviceSpeed || 'N/A'}`, 
             `Date Installed: ${formattedDate}`
         ];
 
-        // Only add this line if there is actual equipment data
         const equip = data.installDetails.additionalEquipment;
-        if (equip && equip.trim() !== "") {
-            lines.push(`Additional Equipment: ${equip}`);
-        }
+        if (equip && equip.trim() !== "") lines.push(`Additional Equipment: ${equip}`);
 
-        lines.push(``); // Empty line for spacing
+        lines.push(``); 
         lines.push(`Thanks,`);
         lines.push(`Lincoln`);
 
-        // Join all lines with a newline character
         const billingText = lines.join('\n');
 
-        // --- COPY TO CLIPBOARD ---
         const ta = document.createElement('textarea');
         ta.value = billingText;
         ta.style.position = 'absolute';
@@ -2182,43 +1726,17 @@ const showToast = (message, type = 'success') => {
     setTimeout(() => el.toast.classList.remove('show'), 3000);
 };
 
-/**
- * --- NEW FUNCTION ---
- * Shows a custom confirmation modal, as window.confirm() is blocked.
- * @param {string} message - The message to display.
- * @returns {Promise<boolean>} - Resolves true if confirmed, false if cancelled.
- */
 async function showConfirmModal(message) {
     return new Promise((resolve) => {
-        // Check if a modal already exists, remove it
         const oldModal = document.getElementById('confirm-modal-wrapper');
-        if (oldModal) {
-            oldModal.remove();
-        }
+        if (oldModal) oldModal.remove();
 
-        // Create modal elements
         const modalWrapper = document.createElement('div');
         modalWrapper.id = 'confirm-modal-wrapper';
-        modalWrapper.style = `
-            position: fixed;
-            inset: 0;
-            z-index: 2000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(0, 0, 0, 0.5);
-            font-family: 'Inter', sans-serif;
-        `;
+        modalWrapper.style = `position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0.5); font-family: 'Inter', sans-serif;`;
 
         const modalPanel = document.createElement('div');
-        modalPanel.style = `
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            max-width: 400px;
-            width: 90%;
-        `;
+        modalPanel.style = `background-color: white; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); max-width: 400px; width: 90%;`;
 
         const title = document.createElement('h3');
         title.textContent = 'Confirm Action';
@@ -2233,26 +1751,15 @@ async function showConfirmModal(message) {
 
         const cancelBtn = document.createElement('button');
         cancelBtn.textContent = 'Cancel';
-        // Apply existing button styles from style.css
         cancelBtn.className = 'btn btn-secondary';
         
         const confirmBtn = document.createElement('button');
         confirmBtn.textContent = 'Continue';
-         // Apply existing button styles from style.css
-        confirmBtn.className = 'btn btn-danger'; // Use danger for delete
+        confirmBtn.className = 'btn btn-danger'; 
         
-        // Event listeners
-        cancelBtn.onclick = () => {
-            modalWrapper.remove();
-            resolve(false);
-        };
-
-        confirmBtn.onclick = () => {
-            modalWrapper.remove();
-            resolve(true);
-        };
+        cancelBtn.onclick = () => { modalWrapper.remove(); resolve(false); };
+        confirmBtn.onclick = () => { modalWrapper.remove(); resolve(true); };
         
-        // Assemble modal
         buttonGroup.appendChild(cancelBtn);
         buttonGroup.appendChild(confirmBtn);
         modalPanel.appendChild(title);
@@ -2263,15 +1770,6 @@ async function showConfirmModal(message) {
     });
 }
 
-
-/**
- * --- NEW FUNCTION (Adapted from admin-splicing.js) ---
- * Shows a custom prompt modal, as window.confirm() is blocked.
- * @param {string} titleText - The modal title.
- * @param {string} labelText - The message/prompt text.
- *Views: 6,862,692
- * @returns {Promise<string|null>} - Resolves with the input text if confirmed, null if cancelled.
- */
 async function showPromptModal(titleText, labelText) {
     return new Promise((resolve) => {
         const oldModal = document.getElementById('prompt-modal-wrapper');
