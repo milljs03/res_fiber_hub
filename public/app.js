@@ -12,7 +12,8 @@ import {
     onSnapshot,
     query,
     serverTimestamp,
-    deleteField 
+    deleteField,
+    setDoc // <--- NEW: Added setDoc for creating/updating the dashboard doc
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -34,12 +35,14 @@ let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
 let mailCollectionRef = null;
+let dashboardDocRef = null; // <--- NEW: Reference for dashboard settings
 let selectedCustomerId = null;
 let customerUnsubscribe = null;
 let allCustomers = []; 
 let currentSort = 'name'; 
 let currentFilter = 'All'; 
 let currentCompletedFilter = 'All'; 
+let notesAutoSaveTimeout = null; // <--- NEW: Timer for auto-save
 
 // NEW: Storage & Temp URL
 const storage = getStorage();
@@ -109,6 +112,10 @@ const el = {
     dashboardToggleBtn: document.getElementById('dashboard-toggle-btn'), 
     dashboardContent: document.getElementById('dashboard-content'), 
     dashboardToggleIcon: document.getElementById('dashboard-toggle-icon'), 
+    
+    // NEW: Dashboard Notes Elements
+    dashboardGeneralNotes: document.getElementById('dashboard-general-notes'),
+    saveDashboardNotesBtn: document.getElementById('save-dashboard-notes-btn'),
 
     // Details Panel
     detailsContainer: document.getElementById('details-container'),
@@ -171,14 +178,18 @@ const handleAuthentication = (user) => {
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
         // User-specific mail collection
         mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
+        // NEW: Dashboard global document
+        dashboardDocRef = doc(db, 'artifacts', currentAppId, 'public', 'dashboard');
         
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
         initializeApp(); // Ensure we initialize after auth
+        loadDashboardNotes(); // NEW: Load notes on start
     } else {
         currentUserId = null;
         customersCollectionRef = null;
         mailCollectionRef = null;
+        dashboardDocRef = null; // NEW: Reset
         if (customerUnsubscribe) {
             customerUnsubscribe();
             customerUnsubscribe = null;
@@ -420,6 +431,8 @@ const handleDashboardToggle = () => {
     if (window.lucide) window.lucide.createIcons();
 };
 
+// --- NEW: Dashboard Notes Functions ---
+
 
 // --- 2. INITIALIZATION ---
 const initializeApp = () => {
@@ -433,6 +446,7 @@ const initializeApp = () => {
     }
     loadCustomers();
     handleDeselectCustomer(false); // Pass false to skip auto-save on init
+    loadDashboardNotes(); // <--- ADD THIS LINE
     
     // Initialize icons on app load
     if (window.lucide) window.lucide.createIcons();
@@ -471,6 +485,20 @@ const setupEventListeners = () => {
 
     // Dashboard Toggle
     el.dashboardToggleBtn.addEventListener('click', handleDashboardToggle); 
+
+    // NEW: Dashboard Notes Listeners
+    if (el.saveDashboardNotesBtn) {
+        el.saveDashboardNotesBtn.addEventListener('click', () => saveDashboardNotes(false));
+    }
+    if (el.dashboardGeneralNotes) {
+        el.dashboardGeneralNotes.addEventListener('input', () => {
+            // Auto-save logic (debounce 2 seconds)
+            clearTimeout(notesAutoSaveTimeout);
+            notesAutoSaveTimeout = setTimeout(() => {
+                saveDashboardNotes(true); // true = silent mode
+            }, 2000);
+        });
+    }
 
     // Search & Sort
     el.searchBar.addEventListener('input', () => displayCustomers());
@@ -1724,6 +1752,57 @@ const showToast = (message, type = 'success') => {
     el.toast.classList.add(type === 'error' ? 'error' : 'success');
     el.toast.classList.add('show');
     setTimeout(() => el.toast.classList.remove('show'), 3000);
+};
+
+const getDashboardNotesRef = () => {
+    // Uses the path you enabled in rules: .../dashboard_notes/summary
+    return doc(db, 'artifacts', currentAppId, 'public', 'data', 'dashboard_notes', 'summary');
+};
+
+// 2. Load Function (Call this in initializeApp)
+const loadDashboardNotes = async () => {
+    if (!currentUserId) return; // Don't load if not logged in
+
+    try {
+        const docRef = getDashboardNotesRef();
+        const docSnap = await getDoc(docRef);
+
+        const notesArea = document.getElementById('details-general-notes'); // Make sure this ID matches your HTML
+        
+        if (docSnap.exists()) {
+            // Populate the text area
+            notesArea.value = docSnap.data().text || ''; 
+            console.log("Dashboard notes loaded");
+        } else {
+            // Document doesn't exist yet (first time), leave empty
+            notesArea.value = '';
+        }
+    } catch (error) {
+        console.error("Error loading dashboard notes:", error);
+    }
+};
+
+// 3. Save Function
+const saveDashboardNotes = async () => {
+    const notesArea = document.getElementById('details-general-notes');
+    const text = notesArea.value;
+
+    try {
+        const docRef = getDashboardNotesRef();
+        
+        // VITAL: Use setDoc with merge: true. 
+        // This creates the document if it's missing, or updates it if it exists.
+        await setDoc(docRef, { 
+            text: text,
+            updatedAt: serverTimestamp(),
+            updatedBy: auth.currentUser.email
+        }, { merge: true });
+
+        showToast('Dashboard notes saved!', 'success');
+    } catch (error) {
+        console.error("Error saving dashboard notes:", error);
+        showToast('Error saving notes.', 'error');
+    }
 };
 
 async function showConfirmModal(message) {
