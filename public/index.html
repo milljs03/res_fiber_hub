@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,649 +12,461 @@
 
 <body>
 
+    <!-- AUTH SCREEN -->
     <div id="auth-screen" class="auth-screen">
         <div class="auth-box">
             <i data-lucide="activity" class="auth-logo-img"></i>
             <h1 class="auth-title">CFN Install Tracker</h1>
-            <p class="auth-text">Please sign in with your @nptel.com account.</p>
+            <p class="auth-text">Sign in to manage fiber installations.</p>
             <button id="sign-in-btn" class="btn btn-primary btn-full-width">
-                <svg class="btn-icon" style="width: 18px; height: 18px; margin-right: 8px;" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M22.56 12.25c0-.78-.07-1.52-.19-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.04v2.84C3.86 21.03 7.66 23 12 23z"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.04C1.32 8.38 1 9.65 1 11.01s.32 2.63 2.04 3.94l3.8-2.86z"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.69l3.15-3.15C17.45 2.18 14.97 1 12 1 7.66 1 3.86 2.97 2.04 5.84l3.8 2.84C6.71 7.31 9.14 5.38 12 5.38z"/>
-                </svg>
+                <i data-lucide="log-in" class="btn-icon"></i>
                 Sign in with Google
             </button>
             <p id="auth-error"></p>
         </div>
     </div>
 
+    <!-- APP SCREEN -->
     <div id="app-screen" class="hidden">
-        <header class="app-header">
-            <div class="header-content">
-                <div class="header-title">
-                    <i data-lucide="activity" class="header-logo-img"></i>
-                    <h1>CFN Install Tracker</h1>
+        
+        <!-- MAIN NAVIGATION -->
+        <nav class="app-nav">
+            <div class="nav-content">
+                <div class="nav-brand">
+                    <i data-lucide="activity" class="brand-icon"></i>
+                    <span class="brand-name">CFN Tracker</span>
                 </div>
-                <div class="user-info">
-                    <span id="user-email"></span>
-                    <a href="map.html" id="view-map-btn" class="btn btn-secondary">
-                        <i data-lucide="map" class="btn-icon"></i>
-                        View Map
+                <div class="nav-actions">
+                    <span id="user-email" class="user-email-display"></span>
+                    <div class="nav-divider"></div>
+                    <a href="map.html" class="btn btn-sm btn-ghost">
+                        <i data-lucide="map"></i> Map
                     </a>
-                    <button id="sign-out-btn">Sign Out</button>
-                </div>
-            </div>
-        </header>
-
-        <div class="dashboard-container">
-            <div id="dashboard-card" class="card">
-                <div class="dashboard-header-toggle">
-                    <h2 class="card-title">At a Glance</h2>
-                    <button id="dashboard-toggle-btn" class="toggle-btn" aria-expanded="true">
-                        <i data-lucide="chevron-down" id="dashboard-toggle-icon"></i>
+                    <button id="sign-out-btn" class="btn btn-sm btn-ghost">
+                        <i data-lucide="log-out"></i>
                     </button>
                 </div>
-                
-                <div id="dashboard-content" class="dashboard-content-collapsible active">
-                    <div id="dashboard-stats-grid" class="dashboard-stats-grid">
-                        <div id="stats-summary-active-wrapper" class="stat-wrapper"></div>
-                        <div id="stats-summary-completed-wrapper" class="stat-wrapper"></div>
-                        <div id="overall-install-time-wrapper" class="stat-wrapper"></div>
-                    </div>
+            </div>
+        </nav>
 
-                    <div id="dashboard-chart-grid" class="dashboard-stats-grid" style="margin-top: 1.5rem;">
-                        <div id="chart-area-box-ytd" class="chart-area-box">
-                            <h3 class="chart-title">YTD Installs</h3>
-                            <div id="chart-area" class="chart-area">
-                                <canvas id="installations-chart"></canvas>
-                            </div>
-                        </div>
-                        <div id="chart-area-box-monthly-avg" class="chart-area-box">
-                            <h3 class="chart-title">Monthly Avg Install Time (Days)</h3>
-                            <div id="chart-area-monthly-avg" class="chart-area">
-                                <canvas id="monthly-install-chart"></canvas>
-                            </div>
-                        </div>
-                        <div id="chart-area-box-speed" class="chart-area-box">
-                            <h3 class="chart-title">Service Speed Breakdown</h3>
-                            <div id="chart-area-speed" class="chart-area">
-                                <canvas id="speed-breakdown-chart"></canvas>
-                            </div>
-                        </div>
+        <!-- DASHBOARD SUMMARY (Compact) -->
+        <div class="dashboard-bar">
+            <div class="dashboard-stats-row">
+                <div id="stats-summary-active-wrapper" class="stat-compact"></div>
+                <div id="stats-summary-completed-wrapper" class="stat-compact"></div>
+                <div id="overall-install-time-wrapper" class="stat-compact"></div>
+                <div class="flex-spacer"></div>
+                <button id="toggle-analytics-btn" class="btn btn-sm btn-secondary">
+                    <i data-lucide="bar-chart-2"></i> Analytics
+                </button>
+            </div>
+            
+            <!-- Expanded Analytics (Hidden by default) -->
+            <div id="dashboard-analytics-panel" class="analytics-panel hidden">
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h4>YTD Installs</h4>
+                        <div class="chart-wrapper"><canvas id="installations-chart"></canvas></div>
                     </div>
-
-                    <!-- NEW: Overall Notes Section (Underneath Analytics) -->
-                    <div id="dashboard-notes-container" style="margin-top: 1.5rem;">
-                        <div class="chart-area-box" style="max-height: none; min-height: auto; height: auto;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <h3 class="chart-title" style="margin-bottom: 0;">Overall Notes</h3>
-                                <button type="button" id="save-dashboard-notes-btn" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
-                                    <i data-lucide="save" class="btn-icon" style="width: 0.875rem; height: 0.875rem;"></i>
-                                    Save Notes
-                                </button>
-                            </div>
-                            <textarea id="dashboard-general-notes" class="form-textarea" rows="3" placeholder="Enter general dashboard notes, reminders, or updates here..."></textarea>
-                        </div>
+                    <div class="chart-card">
+                        <h4>Avg Install Time (Days)</h4>
+                        <div class="chart-wrapper"><canvas id="monthly-install-chart"></canvas></div>
                     </div>
-                    <!-- END NEW SECTION -->
-
+                    <div class="chart-card">
+                        <h4>Speed Breakdown</h4>
+                        <div class="chart-wrapper"><canvas id="speed-breakdown-chart"></canvas></div>
+                    </div>
+                </div>
+                <div class="notes-section" style="margin-top: 1rem;">
+                    <div class="notes-header" style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <h4 style="margin:0; color: var(--text-muted);">Dashboard Notes</h4>
+                        <button id="save-dashboard-notes-btn" class="btn btn-xs btn-primary">Save Notes</button>
+                    </div>
+                    <textarea id="dashboard-general-notes" rows="2" class="form-textarea" placeholder="Team announcements or reminders..."></textarea>
                 </div>
             </div>
         </div>
 
-        <div class="main-grid">
-            <div id="list-card" class="card">
-                <div class="card-title-header">
-                    <h2 class="card-title">Customer List</h2>
-                    <button id="new-customer-btn" class="btn btn-primary">
-                        <i data-lucide="plus" class="btn-icon"></i>
-                        New Service Order
-                    </button>
-                </div>
-                
-                <div class="search-bar-group">
-                    <i data-lucide="search" class="search-icon"></i>
-                    <input type="text" id="search-bar" class="form-input" placeholder="Search by name or address...">
-                </div>
+        <!-- MAIN CONTENT LAYOUT -->
+        <div class="layout-container">
+            
+            <!-- LEFT COLUMN: CUSTOMER LIST -->
+            <aside class="list-column">
+                <div class="list-header">
+                    <div class="list-actions-top">
+                        <div class="search-wrapper">
+                            <i data-lucide="search" class="search-icon"></i>
+                            <input type="text" id="search-bar" placeholder="Search customers...">
+                        </div>
+                        <button id="new-customer-btn" class="btn btn-primary btn-icon-only" title="New Order">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="filter-tabs" id="main-list-tabs">
+                        <button class="tab-btn active" data-main-filter="Active">Active</button>
+                        <button class="tab-btn" data-main-filter="Completed">Done</button>
+                        <button class="tab-btn" data-main-filter="Archived">Archive</button>
+                    </div>
 
-                <div id="main-list-tabs" class="main-list-tabs">
-                    <button type="button" class="main-list-tab active" data-main-filter="Active">Active Orders</button>
-                    <button type="button" class="main-list-tab" data-main-filter="Completed">Completed Orders</button>
-                    <button type="button" class="main-list-tab" data-main-filter="Archived">Archived</button>
-                </div>
-
-                <div id="active-controls-group">
-                    <div class="form-group">
-                        <label for="sort-by" class="form-label">Sort by</label>
-                        <select id="sort-by" class="form-select">
+                    <div id="active-controls-group" class="filter-controls">
+                        <div class="filter-pills" id="filter-pills">
+                            <button class="pill active" data-filter="All">All</button>
+                            <button class="pill" data-filter="New Order">New</button>
+                            <button class="pill" data-filter="Site Survey Ready">Survey</button>
+                            <button class="pill" data-filter="Torys List">Tory's</button>
+                            <button class="pill" data-filter="NID Ready">NID</button>
+                            <button class="pill" data-filter="Install Ready">Ready</button>
+                            <button class="pill" data-filter="On Hold">Hold</button>
+                        </div>
+                        <select id="sort-by" class="select-sm full-width" style="margin-top: 0.5rem;">
                             <option value="name">Name (A-Z)</option>
-                            <option value="date">Date Added (Newest)</option>
-                            <option value="date-oldest">Date Added (Oldest)</option>
+                            <option value="date">Newest First</option>
+                            <option value="date-oldest">Oldest First</option>
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Filter by Status</label>
-                        <div id="filter-pills" class="filter-pills">
-                            <button type="button" class="filter-pill active" data-filter="All">All</button>
-                            <button type="button" class="filter-pill" data-filter="New Order">New Order</button>
-                            <button type="button" class="filter-pill" data-filter="Site Survey Ready">Site Survey Ready</button>
-                            <button type="button" class="filter-pill" data-filter="Torys List">Tory's List</button>
-                            <button type="button" class="filter-pill" data-filter="NID Ready">NID Ready</button>
-                            <button type="button" class="filter-pill" data-filter="Install Ready">Install Ready</button>
-                            <button type="button" class="filter-pill" data-filter="On Hold">On Hold</button>
-                        </div>
+                    <div id="completed-controls-group" class="filter-controls hidden">
+                        <select id="completed-filter-select" class="select-sm full-width"></select>
+                        <div id="completed-filter-results" class="filter-results-text hidden"></div>
                     </div>
                 </div>
 
-                <div id="completed-controls-group" class="hidden">
-                    <div id="completed-filter-group" class="form-group">
-                        <label for="completed-filter-select" class="form-label">Completed Date</label>
-                        <select id="completed-filter-select" class="form-select">
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Filter Results</label>
-                        <div id="completed-filter-results" class="static-field-total hidden"></div>
-                    </div>
+                <div id="customer-list-container" class="list-content">
+                    <div class="empty-state">Loading...</div>
                 </div>
+            </aside>
+
+            <!-- RIGHT COLUMN: DETAILS PANEL -->
+            <main class="details-column">
                 
-                <div id="customer-list-container" class="customer-list-container">
-                    <p id="list-loading" class="text-gray-500">Loading customers...</p>
+                <!-- EMPTY STATE -->
+                <div id="details-placeholder" class="details-empty-state">
+                    <div class="empty-icon-bg"><i data-lucide="mouse-pointer-2"></i></div>
+                    <h3>Select a Customer</h3>
+                    <p>Click on an order from the list to view details and manage workflows.</p>
                 </div>
-            </div>
 
-            <div id="details-card" class="card">
-                <div class="card-title-header">
-                    <h2 class="card-title">Customer Details</h2>
-                    <div class="header-button-group">
-                        <button type="button" id="mobile-back-btn" class="btn btn-secondary mobile-only">
-                            <i data-lucide="arrow-left" class="btn-icon"></i>
-                            Back
-                        </button>
-
-                        <button type="button" id="header-move-back-btn" class="btn btn-secondary hidden" title="Move Back One Step">
-                            <i data-lucide="rotate-ccw" class="btn-icon"></i>
-                        </button>
-                        
-                        <button type="button" id="view-so-btn" class="btn btn-secondary" title="View Raw Service Order Data">
-                            <i data-lucide="file-text" class="btn-icon"></i> SO Data
-                        </button>
-                        
-                        <button type="button" id="header-save-btn" class="btn btn-secondary">
-                            Save
-                        </button>
-                        <button type="button" id="header-save-and-progress-btn" class="btn btn-primary">
-                            <i data-lucide="arrow-right-circle" class="btn-icon"></i> Save & Next
-                        </button>
-                    </div>
+                <!-- LOADING OVERLAY -->
+                <div id="loading-overlay" class="loading-overlay hidden">
+                    <div class="spinner"></div>
                 </div>
-                <div id="details-container" data-id="">
-                    <div id="loading-overlay">
-                        <div id="loading-spinner"></div>
-                    </div>
 
-                    <form id="details-form" class="card-content">
-
-                        <div class="form-group">
-                            <label class="form-label">Status</label>
-                            <div id="status-stepper" class="status-stepper">
-                                <button type="button" class="step" data-status="New Order" data-page="page-pre-install">
-                                    <div class="step-circle">1</div>
-                                    <div class="step-label">New Order</div>
-                                </button>
-                                <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Site Survey Ready" data-page="page-site-survey">
-                                    <div class="step-circle">2</div>
-                                    <div class="step-label">Site Survey</div>
-                                </button>
-                                <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Torys List" data-page="page-torys-list">
-                                    <div class="step-circle">3</div>
-                                    <div class="step-label">Tory's List</div>
-                                </button>
-                                <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="NID Ready" data-page="page-nid">
-                                    <div class="step-circle">4</div>
-                                    <div class="step-label">NID Ready</div>
-                                </button>
-                                <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Install Ready" data-page="page-install-ready">
-                                    <div class="step-circle">5</div>
-                                    <div class="step-label">Install Ready</div>
-                                </button>
-                                <div class="step-connector"></div>
-                                <button type="button" class="step" data-status="Completed" data-page="page-install">
-                                    <div class="step-circle">6</div>
-                                    <div class="step-label">Completed</div>
-                                </button>
-                            </div>
-                            <input type="hidden" id="details-status" name="details-status" />
-                        </div>
-
-                        <div class="form-group general-notes-group">
-                            <label for="details-general-notes" class="form-label">General Notes</label>
-                            <div class="field-wrapper">
-                                <textarea id="details-general-notes" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                <button type="button" class="copy-btn" data-target="details-general-notes">
-                                    <i data-lucide="copy" class="icon-copy"></i>
-                                    <i data-lucide="check" class="icon-check"></i>
-                                </button>
+                <!-- DETAILS FORM CONTAINER -->
+                <div id="details-container" class="details-wrapper hidden" data-id="">
+                    
+                    <!-- STICKY HEADER -->
+                    <header class="details-sticky-header">
+                        <div class="header-left">
+                            <button id="mobile-back-btn" class="btn btn-ghost mobile-only"><i data-lucide="arrow-left"></i></button>
+                            <div class="customer-identity">
+                                <h2 id="header-customer-name">Customer Name</h2>
+                                <span id="header-so-number" class="so-badge">SO# 000000</span>
                             </div>
                         </div>
-                        
-                        <div id="page-service-order" class="details-page">
-                            <div class="form-group">
-                                <label class="form-label">Service Order Snapshot</label>
-                                <p style="font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem;">
-                                    This is a reconstructed view of the uploaded PDF data.
-                                </p>
-                                <div class="field-wrapper">
-                                    <div id="service-order-display" class="service-order-paper"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="page-pre-install" class="details-page active">
-                            <div class="form-group">
-                                <label class="form-label" for="details-customer-name">Customer Name</label>
-                                <div class="field-wrapper">
-                                    <input type="text" id="details-customer-name" class="form-input" style="padding-right: 2.5rem;">
-                                    <button type="button" class="copy-btn" data-target="details-customer-name">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="details-so-number">Service Order #</label>
-                                <div class="field-wrapper">
-                                    <input type="text" id="details-so-number" class="form-input" style="padding-right: 2.5rem;">
-                                    <button type="button" class="copy-btn" data-target="details-so-number">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="details-address">Address</label>
-                                <div class="field-wrapper">
-                                    <textarea id="details-address" rows="3" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                    <button type="button" class="copy-btn" data-target="details-address">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="details-speed">Service Speed</label>
-                                <div class="field-wrapper">
-                                    <input type="text" id="details-speed" class="form-input" style="padding-right: 2.5rem;">
-                                    <button type="button" class="copy-btn" data-target="details-speed">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="details-email">Primary Email</label>
-                                <div class="field-wrapper">
-                                    <input type="email" id="details-email" class="form-input" style="padding-right: 2.5rem;">
-                                    <button type="button" class="copy-btn" data-target="details-email">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="details-phone">Primary Phone</label>
-                                <div class="field-wrapper">
-                                    <input type="tel" id="details-phone" class="form-input" style="padding-right: 2.5rem;">
-                                    <button type="button" class="copy-btn" data-target="details-phone">
-                                        <i data-lucide="copy" class="icon-copy"></i>
-                                        <i data-lucide="check" class="icon-check"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <fieldset class="checklist-group">
-                                <legend class="checklist-title">Pre-Install Checklist</legend>
-                                <div class="checklist-content">
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-welcome-email" name="check-welcome-email" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-welcome-email">Welcome Email Sent</label>
-                                        </div>
-                                        <button type="button" id="send-welcome-email-btn">Send Now</button>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-site-survey" name="check-site-survey" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-site-survey">Added to Site Survey List</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-fiber-list" name="check-fiber-list" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-fiber-list">Added to Residential Fiber List</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-repair-shoppr" name="check-repair-shoppr" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-repair-shoppr">Added to Repair Shoppr</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div> 
-
-                        <div id="page-site-survey" class="details-page">
-                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Site Survey Ready</legend>
-                                <div class="checklist-content">
-                                    <div class="form-group">
-                                        <label for="site-survey-notes" class="form-label">Site Survey Notes</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="site-survey-notes" rows="8" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="site-survey-notes">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div> 
-                        
-                        <div id="page-torys-list" class="details-page">
-                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Tory's List</legend>
-                                <div class="checklist-content">
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-torys-list" name="check-torys-list" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-torys-list">Added to Tory's List</label>
-                                        </div>
-                                    </div>
-                                    <div class="form-group" style="margin-top: 1rem;">
-                                        <label for="drop-notes" class="form-label">Drop Notes</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="drop-notes" rows="4" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="drop-notes">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div>
-
-                        <div id="page-nid" class="details-page">
-                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">NID Ready</legend>
-                                <div class="checklist-content">
-                                    <div class="form-group">
-                                        <label for="splice-complete-date" class="form-label">Splice Completed</label>
-                                        <div class="field-wrapper">
-                                            <span id="splice-complete-date" class="static-field" style="padding-right: 2.5rem;">N/A</span>
-                                            <input type="hidden" id="details-nid-issues" name="details-nid-issues" />
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="nid-light" class="form-label">Light Reading @ NID</label>
-                                        <div class="field-wrapper">
-                                            <input type="text" id="nid-light" class="form-input" style="padding-right: 2.5rem;">
-                                            <button type="button" class="copy-btn" data-target="nid-light">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <button type="button" id="return-splice-btn" class="btn btn-danger hidden" style="margin-top: 1rem;">
-                                        <i data-lucide="rotate-ccw" class="btn-icon"></i> 
-                                        Return to Splicing Admin
-                                    </button>
-                                </div>
-                            </fieldset>
-                        </div>
-                        
-                        <div id="page-install-ready" class="details-page">
-                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Install Ready</legend>
-                                <div class="checklist-content">
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="check-install-ready" name="check-install-ready" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-install-ready">Install Scheduled</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div>
-
-                        <div id="page-install" class="details-page">
-                            <fieldset class="checklist-group" style="border-top: none; padding-top: 0;">
-                                <legend class="checklist-title">Final Install / Completed</legend>
-                                <div class="checklist-content">
-                                    <div class="form-group">
-                                        <label for="install-date" class="form-label">Install Date</label>
-                                        <div class="field-wrapper">
-                                            <input type="date" id="install-date" class="form-input" style="padding-right: 2.5rem;">
-                                            <button type="button" class="copy-btn" data-target="install-date">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="checklist-item" id="exempt-from-stats-wrapper">
-                                        <div class="checklist-item-box">
-                                            <input id="check-exempt-from-stats" name="check-exempt-from-stats" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="check-exempt-from-stats">Exempt from Avg. Install Time</label>
-                                        </div>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="extra-equip" class="form-label">Additional Equipment</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="extra-equip" rows="2" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="extra-equip">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="install-notes" class="form-label">Install Notes</label>
-                                        <div class="field-wrapper">
-                                            <textarea id="install-notes" rows="5" class="form-textarea" style="padding-right: 2.5rem;"></textarea>
-                                            <button type="button" class="copy-btn" data-target="install-notes">
-                                                <i data-lucide="copy" class="icon-copy"></i>
-                                                <i data-lucide="check" class="icon-check"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-                            
-                            <fieldset class="checklist-group" style="border-top: 1px solid #e5e7eb; padding-top: 1.25rem;">
-                                <legend class="checklist-title">Post-Install Checklist</legend>
-                                <div class="checklist-content">
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="eero-info" name="eero-info" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="eero-info">Eero Insight Info Documented</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="post-check-fiber" name="post-check-fiber" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="post-check-fiber">Removed from Residential Fiber List</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="post-check-survey" name="post-check-survey" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="post-check-survey">Removed from Site Survey List</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="post-check-repair" name="post-check-repair" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="post-check-repair">Updated Repair Shoppr</label>
-                                        </div>
-                                    </div>
-                                    <div class="checklist-item">
-                                        <div class="checklist-item-box">
-                                            <input id="bill-info" name="bill-info" type="checkbox" class="form-checkbox">
-                                        </div>
-                                        <div class="checklist-item-label">
-                                            <label for="bill-info">Email Sent to Billing</label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </fieldset>
-
-                            <div class="action-buttons hidden" id="completed-actions-div" style="border-top: 1px solid #e5e7eb; margin-top: 1.25rem;">
-                                <button type="button" id="copy-billing-btn" class="btn btn-secondary">
-                                    <i data-lucide="clipboard" class="btn-icon"></i>
-                                    Copy Info for Billing
-                                </button>
-                                <button type="button" id="archive-customer-btn" class="btn btn-secondary" style="background-color: #f3f4f6; color: #4b5563;">
-                                    <i data-lucide="archive" class="btn-icon"></i>
-                                    Archive Customer
-                                </button>
-                                <button type="button" id="unarchive-customer-btn" class="btn btn-secondary hidden" style="background-color: #f3f4f6; color: #4b5563;">
-                                    <i data-lucide="refresh-ccw" class="btn-icon"></i>
-                                    Unarchive Customer
-                                </button>
-                            </div>
-                        </div> 
-
-                        <div class="action-buttons">
-                            <div id="details-placeholder" class="details-placeholder">
-                                <i data-lucide="activity" style="width: 3rem; height: 3rem; color: #9ca3af; margin: 0 auto; opacity: 0.6;"></i>
-                                <p style="margin-top: 0.5rem;">Select a customer from the list to view their details.</p>
-                            </div>
-                            <div class="button-group">
-                                <button type="button" id="update-customer-btn" class="btn btn-secondary">
-                                    <i data-lucide="save" class="btn-icon"></i>
-                                    Save Changes
-                                </button>
-                                <button type="button" id="save-and-progress-btn" class="btn btn-primary">
-                                    <i data-lucide="arrow-right-circle" class="btn-icon"></i> Save & Progress
-                                </button>
-                            </div>
-                            
-                            <button type="button" id="on-hold-btn" class="btn btn-warning">
-                                <i data-lucide="pause-circle" class="btn-icon"></i>
-                                <span>Toggle On Hold</span>
+                        <div class="header-right">
+                             <button type="button" id="header-move-back-btn" class="btn btn-sm btn-secondary hidden" title="Revert Step">
+                                <i data-lucide="rotate-ccw"></i>
                             </button>
-
-                            <button type="button" id="delete-customer-btn" class="btn btn-danger">
-                                <i data-lucide="trash-2" class="btn-icon"></i>
-                                Delete Customer
+                            <button type="button" id="update-customer-btn" class="btn btn-secondary">
+                                Save
+                            </button>
+                            <button type="button" id="save-and-progress-btn" class="btn btn-primary">
+                                Next Step <i data-lucide="arrow-right"></i>
                             </button>
                         </div>
+                    </header>
+
+                    <!-- SCROLLABLE CONTENT -->
+                    <form id="details-form" class="details-scroll-content">
+                        
+                        <!-- PROGRESS STEPPER -->
+                        <div class="section-card no-padding">
+                            <div id="status-stepper" class="stepper-container">
+                                <button type="button" class="step-node" data-status="New Order" data-page="page-pre-install">New</button>
+                                <button type="button" class="step-node" data-status="Site Survey Ready" data-page="page-site-survey">Survey</button>
+                                <button type="button" class="step-node" data-status="Torys List" data-page="page-torys-list">Tory's</button>
+                                <button type="button" class="step-node" data-status="NID Ready" data-page="page-nid">NID</button>
+                                <button type="button" class="step-node" data-status="Install Ready" data-page="page-install-ready">Ready</button>
+                                <button type="button" class="step-node" data-status="Completed" data-page="page-install">Done</button>
+                            </div>
+                        </div>
+
+                        <!-- CUSTOMER INFO GRID -->
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>Customer Information</h3>
+                                <button type="button" id="view-so-btn" class="btn btn-xs btn-ghost">View PDF</button>
+                            </div>
+                            <div class="input-grid">
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" id="details-customer-name" class="form-control">
+                                        <button type="button" class="copy-btn copy-icon" data-target="details-customer-name"><i data-lucide="copy"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Service Order #</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" id="details-so-number" class="form-control">
+                                        <button type="button" class="copy-btn copy-icon" data-target="details-so-number"><i data-lucide="copy"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group span-2">
+                                    <label>Address</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" id="details-address" class="form-control">
+                                        <button type="button" class="copy-btn copy-icon" data-target="details-address"><i data-lucide="copy"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <div class="input-wrapper">
+                                        <input type="email" id="details-email" class="form-control">
+                                        <button type="button" class="copy-btn copy-icon" data-target="details-email"><i data-lucide="copy"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Phone</label>
+                                    <div class="input-wrapper">
+                                        <input type="tel" id="details-phone" class="form-control">
+                                        <button type="button" class="copy-btn copy-icon" data-target="details-phone"><i data-lucide="copy"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Speed</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" id="details-speed" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- GENERAL NOTES -->
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>General Notes</h3>
+                            </div>
+                            <textarea id="details-general-notes" rows="3" class="form-textarea" placeholder="Add important notes here..."></textarea>
+                        </div>
+
+                        <!-- DYNAMIC STAGE CONTENT -->
+                        <div id="stage-content-area" class="section-card highlight-card">
+                            <div class="section-header">
+                                <h3 id="current-stage-title">Stage Details</h3>
+                            </div>
+
+                            <!-- Page: Pre-Install -->
+                            <div id="page-pre-install" class="details-page active">
+                                <div class="checklist-stack">
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="check-welcome-email" name="check-welcome-email">
+                                        <span>Welcome Email Sent</span>
+                                        <button type="button" id="send-welcome-email-btn" class="btn btn-xs btn-secondary" style="margin-left:auto;">Send</button>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="check-site-survey" name="check-site-survey">
+                                        <span>Added to Site Survey List</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="check-fiber-list" name="check-fiber-list">
+                                        <span>Added to Residential Fiber List</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="check-repair-shoppr" name="check-repair-shoppr">
+                                        <span>Added to Repair Shoppr</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Page: Site Survey -->
+                            <div id="page-site-survey" class="details-page">
+                                <label class="form-label">Site Survey Notes</label>
+                                <textarea id="site-survey-notes" rows="4" class="form-textarea"></textarea>
+                            </div>
+
+                            <!-- Page: Tory's List -->
+                            <div id="page-torys-list" class="details-page">
+                                <label class="checkbox-row main-check">
+                                    <input type="checkbox" id="check-torys-list" name="check-torys-list">
+                                    <span>Added to Tory's List</span>
+                                </label>
+                                <div class="spacer"></div>
+                                <label class="form-label">Drop Notes</label>
+                                <textarea id="drop-notes" rows="3" class="form-textarea"></textarea>
+                            </div>
+
+                            <!-- Page: NID Ready -->
+                            <div id="page-nid" class="details-page">
+                                <div class="info-row" style="margin-bottom:1rem;">
+                                    <span class="label" style="font-weight:600; font-size:0.9rem;">Splice Completed: </span>
+                                    <span id="splice-complete-date" class="value">N/A</span>
+                                </div>
+                                <div class="form-group">
+                                    <label>Light Reading @ NID</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" id="nid-light" class="form-control">
+                                    </div>
+                                </div>
+                                <input type="hidden" id="details-nid-issues" />
+                                <button type="button" id="return-splice-btn" class="btn btn-sm btn-danger-outline full-width hidden">
+                                    <i data-lucide="rotate-ccw"></i> Reject Splice (Return to Admin)
+                                </button>
+                            </div>
+
+                            <!-- Page: Install Ready -->
+                            <div id="page-install-ready" class="details-page">
+                                <label class="checkbox-row main-check">
+                                    <input type="checkbox" id="check-install-ready" name="check-install-ready">
+                                    <span>Install Scheduled</span>
+                                </label>
+                            </div>
+
+                            <!-- Page: Install / Completed -->
+                            <div id="page-install" class="details-page">
+                                <div class="input-grid">
+                                    <div class="form-group">
+                                        <label>Install Date</label>
+                                        <input type="date" id="install-date" class="form-control">
+                                    </div>
+                                </div>
+                                
+                                <div class="spacer"></div>
+                                <label class="form-label">Additional Equipment</label>
+                                <textarea id="extra-equip" rows="2" class="form-textarea"></textarea>
+                                
+                                <div class="spacer"></div>
+                                <label class="form-label">Install Notes</label>
+                                <textarea id="install-notes" rows="3" class="form-textarea"></textarea>
+                                
+                                <div class="spacer"></div>
+                                <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-main);">Post-Install Checklist</h4>
+                                <div class="checklist-stack">
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="check-exempt-from-stats" name="check-exempt-from-stats">
+                                        <span>Exempt from Avg Time Stats</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="eero-info" name="eero-info">
+                                        <span>Eero Insight Info Documented</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="post-check-fiber" name="post-check-fiber">
+                                        <span>Removed from Fiber List</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="post-check-survey" name="post-check-survey">
+                                        <span>Removed from Survey List</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="post-check-repair" name="post-check-repair">
+                                        <span>Updated Repair Shoppr</span>
+                                    </label>
+                                    <label class="checkbox-row">
+                                        <input type="checkbox" id="bill-info" name="bill-info">
+                                        <span>Email Sent to Billing</span>
+                                    </label>
+                                </div>
+
+                                <div id="completed-actions-div" class="action-stack hidden" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <button type="button" id="copy-billing-btn" class="btn btn-secondary full-width">
+                                        <i data-lucide="clipboard"></i> Copy Info for Billing
+                                    </button>
+                                    <button type="button" id="archive-customer-btn" class="btn btn-secondary full-width">
+                                        <i data-lucide="archive"></i> Archive Customer
+                                    </button>
+                                    <button type="button" id="unarchive-customer-btn" class="btn btn-secondary full-width hidden">
+                                        <i data-lucide="refresh-ccw"></i> Unarchive
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- FOOTER ACTIONS -->
+                        <div class="details-footer">
+                            <button type="button" id="on-hold-btn" class="btn btn-warning-outline">
+                                <i data-lucide="pause-circle"></i> <span>Hold</span>
+                            </button>
+                            <div class="flex-spacer"></div>
+                            <button type="button" id="delete-customer-btn" class="btn btn-danger-ghost">
+                                <i data-lucide="trash-2"></i> Delete
+                            </button>
+                        </div>
+
+                        <!-- HIDDEN FIELDS FOR LOGIC PRESERVATION -->
+                        <input type="hidden" id="details-status" name="details-status" />
+                        <!-- Redundant buttons required by old logic but hidden in UI to prevent errors if logic calls them -->
+                        <button type="button" id="header-save-btn" class="hidden"></button>
+                        <button type="button" id="header-save-and-progress-btn" class="hidden"></button>
 
                     </form>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
-    
+
     <div id="toast-notification"></div>
 
+    <!-- ADD CUSTOMER MODAL -->
     <div id="add-customer-modal" class="modal-container">
         <div class="modal-backdrop"></div>
         <div class="modal-panel">
             <div class="modal-header">
-                <h2 class="card-title">Add New Customer</h2>
-                <button id="modal-close-btn" class="modal-close-btn">
-                    <i data-lucide="x"></i>
-                </button>
+                <h3>New Service Order</h3>
+                <button id="modal-close-btn" class="btn-icon-only"><i data-lucide="x"></i></button>
             </div>
             
-            <form id="add-customer-form" class="card-content">
-                <div class="form-group" style="border-bottom: 1px solid #e5e7eb; padding-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 600;">Automate from Service Order PDF</label>
-                    
-                    <div id="pdf-drop-zone" class="pdf-drop-zone">
-                        <i data-lucide="upload-cloud" class="drop-zone-icon"></i>
-                        <p class="drop-zone-text">
-                            Drag & drop PDF here, or <span class="browse-link">browse</span>
-                        </p>
-                        <p id="selected-file-name" class="selected-file-name"></p>
-                        <input type="file" id="pdf-upload" accept=".pdf" class="file-input-hidden">
+            <form id="add-customer-form" class="modal-content">
+                <div class="pdf-upload-section">
+                    <label>Auto-fill from PDF</label>
+                    <div id="pdf-drop-zone" class="pdf-zone">
+                        <i data-lucide="upload-cloud"></i>
+                        <span id="selected-file-name">Drop PDF here or click to browse</span>
+                        <input type="file" id="pdf-upload" accept=".pdf" class="hidden">
                     </div>
+                    <button type="button" id="process-pdf-btn" class="btn btn-sm btn-secondary full-width" disabled>Process PDF</button>
+                    <p id="pdf-status-msg" class="status-msg" style="font-size:0.75rem; text-align:center; margin-top:0.5rem;"></p>
+                </div>
 
-                    <button type="button" id="process-pdf-btn" class="btn btn-secondary btn-full-width" disabled>
-                        <i data-lucide="file-cog" class="btn-icon"></i>
-                        Process PDF & Autofill
-                    </button>
-                    <p id="pdf-status-msg" style="font-size: 0.75rem; color: #4b5563; margin-top: 0.5rem; text-align: center;"></p>
+                <div class="divider"><span>OR MANUAL ENTRY</span></div>
+
+                <div class="input-grid single-col">
+                    <div class="form-group">
+                        <label>Service Order #</label>
+                        <input type="text" id="so-number" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Customer Name</label>
+                        <input type="text" id="customer-name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="address" rows="2" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group grid-2">
+                        <div>
+                            <label>Email</label>
+                            <input type="email" id="customer-email" class="form-control">
+                        </div>
+                        <div>
+                            <label>Phone</label>
+                            <input type="tel" id="customer-phone" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Speed</label>
+                        <select id="service-speed" class="form-select">
+                            <option>200 Mbps</option>
+                            <option>500 Mbps</option>
+                            <option>1 Gbps</option>
+                        </select>
+                    </div>
                 </div>
                 
-                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem;">Manual Entry</h3>
-
-                <div class="form-group">
-                    <label for="so-number" class="form-label">Service Order #</label>
-                    <input type="text" id="so-number" class="form-input" required>
+                <div class="modal-footer" style="margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-primary full-width">Create Order</button>
                 </div>
-                <div class="form-group">
-                    <label for="customer-name" class="form-label">Customer Name</label>
-                    <input type="text" id="customer-name" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label for="address" class="form-label">Address</label>
-                    <textarea id="address" rows="3" class="form-textarea"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="customer-email" class="form-label">Primary Email</label>
-                    <input type="email" id="customer-email" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label for="customer-phone" class="form-label">Primary Phone</label>
-                    <input type="tel" id="customer-phone" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label for="service-speed" class="form-label">Service Speed</label>
-                    <select id="service-speed" class="form-select">
-                        <option>200 Mbps</option>
-                        <option>500 Mbps</option>
-                        <option>1 Gbps</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full-width">
-                    <i data-lucide="save" class="btn-icon"></i>
-                    Add Customer
-                </button>
             </form>
         </div>
     </div>
@@ -663,14 +474,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <script type="module" src="firebase.js"></script>
-    
     <script type="module" src="app.js"></script>
     
     <script>
         window.addEventListener('load', () => {
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            if (window.lucide) window.lucide.createIcons();
         });
     </script>
 
