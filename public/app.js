@@ -749,6 +749,7 @@ const populateDetailsForm = (data) => {
     setCheck('post-check-fiber', data.postInstallChecklist?.removedFromFiberList);
     setCheck('post-check-survey', data.postInstallChecklist?.removedFromSiteSurvey);
     setCheck('post-check-repair', data.postInstallChecklist?.updatedRepairShoppr);
+    setCheck('post-check-billing', data.postInstallChecklist?.emailSentToBilling);
     setCheck('bill-info', data.postInstallChecklist?.emailSentToBilling);
 
     // 5. Conditional UI
@@ -1075,17 +1076,35 @@ const handlePdfProcessing = async () => {
                     // Extract City/State/Zip from the address part
                     // Look for Zip in the last few lines
                     const zipRegex = /\b\d{5}(?:-\d{4})?\b/;
-                    const zipLineIndex = addressLines.findIndex(l => zipRegex.test(l));
+                    
+                    // FIX: Search from the bottom up to avoid matching 5-digit house numbers
+                    let zipLineIndex = -1;
+                    for (let i = addressLines.length - 1; i >= 0; i--) {
+                        if (zipRegex.test(addressLines[i])) {
+                            zipLineIndex = i;
+                            break;
+                        }
+                    }
                     
                     if (zipLineIndex !== -1) {
-                        let zipPart = addressLines[zipLineIndex].match(zipRegex)[0];
+                        const zipLine = addressLines[zipLineIndex];
+                        // Check line before zip for State Code to avoid grabbing street numbers like "31"
+                        const prevLine = zipLineIndex > 0 ? addressLines[zipLineIndex - 1] : '';
+                        const stateRegex = /\b(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i;
+
+                        let relevantLines = [];
+                        
+                        if (stateRegex.test(prevLine)) {
+                            // If line immediately before zip has state, assume it is the City/State line
+                            relevantLines = [prevLine, zipLine];
+                        } else {
+                            // Fallback: Grab up to 2 lines back if state isn't clearly on the preceding line
+                            relevantLines = addressLines.slice(Math.max(0, zipLineIndex - 2), zipLineIndex + 1);
+                        }
+
+                        const joinedTail = relevantLines.join(' ');
                         let statePart = '';
                         let cityPart = '';
-                        
-                        // Combine lines around zip to form the tail
-                        // Join all lines from zipLineIndex-2 to zipLineIndex
-                        const relevantLines = addressLines.slice(Math.max(0, zipLineIndex - 2), zipLineIndex + 1);
-                        const joinedTail = relevantLines.join(' ');
                         
                         // Parse from joined tail: "NEW PARIS, IN 46553"
                         const stateMatch = joinedTail.match(/\b(IN|INDIANA)\b/i);
@@ -1098,7 +1117,9 @@ const handlePdfProcessing = async () => {
                             }
                         }
                         
-                        if(cityPart && statePart && zipPart) {
+                        if(cityPart && statePart) {
+                            // Reconstruct cleanly
+                            const zipPart = zipLine.match(zipRegex)[0];
                             cityStateZip = `${cityPart}, ${statePart} ${zipPart}`;
                         } else {
                            cityStateZip = joinedTail; 
@@ -1111,7 +1132,12 @@ const handlePdfProcessing = async () => {
             }
 
             const fullAddr = [street, cityStateZip].filter(Boolean).join(', ');
-            if (fullAddr) el.addressInput.value = toTitleCase(fullAddr);
+            if (fullAddr) {
+                // Title case, then fix " In " to " IN " specifically for address
+                let finalAddr = toTitleCase(fullAddr);
+                finalAddr = finalAddr.replace(/\bIn\b/g, 'IN'); 
+                el.addressInput.value = finalAddr;
+            }
 
             // --- 3. CUSTOMER NAME ---
             // Process extracted nameLines
@@ -1218,8 +1244,48 @@ const handlePdfProcessing = async () => {
 };
 
 const handleSendWelcomeEmail = async () => {
-    // Implement or leave as placeholder
-    console.log("Send Welcome Email clicked");
+    const email = el.detailsEmailInput.value;
+    const name = el.detailsCustomerNameInput.value;
+
+    if (!email) {
+        showToast('No email address found.', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to automatically send the welcome email to ${email}?`)) return;
+
+    try {
+        el.loadingOverlay.classList.remove('hidden');
+
+        // Create a document in the 'mail' collection to trigger the Cloud Function
+        // The Cloud Function listens for new documents here and handles the actual sending via email.js
+        await addDoc(mailCollectionRef, {
+            to: [email],
+            template: {
+                data: {
+                    customerName: name
+                }
+            },
+            sent: false, // Initial state, Cloud Function will update this to true upon success
+            createdAt: serverTimestamp()
+        });
+
+        // Update checkbox state to reflect that the process has started
+        const welcomeCheckbox = document.getElementById('check-welcome-email');
+        if (welcomeCheckbox && !welcomeCheckbox.checked) {
+            welcomeCheckbox.checked = true;
+            // Auto-save the update to the customer record
+            await handleUpdateCustomer(null, true, 0); 
+        }
+        
+        showToast('Welcome email queued successfully.', 'success');
+
+    } catch (err) {
+        console.error("Error queueing welcome email:", err);
+        showToast('Failed to queue email.', 'error');
+    } finally {
+        el.loadingOverlay.classList.add('hidden');
+    }
 };
 
 const handleReturnSplice = async () => {
