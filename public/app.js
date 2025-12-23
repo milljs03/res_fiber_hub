@@ -475,7 +475,23 @@ const renderCustomerList = (list) => {
         item.dataset.id = c.id;
         
         const slug = (c.status || '').toLowerCase().replace(/'/g, '').replace(/ /g, '-');
-        const dateDisplay = (c.installDetails?.installDate) ? c.installDetails.installDate : new Date(c.createdAt?.seconds*1000).toLocaleDateString();
+        
+        // Format Date: month-date-year (MM-DD-YYYY)
+        let dateDisplay = '';
+        if (c.installDetails?.installDate) {
+            // handle YYYY-MM-DD string from input type="date"
+            const [y, m, d] = c.installDetails.installDate.split('-');
+            dateDisplay = `${m}-${d}-${y}`;
+        } else if (c.createdAt?.seconds) {
+            // handle firestore timestamp
+            const dateObj = new Date(c.createdAt.seconds * 1000);
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            const y = dateObj.getFullYear();
+            dateDisplay = `${m}-${d}-${y}`;
+        } else {
+            dateDisplay = 'N/A';
+        }
 
         item.innerHTML = `
             <div class="customer-item-header">
@@ -775,10 +791,15 @@ const closeAddCustomerModal = () => {
 
 const handleAddCustomer = async (e) => {
     e.preventDefault();
+    
+    // Apply Title Case to Name and Address
+    const formattedName = toTitleCase(el.customerNameInput.value);
+    const formattedAddress = toTitleCase(el.addressInput.value);
+
     const newDoc = {
         serviceOrderNumber: el.soNumberInput.value,
-        customerName: el.customerNameInput.value,
-        address: el.addressInput.value,
+        customerName: formattedName,
+        address: formattedAddress,
         primaryContact: { email: el.customerEmailInput.value, phone: el.customerPhoneInput.value },
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
@@ -859,18 +880,103 @@ const handleReturnSplice = async () => {
 };
 
 const handleCopyBilling = async () => {
-    // Implement or leave as placeholder
-    console.log("Copy Billing clicked");
+    try {
+        // Get raw date and format it (YYYY-MM-DD -> MM/DD/YYYY)
+        const rawDate = document.getElementById('install-date').value;
+        let formattedDate = '';
+        if (rawDate) {
+            const [year, month, day] = rawDate.split('-');
+            formattedDate = `${month}/${day}/${year}`;
+        }
+
+        // Get additional equipment
+        const extraEquip = document.getElementById('extra-equip').value || '';
+
+        // Format Name: Move first word to last (Lastname First -> First Lastname)
+        const rawName = el.detailsCustomerNameInput.value || '';
+        let billingName = rawName;
+        const nameParts = rawName.trim().split(/\s+/);
+        if (nameParts.length >= 2) {
+            const firstWord = nameParts.shift(); // Removes the first word (assumed Lastname)
+            billingName = `${nameParts.join(' ')} ${firstWord}`;
+        }
+
+        const billingInfo = [
+            `Customer Name: ${billingName}`,
+            `Address: ${el.detailsAddressInput.value}`,
+            `Service Order: ${el.detailsSoNumberInput.value}`,
+            `Speed: ${el.detailsSpeedInput.value}`,
+            `Date Installed: ${formattedDate}`,
+            `Additional Equipment: ${extraEquip}`,
+            ``,
+            `Thanks,`,
+            `Lincoln`
+        ].join('\n');
+
+        await navigator.clipboard.writeText(billingInfo);
+        
+        // Visual Feedback
+        const originalBtnContent = el.copyBillingBtn.innerHTML;
+        el.copyBillingBtn.innerHTML = `<i data-lucide="check"></i> Copied!`;
+        
+        if (window.lucide) window.lucide.createIcons();
+
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            el.copyBillingBtn.innerHTML = originalBtnContent;
+            if (window.lucide) window.lucide.createIcons();
+        }, 2000);
+
+        showToast('Billing info copied to clipboard', 'success');
+
+    } catch (err) {
+        console.error("Failed to copy billing info: ", err);
+        showToast('Failed to copy info', 'error');
+    }
 };
 
 const handleArchiveCustomer = async () => {
-    // Implement or leave as placeholder
-    console.log("Archive Customer clicked");
+    const id = el.detailsContainer.dataset.id;
+    if (!id || !customersCollectionRef) return;
+
+    if (confirm("Are you sure you want to archive this customer?")) {
+        try {
+            el.loadingOverlay.classList.remove('hidden');
+            await updateDoc(doc(customersCollectionRef, id), {
+                status: 'Archived'
+            });
+            showToast('Customer Archived', 'success');
+            handleDeselectCustomer(false); // Close details view
+        } catch (error) {
+            console.error("Error archiving customer: ", error);
+            showToast('Error archiving customer', 'error');
+        } finally {
+            el.loadingOverlay.classList.add('hidden');
+        }
+    }
 };
 
 const handleUnarchiveCustomer = async () => {
-    // Implement or leave as placeholder
-    console.log("Unarchive Customer clicked");
+    const id = el.detailsContainer.dataset.id;
+    if (!id || !customersCollectionRef) return;
+
+    if (confirm("Are you sure you want to unarchive this customer? They will be moved to Completed.")) {
+        try {
+            el.loadingOverlay.classList.remove('hidden');
+            // Move back to 'Completed' as default unarchive state
+            await updateDoc(doc(customersCollectionRef, id), {
+                status: 'Completed'
+            });
+            showToast('Customer Unarchived', 'success');
+            // The snapshot listener will update the UI automatically.
+            // We can leave the details pane open.
+        } catch (error) {
+            console.error("Error unarchiving customer: ", error);
+            showToast('Error unarchiving customer', 'error');
+        } finally {
+            el.loadingOverlay.classList.add('hidden');
+        }
+    }
 };
 
 // --- HELPERS ---
@@ -894,6 +1000,68 @@ const showToast = (msg, type) => {
     el.toast.className = type;
     el.toast.classList.add('show');
     setTimeout(() => el.toast.classList.remove('show'), 3000);
+};
+
+const toTitleCase = (str) => {
+    if (!str) return '';
+    return str.replace(
+        /\w\S*/g,
+        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+};
+
+// --- DATA SANITIZATION TOOL ---
+// Expose function to window for manual execution via Console
+window.sanitizeDatabase = async () => {
+    if (!customersCollectionRef || allCustomers.length === 0) {
+        console.warn("Database not ready or no customers loaded. Wait for data to load.");
+        showToast('Wait for data to load', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to convert all ${allCustomers.length} records to Title Case? This affects Names and Addresses.`)) return;
+
+    el.loadingOverlay.classList.remove('hidden');
+    let updatedCount = 0;
+
+    try {
+        console.log("Starting sanitization...");
+        // Process in chunks to avoid overwhelming the browser/network if dataset is large
+        // But for typical use case, Promise.all on the whole set is usually fine for < 1000 docs
+        const updatePromises = [];
+        
+        for (const c of allCustomers) {
+            const currentName = c.customerName || '';
+            const currentAddress = c.address || '';
+            
+            const newName = toTitleCase(currentName);
+            const newAddress = toTitleCase(currentAddress);
+            
+            // Only update if actual change occurs
+            if (currentName !== newName || currentAddress !== newAddress) {
+                const p = updateDoc(doc(customersCollectionRef, c.id), {
+                    customerName: newName,
+                    address: newAddress
+                }).then(() => {
+                    updatedCount++;
+                    console.log(`Updated: ${newName}`);
+                });
+                updatePromises.push(p);
+            }
+        }
+
+        await Promise.all(updatePromises);
+        
+        const msg = `Sanitization complete. Updated ${updatedCount} records.`;
+        console.log(msg);
+        showToast(msg, 'success');
+        
+    } catch (err) {
+        console.error("Sanitization failed:", err);
+        showToast('Error during sanitization', 'error');
+    } finally {
+        el.loadingOverlay.classList.add('hidden');
+    }
 };
 
 // --- NOTES & CHARTS ---
