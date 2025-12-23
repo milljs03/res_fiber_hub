@@ -32,6 +32,10 @@ let notesAutoSaveTimeout = null;
 const storage = getStorage();
 let tempUploadedPdfUrl = null;
 
+// Temporary Contact State (for Modal and Details)
+let modalContacts = [];
+let detailsContacts = [];
+
 // Chart instances
 let myChart = null; 
 let monthlyAvgChart = null; 
@@ -57,8 +61,16 @@ const el = {
     customerNameInput: document.getElementById('customer-name'),
     addressInput: document.getElementById('address'),
     customerEmailInput: document.getElementById('customer-email'),
-    customerPhoneInput: document.getElementById('customer-phone'),
     serviceSpeedInput: document.getElementById('service-speed'),
+    // Modal Contacts UI
+    modalContactsList: document.getElementById('modal-contacts-list'),
+    modalShowAddContactBtn: document.getElementById('modal-show-add-contact-btn'),
+    modalAddContactForm: document.getElementById('modal-add-contact-form'),
+    modalConfirmAddContact: document.getElementById('modal-confirm-add-contact'),
+    modalCancelAddContact: document.getElementById('modal-cancel-add-contact'),
+    modalNewContactType: document.getElementById('modal-new-contact-type'),
+    modalNewContactNumber: document.getElementById('modal-new-contact-number'),
+    modalNewContactName: document.getElementById('modal-new-contact-name'),
 
     // PDF Processing
     pdfDropZone: document.getElementById('pdf-drop-zone'),
@@ -117,8 +129,18 @@ const el = {
     detailsAddressInput: document.getElementById('details-address'),
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
-    detailsPhoneInput: document.getElementById('details-phone'),
+    // detailsPhoneInput removed - replaced by contact list
     detailsGeneralNotes: document.getElementById('details-general-notes'),
+
+    // Details Contacts UI
+    detailsContactsList: document.getElementById('details-contacts-list'),
+    detailsShowAddContactBtn: document.getElementById('details-show-add-contact-btn'),
+    detailsAddContactForm: document.getElementById('details-add-contact-form'),
+    detailsConfirmAddContact: document.getElementById('details-confirm-add-contact'),
+    detailsCancelAddContact: document.getElementById('details-cancel-add-contact'),
+    detailsNewContactType: document.getElementById('details-new-contact-type'),
+    detailsNewContactNumber: document.getElementById('details-new-contact-number'),
+    detailsNewContactName: document.getElementById('details-new-contact-name'),
 
     // Details Actions
     sendWelcomeEmailBtn: document.getElementById('send-welcome-email-btn'),
@@ -202,6 +224,61 @@ const setupEventListeners = () => {
     el.modalCloseBtn.addEventListener('click', closeAddCustomerModal);
     el.modalBackdrop.addEventListener('click', closeAddCustomerModal);
     el.addForm.addEventListener('submit', handleAddCustomer);
+
+    // Modal Contacts Logic
+    el.modalShowAddContactBtn.addEventListener('click', () => {
+        el.modalShowAddContactBtn.classList.add('hidden');
+        el.modalAddContactForm.classList.remove('hidden');
+    });
+    el.modalCancelAddContact.addEventListener('click', () => {
+        el.modalAddContactForm.classList.add('hidden');
+        el.modalShowAddContactBtn.classList.remove('hidden');
+        el.modalNewContactNumber.value = '';
+        el.modalNewContactName.value = '';
+    });
+    el.modalConfirmAddContact.addEventListener('click', () => {
+        const type = el.modalNewContactType.value;
+        const number = el.modalNewContactNumber.value.trim();
+        const name = el.modalNewContactName.value.trim();
+        if (number) {
+            addContact(modalContacts, { type, number, name });
+            renderContacts(el.modalContactsList, modalContacts, true);
+            el.modalNewContactNumber.value = '';
+            el.modalNewContactName.value = '';
+            el.modalAddContactForm.classList.add('hidden');
+            el.modalShowAddContactBtn.classList.remove('hidden');
+        }
+    });
+
+    // Details Contacts Logic
+    el.detailsShowAddContactBtn.addEventListener('click', () => {
+        el.detailsShowAddContactBtn.classList.add('hidden');
+        el.detailsAddContactForm.classList.remove('hidden');
+    });
+    el.detailsCancelAddContact.addEventListener('click', () => {
+        el.detailsAddContactForm.classList.add('hidden');
+        el.detailsShowAddContactBtn.classList.remove('hidden');
+        el.detailsNewContactNumber.value = '';
+        el.detailsNewContactName.value = '';
+    });
+    el.detailsConfirmAddContact.addEventListener('click', () => {
+        const type = el.detailsNewContactType.value;
+        const number = el.detailsNewContactNumber.value.trim();
+        const name = el.detailsNewContactName.value.trim();
+        if (number) {
+            addContact(detailsContacts, { type, number, name });
+            renderContacts(el.detailsContactsList, detailsContacts, true);
+            el.detailsNewContactNumber.value = '';
+            el.detailsNewContactName.value = '';
+            el.detailsAddContactForm.classList.add('hidden');
+            el.detailsShowAddContactBtn.classList.remove('hidden');
+        }
+    });
+
+    // Handle Contact Deletion (Delegation)
+    el.modalContactsList.addEventListener('click', (e) => handleDeleteContact(e, modalContacts, el.modalContactsList));
+    el.detailsContactsList.addEventListener('click', (e) => handleDeleteContact(e, detailsContacts, el.detailsContactsList));
+
 
     // PDF Processing
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
@@ -294,6 +371,87 @@ const setupEventListeners = () => {
         if(btn) copyToClipboard(btn);
     });
 };
+
+// --- CONTACT MANAGEMENT FUNCTIONS ---
+
+const addContact = (list, contact) => {
+    // Generate simple ID if not present
+    if (!contact.id) contact.id = Date.now().toString();
+    list.push(contact);
+};
+
+const removeContact = (list, id) => {
+    const idx = list.findIndex(c => c.id === id);
+    if (idx !== -1) list.splice(idx, 1);
+};
+
+const handleDeleteContact = (e, list, container) => {
+    const btn = e.target.closest('.delete-contact-btn');
+    if (btn) {
+        const id = btn.dataset.id;
+        removeContact(list, id);
+        renderContacts(container, list, true);
+    }
+};
+
+const renderContacts = (container, list, isEditable) => {
+    container.innerHTML = '';
+    
+    if (list.length === 0) {
+        container.innerHTML = '<div style="font-size:0.8rem; color:#9ca3af; font-style:italic;">No contacts added.</div>';
+        return;
+    }
+
+    list.forEach(c => {
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+        
+        // Icon based on type
+        let icon = 'phone';
+        if (c.type === 'Work') icon = 'briefcase';
+        else if (c.type === 'Home') icon = 'home';
+        else if (c.type === 'Mobile' || c.type === 'Cell') icon = 'smartphone';
+        else if (c.type === 'Other') icon = 'user';
+
+        card.innerHTML = `
+            <div class="contact-icon-wrapper">
+                <i data-lucide="${icon}" width="18" height="18"></i>
+            </div>
+            <div class="contact-info">
+                <span class="contact-type-badge">${c.type}</span>
+                <a href="tel:${c.number}" class="contact-number">${c.number}</a>
+                <div class="contact-name">${c.name || 'No Name'}</div>
+            </div>
+            <div class="contact-actions">
+                <button type="button" class="btn-icon-sm copy-contact-btn" title="Copy Number">
+                    <i data-lucide="copy" width="14" height="14"></i>
+                </button>
+                ${isEditable ? `
+                <button type="button" class="btn-icon-sm delete delete-contact-btn" data-id="${c.id}" title="Remove">
+                    <i data-lucide="trash-2" width="14" height="14"></i>
+                </button>` : ''}
+            </div>
+        `;
+        
+        // Add copy event listener locally
+        const copyBtn = card.querySelector('.copy-contact-btn');
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(c.number);
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i data-lucide="check" width="14" height="14"></i>';
+            if(window.lucide) window.lucide.createIcons();
+            setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+                if(window.lucide) window.lucide.createIcons();
+            }, 1500);
+        });
+
+        container.appendChild(card);
+    });
+    
+    if(window.lucide) window.lucide.createIcons();
+};
+
 
 // --- 3. DASHBOARD LOGIC ---
 
@@ -548,7 +706,15 @@ const populateDetailsForm = (data) => {
     el.detailsAddressInput.value = data.address || '';
     el.detailsSpeedInput.value = data.serviceSpeed || '';
     el.detailsEmailInput.value = data.primaryContact?.email || '';
-    el.detailsPhoneInput.value = data.primaryContact?.phone || '';
+    
+    // Populate Contacts
+    detailsContacts = data.contacts || []; 
+    // Fallback if no contacts array but old string exists
+    if(detailsContacts.length === 0 && data.primaryContact?.phone) {
+        detailsContacts.push({ type: 'Mobile', number: data.primaryContact.phone, name: 'Primary' });
+    }
+    renderContacts(el.detailsContactsList, detailsContacts, true);
+    
     el.detailsGeneralNotes.value = data.generalNotes || '';
 
     // 3. Stage Content & Stepper
@@ -693,14 +859,18 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
         if (stepDir === -1 && idx > 0) status = STEPS_WORKFLOW[idx - 1];
     }
     
-    // Construct Data Object (Reading from NEW IDs)
+    // Construct Data Object
+    // For backward compatibility, save first contact phone to primaryContact.phone
+    const primaryPhone = detailsContacts.length > 0 ? detailsContacts[0].number : '';
+
     const data = {
         customerName: el.detailsCustomerNameInput.value,
         serviceOrderNumber: el.detailsSoNumberInput.value,
         address: el.detailsAddressInput.value,
         serviceSpeed: el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
-        'primaryContact.phone': el.detailsPhoneInput.value,
+        'primaryContact.phone': primaryPhone,
+        contacts: detailsContacts, // Save array
         status: status,
         statusBeforeHold: prevStatus,
         generalNotes: el.detailsGeneralNotes.value,
@@ -763,7 +933,6 @@ const handleDeleteCustomer = async (e) => {
     const id = el.detailsContainer.dataset.id;
     if (!id || !customersCollectionRef) return;
     
-    // In a real app, use a custom modal. For now, native confirm is acceptable or use the custom modal logic if available.
     if (confirm("Are you sure you want to delete this customer? This cannot be undone.")) {
         try {
             el.loadingOverlay.classList.remove('hidden');
@@ -784,6 +953,8 @@ const handleDeleteCustomer = async (e) => {
 const openAddCustomerModal = () => {
     el.addCustomerModal.classList.add('show');
     el.addForm.reset();
+    modalContacts = [];
+    renderContacts(el.modalContactsList, modalContacts, true);
 };
 const closeAddCustomerModal = () => {
     el.addCustomerModal.classList.remove('show');
@@ -795,12 +966,16 @@ const handleAddCustomer = async (e) => {
     // Apply Title Case to Name and Address
     const formattedName = toTitleCase(el.customerNameInput.value);
     const formattedAddress = toTitleCase(el.addressInput.value);
+    
+    // Fallback phone if no contacts added
+    const primaryPhone = modalContacts.length > 0 ? modalContacts[0].number : '';
 
     const newDoc = {
         serviceOrderNumber: el.soNumberInput.value,
         customerName: formattedName,
         address: formattedAddress,
-        primaryContact: { email: el.customerEmailInput.value, phone: el.customerPhoneInput.value },
+        primaryContact: { email: el.customerEmailInput.value, phone: primaryPhone },
+        contacts: modalContacts, // Save array
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
         createdAt: serverTimestamp(),
@@ -845,16 +1020,189 @@ const handlePdfProcessing = async () => {
             const pdf = await window.pdfjsLib.getDocument({ data: reader.result }).promise;
             const page = await pdf.getPage(1);
             const content = await page.getTextContent();
+            
+            // Join items with a newline to preserve some structure
             const text = content.items.map(i => i.str).join('\n');
+
+            console.log("--- START PDF EXTRACT ---");
+            console.log(text);
+            console.log("--- END PDF EXTRACT ---");
+
+            // --- 1. SERVICE ORDER ---
+            const soMatch = text.match(/Service Order:\s*(\d+)/i);
+            if (soMatch) el.soNumberInput.value = soMatch[1];
+
+            // --- 2. ADDRESS (Service Point Street + Bill To City/State/Zip) ---
+            let street = '';
+            // Match "Service Point:" followed by anything until "City/Serv" or newline
+            const servicePointMatch = text.match(/Service\s+Point:\s*(?:NEW\s*)?([\s\S]+?)City\/Serv/i);
+            if (servicePointMatch) {
+                // "67671 COUNTY RD 23\n\n"
+                let rawStreet = servicePointMatch[1].replace(/\n/g, ' ').trim();
+                
+                // --- FIX: Remove prefixes like GOSH, NEW, etc. that sometimes appear ---
+                // Regex looks for "GOSH " or "NEW " at the start of the string
+                rawStreet = rawStreet.replace(/^(GOSH|NEW)\s+/i, '').trim();
+                
+                street = rawStreet;
+            }
+
+            let cityStateZip = '';
+            // Capture Bill To block
+            const billToBlockMatch = text.match(/Bill\s+To:\s*([\s\S]*?)Res\/Bus/i);
+            let nameLines = [];
             
-            // Regex Logic (Simplified for brevity, ensure your original logic is used here if complex)
-            const soMatch = text.match(/Service Order:?\s*(\d+)/i);
+            if (billToBlockMatch) {
+                const lines = billToBlockMatch[1].split('\n').map(l => l.trim()).filter(l => l);
+                
+                // SEPARATE NAMES FROM ADDRESS
+                // Address usually starts with a digit (House number). Names are above it.
+                // Exception: sometimes address is just "P.O. Box".
+                
+                let addressStartIndex = -1;
+                for(let i=0; i<lines.length; i++) {
+                     // Check for digit at start (House Number) or PO BOX
+                    if (/^\d/.test(lines[i]) || /^P\.?O\.?\s*Box/i.test(lines[i])) {
+                        addressStartIndex = i;
+                        break;
+                    }
+                }
+                
+                if (addressStartIndex > -1) {
+                    nameLines = lines.slice(0, addressStartIndex);
+                    const addressLines = lines.slice(addressStartIndex);
+                    
+                    // Extract City/State/Zip from the address part
+                    // Look for Zip in the last few lines
+                    const zipRegex = /\b\d{5}(?:-\d{4})?\b/;
+                    const zipLineIndex = addressLines.findIndex(l => zipRegex.test(l));
+                    
+                    if (zipLineIndex !== -1) {
+                        let zipPart = addressLines[zipLineIndex].match(zipRegex)[0];
+                        let statePart = '';
+                        let cityPart = '';
+                        
+                        // Combine lines around zip to form the tail
+                        // Join all lines from zipLineIndex-2 to zipLineIndex
+                        const relevantLines = addressLines.slice(Math.max(0, zipLineIndex - 2), zipLineIndex + 1);
+                        const joinedTail = relevantLines.join(' ');
+                        
+                        // Parse from joined tail: "NEW PARIS, IN 46553"
+                        const stateMatch = joinedTail.match(/\b(IN|INDIANA)\b/i);
+                        if (stateMatch) {
+                            statePart = stateMatch[0]; // IN
+                            // City is usually before State
+                            const parts = joinedTail.split(statePart);
+                            if (parts[0]) {
+                                cityPart = parts[0].replace(/,/g, '').trim();
+                            }
+                        }
+                        
+                        if(cityPart && statePart && zipPart) {
+                            cityStateZip = `${cityPart}, ${statePart} ${zipPart}`;
+                        } else {
+                           cityStateZip = joinedTail; 
+                        }
+                    }
+                } else {
+                    // No address found in Bill To? Maybe all names?
+                    nameLines = lines;
+                }
+            }
+
+            const fullAddr = [street, cityStateZip].filter(Boolean).join(', ');
+            if (fullAddr) el.addressInput.value = toTitleCase(fullAddr);
+
+            // --- 3. CUSTOMER NAME ---
+            // Process extracted nameLines
+            if (nameLines.length > 0) {
+                 const parsedNames = nameLines.map(n => {
+                    // "MERLE YODER" -> {first: "MERLE", last: "YODER"}
+                    const parts = n.split(/\s+/);
+                    if(parts.length > 1) {
+                        const last = parts.pop();
+                        const first = parts.join(' ');
+                        return { first, last };
+                    }
+                    return { first: n, last: '' };
+                 });
+                 
+                 if (parsedNames.length === 2) {
+                     // Check if last names match
+                     if (parsedNames[0].last && parsedNames[1].last && 
+                         parsedNames[0].last.toUpperCase() === parsedNames[1].last.toUpperCase()) {
+                         // Yoder Merle & Nelaine
+                         el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first} & ${parsedNames[1].first}`);
+                     } else {
+                         // Different last names or cannot determine
+                         el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
+                     }
+                 } else if (parsedNames.length === 1) {
+                     if (parsedNames[0].last) {
+                         el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first}`);
+                     } else {
+                         el.customerNameInput.value = toTitleCase(parsedNames[0].first);
+                     }
+                 } else {
+                      el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
+                 }
+            }
+
+            // --- 4. CONTACTS (Array Parsing) ---
+            // Pattern: WORK/CELL/other/HOME -> Number -> Name
+            
+            const contactTypes = ['WORK', 'CELL', 'other', 'HOME'];
+            modalContacts = []; // Reset current
+            
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // Check if line starts with a contact type (case insensitive check for 'other')
+                const matchedType = contactTypes.find(t => line.toUpperCase() === t.toUpperCase());
+                
+                if (matchedType) {
+                    let type = matchedType.charAt(0).toUpperCase() + matchedType.slice(1).toLowerCase(); // Normalize case (Work, Cell, Other)
+                    if(type === 'Other') type = 'Other'; // keep as is
+                    if(type === 'Cell') type = 'Mobile'; // Map Cell -> Mobile for dropdown consistency
+
+                    let number = "";
+                    let name = "";
+                    
+                    if (i + 1 < lines.length) {
+                        const nextLine = lines[i+1];
+                        if (/[0-9]/.test(nextLine)) {
+                            number = nextLine.replace(/\/$/, '').trim(); 
+                        }
+                    }
+                    
+                    if (i + 2 < lines.length) {
+                         const nameLine = lines[i+2];
+                         if (!contactTypes.some(t => nameLine.toUpperCase() === t.toUpperCase()) && nameLine !== 'Customer') {
+                             name = toTitleCase(nameLine);
+                         }
+                    }
+
+                    if (number) {
+                        addContact(modalContacts, { type, number, name });
+                    }
+                }
+            }
+            renderContacts(el.modalContactsList, modalContacts, true);
+
+
+            // --- 5. SPEED ---
+            if (/1\s*(?:GIG|GBPS)/i.test(text)) {
+                el.serviceSpeedInput.value = '1 Gbps';
+            } else if (/500\s*(?:MG|MBPS)/i.test(text)) {
+                el.serviceSpeedInput.value = '500 Mbps';
+            } else if (/200\s*(?:MG|MBPS)/i.test(text)) {
+                el.serviceSpeedInput.value = '200 Mbps';
+            }
+            
+            // EMAIL
             const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
-            
-            if(soMatch) el.soNumberInput.value = soMatch[1];
             if(emailMatch) el.customerEmailInput.value = emailMatch[1];
-            
-            // ... Add your full regex logic from the previous file here ...
             
             el.pdfStatusMsg.textContent = 'Autofilled from PDF!';
             el.processPdfBtn.textContent = 'Processed';
@@ -881,7 +1229,6 @@ const handleReturnSplice = async () => {
 
 const handleCopyBilling = async () => {
     try {
-        // Get raw date and format it (YYYY-MM-DD -> MM/DD/YYYY)
         const rawDate = document.getElementById('install-date').value;
         let formattedDate = '';
         if (rawDate) {
@@ -889,15 +1236,13 @@ const handleCopyBilling = async () => {
             formattedDate = `${month}/${day}/${year}`;
         }
 
-        // Get additional equipment
         const extraEquip = document.getElementById('extra-equip').value || '';
 
-        // Format Name: Move first word to last (Lastname First -> First Lastname)
         const rawName = el.detailsCustomerNameInput.value || '';
         let billingName = rawName;
         const nameParts = rawName.trim().split(/\s+/);
         if (nameParts.length >= 2) {
-            const firstWord = nameParts.shift(); // Removes the first word (assumed Lastname)
+            const firstWord = nameParts.shift();
             billingName = `${nameParts.join(' ')} ${firstWord}`;
         }
 
@@ -915,13 +1260,11 @@ const handleCopyBilling = async () => {
 
         await navigator.clipboard.writeText(billingInfo);
         
-        // Visual Feedback
         const originalBtnContent = el.copyBillingBtn.innerHTML;
         el.copyBillingBtn.innerHTML = `<i data-lucide="check"></i> Copied!`;
         
         if (window.lucide) window.lucide.createIcons();
 
-        // Reset button after 2 seconds
         setTimeout(() => {
             el.copyBillingBtn.innerHTML = originalBtnContent;
             if (window.lucide) window.lucide.createIcons();
@@ -946,7 +1289,7 @@ const handleArchiveCustomer = async () => {
                 status: 'Archived'
             });
             showToast('Customer Archived', 'success');
-            handleDeselectCustomer(false); // Close details view
+            handleDeselectCustomer(false); 
         } catch (error) {
             console.error("Error archiving customer: ", error);
             showToast('Error archiving customer', 'error');
@@ -963,13 +1306,10 @@ const handleUnarchiveCustomer = async () => {
     if (confirm("Are you sure you want to unarchive this customer? They will be moved to Completed.")) {
         try {
             el.loadingOverlay.classList.remove('hidden');
-            // Move back to 'Completed' as default unarchive state
             await updateDoc(doc(customersCollectionRef, id), {
                 status: 'Completed'
             });
             showToast('Customer Unarchived', 'success');
-            // The snapshot listener will update the UI automatically.
-            // We can leave the details pane open.
         } catch (error) {
             console.error("Error unarchiving customer: ", error);
             showToast('Error unarchiving customer', 'error');
@@ -1011,7 +1351,6 @@ const toTitleCase = (str) => {
 };
 
 // --- DATA SANITIZATION TOOL ---
-// Expose function to window for manual execution via Console
 window.sanitizeDatabase = async () => {
     if (!customersCollectionRef || allCustomers.length === 0) {
         console.warn("Database not ready or no customers loaded. Wait for data to load.");
@@ -1026,8 +1365,6 @@ window.sanitizeDatabase = async () => {
 
     try {
         console.log("Starting sanitization...");
-        // Process in chunks to avoid overwhelming the browser/network if dataset is large
-        // But for typical use case, Promise.all on the whole set is usually fine for < 1000 docs
         const updatePromises = [];
         
         for (const c of allCustomers) {
@@ -1037,7 +1374,6 @@ window.sanitizeDatabase = async () => {
             const newName = toTitleCase(currentName);
             const newAddress = toTitleCase(currentAddress);
             
-            // Only update if actual change occurs
             if (currentName !== newName || currentAddress !== newAddress) {
                 const p = updateDoc(doc(customersCollectionRef, c.id), {
                     customerName: newName,
