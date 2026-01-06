@@ -3,7 +3,7 @@ import { db, auth, googleProvider, signInWithPopup, signOut } from './firebase.j
 
 // Import necessary Firestore functions
 import {
-    collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, serverTimestamp, deleteField, setDoc
+    collection, doc, addDoc, getDoc, updateDoc, deleteDoc, onSnapshot, query, serverTimestamp, setDoc
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // Import Auth functions
@@ -21,27 +21,110 @@ let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
 let mailCollectionRef = null;
-let dashboardDocRef = null;
 let selectedCustomerId = null;
-let customerUnsubscribe = null;
 let allCustomers = []; 
-let currentSort = 'name'; 
-let currentFilter = 'All'; 
-let currentCompletedFilter = 'All'; 
-let notesAutoSaveTimeout = null;
+let currentSort = 'date'; 
+let currentFilter = 'All'; // Corresponds to Pills
+let currentMainTab = 'Active'; // Active, Billing, Archived
 const storage = getStorage();
 let tempUploadedPdfUrl = null;
+
+// Charts
+let monthlyChart = null;
+let speedChart = null;
 
 // Temporary Contact State (for Modal and Details)
 let modalContacts = [];
 let detailsContacts = [];
 
-// Chart instances
-let myChart = null; 
-let monthlyAvgChart = null; 
-let speedChart = null; 
+// --- HELPER FUNCTIONS (Hoisted) ---
 
-// --- DOM Elements Mapping (New UI) ---
+function isChecked(id) { return document.getElementById(id)?.checked || false; }
+function setCheck(id, val) { if(document.getElementById(id)) document.getElementById(id).checked = !!val; }
+function getVal(id) { return document.getElementById(id)?.value || ''; }
+function setVal(id, val) { if(document.getElementById(id)) document.getElementById(id).value = val || ''; }
+
+function toTitleCase(str) {
+    if (!str) return '';
+    return str.replace(
+        /\w\S*/g,
+        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+}
+
+function showToast(msg, type) {
+    el.toast.textContent = msg;
+    el.toast.className = type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white';
+    el.toast.classList.add('show');
+    // Re-trigger styles for the toast content if needed
+    el.toast.style.padding = '12px 24px';
+    el.toast.style.borderRadius = '8px';
+    el.toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+    
+    setTimeout(() => el.toast.classList.remove('show'), 3000);
+}
+
+function copyToClipboard(btn) {
+    const targetId = btn.dataset.target;
+    const element = document.getElementById(targetId);
+    if(element) {
+        navigator.clipboard.writeText(element.value || element.textContent);
+        btn.classList.add('text-green-500');
+        setTimeout(() => btn.classList.remove('text-green-500'), 1500);
+        showToast('Copied to clipboard', 'success');
+    }
+}
+
+// --- CONTACTS HELPERS ---
+function addContact(list, contact) {
+    if (!contact.id) contact.id = Date.now().toString();
+    list.push(contact);
+}
+
+function removeContact(list, id) {
+    const idx = list.findIndex(c => c.id === id);
+    if (idx !== -1) list.splice(idx, 1);
+}
+
+function handleDeleteContact(e, list, container) {
+    const btn = e.target.closest('.delete-contact-btn');
+    if (btn) {
+        removeContact(list, btn.dataset.id);
+        renderContacts(container, list, true);
+    }
+}
+
+function renderContacts(container, list, isEditable) {
+    container.innerHTML = '';
+    if (list.length === 0) {
+        container.innerHTML = '<div class="text-xs text-gray-400 italic">No contacts added.</div>';
+        return;
+    }
+    list.forEach(c => {
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+        let icon = 'phone';
+        if (c.type === 'Work') icon = 'briefcase';
+        else if (c.type === 'Home') icon = 'home';
+        else if (c.type === 'Mobile') icon = 'smartphone';
+        
+        card.innerHTML = `
+            <div class="contact-icon-wrapper"><i data-lucide="${icon}" width="16" height="16"></i></div>
+            <div class="contact-info">
+                <span class="contact-type-badge">${c.type}</span>
+                <a href="tel:${c.number}" class="contact-number">${c.number}</a>
+                <div class="contact-name">${c.name || ''}</div>
+            </div>
+            <div class="contact-actions">
+                ${isEditable ? `<button type="button" class="btn-icon-sm delete-contact-btn" data-id="${c.id}"><i data-lucide="trash-2" width="14" height="14"></i></button>` : ''}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+    if(window.lucide) window.lucide.createIcons();
+}
+
+// --- DOM Elements Mapping ---
 const el = {
     // Auth & Navigation
     authScreen: document.getElementById('auth-screen'),
@@ -50,11 +133,19 @@ const el = {
     signOutBtn: document.getElementById('sign-out-btn'),
     authError: document.getElementById('auth-error'),
     userEmailDisplay: document.getElementById('user-email'),
+    themeToggleBtn: document.getElementById('theme-toggle-btn'),
+    toggleAnalyticsBtn: document.getElementById('toggle-analytics-btn'), // New
+
+    // Analytics
+    analyticsDashboard: document.getElementById('analytics-dashboard'), // New
+    analyticsStagesList: document.getElementById('analytics-stages-list'), // New
+    chartMonthlyInstalls: document.getElementById('chart-monthly-installs'), // New
+    chartSpeedTiers: document.getElementById('chart-speed-tiers'), // New
 
     // Add Form (Modal)
     addCustomerModal: document.getElementById('add-customer-modal'),
     modalCloseBtn: document.getElementById('modal-close-btn'),
-    modalBackdrop: document.querySelector('.modal-backdrop'),
+    newCustomerBtn: document.getElementById('new-customer-btn'),
     addForm: document.getElementById('add-customer-form'),
     // Add Form Inputs
     soNumberInput: document.getElementById('so-number'),
@@ -62,6 +153,7 @@ const el = {
     addressInput: document.getElementById('address'),
     customerEmailInput: document.getElementById('customer-email'),
     serviceSpeedInput: document.getElementById('service-speed'),
+    
     // Modal Contacts UI
     modalContactsList: document.getElementById('modal-contacts-list'),
     modalShowAddContactBtn: document.getElementById('modal-show-add-contact-btn'),
@@ -79,38 +171,22 @@ const el = {
     processPdfBtn: document.getElementById('process-pdf-btn'),
     pdfStatusMsg: document.getElementById('pdf-status-msg'),
 
-    // List Column
-    customerListContainer: document.getElementById('customer-list-container'),
-    searchBar: document.getElementById('search-bar'),
-    newCustomerBtn: document.getElementById('new-customer-btn'),
-    mainListTabs: document.getElementById('main-list-tabs'),
-    activeControlsGroup: document.getElementById('active-controls-group'),
-    filterPillsContainer: document.getElementById('filter-pills'),
-    sortBy: document.getElementById('sort-by'),
-    completedControlsGroup: document.getElementById('completed-controls-group'),
-    completedFilterSelect: document.getElementById('completed-filter-select'),
-    completedFilterResults: document.getElementById('completed-filter-results'),
-
-    // Dashboard Bar
-    statsSummaryActiveWrapper: document.getElementById('stats-summary-active-wrapper'),
-    statsSummaryCompletedWrapper: document.getElementById('stats-summary-completed-wrapper'),
-    overallInstallTimeWrapper: document.getElementById('overall-install-time-wrapper'),
-    toggleAnalyticsBtn: document.getElementById('toggle-analytics-btn'),
-    dashboardAnalyticsPanel: document.getElementById('dashboard-analytics-panel'),
-    // Charts & Notes
-    installationsChart: document.getElementById('installations-chart'),
-    monthlyInstallChart: document.getElementById('monthly-install-chart'), 
-    speedBreakdownChart: document.getElementById('speed-breakdown-chart'), 
-    dashboardGeneralNotes: document.getElementById('dashboard-general-notes'),
-    saveDashboardNotesBtn: document.getElementById('save-dashboard-notes-btn'),
-
-    // Details Column
-    detailsPlaceholder: document.getElementById('details-placeholder'),
+    // Dashboard Controls
+    contractsTable: document.getElementById('contractsTable'), // The Tbody
+    tableEmptyState: document.getElementById('table-empty-state'),
+    tableLoading: document.getElementById('table-loading'),
     loadingOverlay: document.getElementById('loading-overlay'),
+    searchBar: document.getElementById('search-bar'),
+    mainListTabs: document.getElementById('main-list-tabs'),
+    filterPillsContainer: document.getElementById('filter-pills'),
+
+    // DETAILS MODAL
+    detailsModal: document.getElementById('details-container-modal'),
+    detailsModalCloseBtn: document.getElementById('details-modal-close-btn'),
     detailsContainer: document.getElementById('details-container'),
     detailsForm: document.getElementById('details-form'),
-    
-    // Sticky Header
+
+    // Details Header
     headerCustomerName: document.getElementById('header-customer-name'),
     headerSoNumber: document.getElementById('header-so-number'),
     mobileBackBtn: document.getElementById('mobile-back-btn'),
@@ -123,13 +199,12 @@ const el = {
     statusStepper: document.getElementById('status-stepper'),
     currentStageTitle: document.getElementById('current-stage-title'),
 
-    // Details Inputs (Mapped to HTML IDs)
+    // Details Inputs
     detailsCustomerNameInput: document.getElementById('details-customer-name'), 
     detailsSoNumberInput: document.getElementById('details-so-number'),
     detailsAddressInput: document.getElementById('details-address'),
     detailsSpeedInput: document.getElementById('details-speed'),
     detailsEmailInput: document.getElementById('details-email'),
-    // detailsPhoneInput removed - replaced by contact list
     detailsGeneralNotes: document.getElementById('details-general-notes'),
 
     // Details Contacts UI
@@ -167,18 +242,14 @@ onAuthStateChanged(auth, (user) => {
         el.userEmailDisplay.textContent = user.email;
         currentAppId = 'cfn-install-tracker';
         
-        // Correct path references based on Rules
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
         mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
-        
-        // FIXED: Matched path to "match /artifacts/{appId}/public/data/dashboard_notes/{docId}"
-        dashboardDocRef = doc(db, 'artifacts', currentAppId, 'public', 'data', 'dashboard_notes', 'summary');
-        
+
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
         initializeApp();
     } else {
-        resetAppState();
+        currentUserId = null;
         el.appScreen.classList.add('hidden');
         el.authScreen.classList.remove('hidden');
         if (user) {
@@ -188,20 +259,18 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-const resetAppState = () => {
-    currentUserId = null;
-    customersCollectionRef = null;
-    if (customerUnsubscribe) {
-        customerUnsubscribe();
-        customerUnsubscribe = null;
-    }
-};
-
 const initializeApp = () => {
     if (window.pdfjsLib) window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
+    
+    // Check local storage for theme
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+
     setupEventListeners();
     loadCustomers();
-    loadDashboardNotes();
     if (window.lucide) window.lucide.createIcons();
 };
 
@@ -219,10 +288,26 @@ el.signOutBtn.addEventListener('click', () => {
 // --- 2. EVENT LISTENERS ---
 
 const setupEventListeners = () => {
-    // Modal
+    // Theme Toggle
+    el.themeToggleBtn.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    });
+
+    // Analytics Toggle
+    el.toggleAnalyticsBtn.addEventListener('click', () => {
+        el.analyticsDashboard.classList.toggle('hidden');
+        if (!el.analyticsDashboard.classList.contains('hidden')) {
+            renderAnalytics();
+        }
+    });
+
+    // Add Modal logic
     el.newCustomerBtn.addEventListener('click', openAddCustomerModal);
     el.modalCloseBtn.addEventListener('click', closeAddCustomerModal);
-    el.modalBackdrop.addEventListener('click', closeAddCustomerModal);
+    el.addCustomerModal.addEventListener('click', (e) => {
+        if (e.target === el.addCustomerModal) closeAddCustomerModal();
+    });
     el.addForm.addEventListener('submit', handleAddCustomer);
 
     // Modal Contacts Logic
@@ -274,23 +359,23 @@ const setupEventListeners = () => {
             el.detailsShowAddContactBtn.classList.remove('hidden');
         }
     });
-
-    // Handle Contact Deletion (Delegation)
+    // Contact Deletion
     el.modalContactsList.addEventListener('click', (e) => handleDeleteContact(e, modalContacts, el.modalContactsList));
     el.detailsContactsList.addEventListener('click', (e) => handleDeleteContact(e, detailsContacts, el.detailsContactsList));
-
 
     // PDF Processing
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
     el.pdfDropZone.addEventListener('click', () => el.pdfUploadInput.click());
     el.pdfDropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        el.pdfDropZone.classList.add('dragover');
+        el.pdfDropZone.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
     });
-    el.pdfDropZone.addEventListener('dragleave', () => el.pdfDropZone.classList.remove('dragover'));
+    el.pdfDropZone.addEventListener('dragleave', () => {
+        el.pdfDropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+    });
     el.pdfDropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        el.pdfDropZone.classList.remove('dragover');
+        el.pdfDropZone.classList.remove('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
         if (e.dataTransfer.files.length > 0) {
             el.pdfUploadInput.files = e.dataTransfer.files;
             updateSelectedFileDisplay();
@@ -298,57 +383,42 @@ const setupEventListeners = () => {
     });
     el.pdfUploadInput.addEventListener('change', updateSelectedFileDisplay);
 
-    // List Filtering & Sorting
+    // Filter Logic
     el.searchBar.addEventListener('input', displayCustomers);
-    el.sortBy.addEventListener('change', (e) => {
-        currentSort = e.target.value;
-        displayCustomers();
-    });
+
+    // Main Tabs (Active / Billing / Archived)
     el.mainListTabs.addEventListener('click', (e) => {
-        const tab = e.target.closest('.tab-btn');
-        if(!tab) return;
+        const btn = e.target.closest('.tab-btn');
+        if (!btn) return;
         el.mainListTabs.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        handleMainTabChange(tab.dataset.mainFilter);
+        btn.classList.add('active');
+        currentMainTab = btn.dataset.mainFilter;
+        if(currentMainTab !== 'Active') resetPills();
+        displayCustomers();
     });
+
+    // Pills (Stages)
     el.filterPillsContainer.addEventListener('click', (e) => {
-        const pill = e.target.closest('.pill');
-        if(!pill) return;
+        const btn = e.target.closest('.pill');
+        if (!btn) return;
         el.filterPillsContainer.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        currentFilter = pill.dataset.filter;
-        displayCustomers();
-    });
-    el.completedFilterSelect.addEventListener('change', (e) => {
-        currentCompletedFilter = e.target.value;
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
         displayCustomers();
     });
 
-    // List Selection
-    el.customerListContainer.addEventListener('click', (e) => {
-        const item = e.target.closest('.customer-item');
-        if(item) handleSelectCustomer(item.dataset.id, item);
-    });
-
-    // Dashboard
-    el.toggleAnalyticsBtn.addEventListener('click', () => {
-        el.dashboardAnalyticsPanel.classList.toggle('hidden');
-    });
-    el.saveDashboardNotesBtn.addEventListener('click', () => saveDashboardNotes(false));
-    el.dashboardGeneralNotes.addEventListener('input', () => {
-        clearTimeout(notesAutoSaveTimeout);
-        notesAutoSaveTimeout = setTimeout(() => saveDashboardNotes(true), 2000);
-    });
-
+    // Details Modal Logic
+    el.detailsModalCloseBtn.addEventListener('click', closeDetailsModal);
+    el.detailsModal.addEventListener('click', (e) => { if(e.target === el.detailsModal) closeDetailsModal(); });
+    
     // Details Actions
-    el.mobileBackBtn.addEventListener('click', () => handleDeselectCustomer(true));
+    el.mobileBackBtn.addEventListener('click', closeDetailsModal);
     el.updateCustomerBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 0));
     el.saveAndProgressBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, 1));
     el.headerMoveBackBtn.addEventListener('click', (e) => handleUpdateCustomer(e, false, -1));
     el.onHoldButton.addEventListener('click', handleToggleOnHold);
     el.deleteCustomerBtn.addEventListener('click', handleDeleteCustomer);
     
-    // Checklists & Logic
     el.sendWelcomeEmailBtn.addEventListener('click', handleSendWelcomeEmail);
     el.returnSpliceBtn.addEventListener('click', handleReturnSplice);
     el.copyBillingBtn.addEventListener('click', handleCopyBilling);
@@ -372,327 +442,289 @@ const setupEventListeners = () => {
     });
 };
 
-// --- CONTACT MANAGEMENT FUNCTIONS ---
-
-const addContact = (list, contact) => {
-    // Generate simple ID if not present
-    if (!contact.id) contact.id = Date.now().toString();
-    list.push(contact);
+const resetPills = () => {
+    el.filterPillsContainer.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    const allBtn = el.filterPillsContainer.querySelector('[data-filter="All"]');
+    if(allBtn) allBtn.classList.add('active');
+    currentFilter = 'All';
 };
 
-const removeContact = (list, id) => {
-    const idx = list.findIndex(c => c.id === id);
-    if (idx !== -1) list.splice(idx, 1);
-};
-
-const handleDeleteContact = (e, list, container) => {
-    const btn = e.target.closest('.delete-contact-btn');
-    if (btn) {
-        const id = btn.dataset.id;
-        removeContact(list, id);
-        renderContacts(container, list, true);
-    }
-};
-
-const renderContacts = (container, list, isEditable) => {
-    container.innerHTML = '';
-    
-    if (list.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem; color:#9ca3af; font-style:italic;">No contacts added.</div>';
-        return;
-    }
-
-    list.forEach(c => {
-        const card = document.createElement('div');
-        card.className = 'contact-card';
-        
-        // Icon based on type
-        let icon = 'phone';
-        if (c.type === 'Work') icon = 'briefcase';
-        else if (c.type === 'Home') icon = 'home';
-        else if (c.type === 'Mobile' || c.type === 'Cell') icon = 'smartphone';
-        else if (c.type === 'Other') icon = 'user';
-
-        card.innerHTML = `
-            <div class="contact-icon-wrapper">
-                <i data-lucide="${icon}" width="18" height="18"></i>
-            </div>
-            <div class="contact-info">
-                <span class="contact-type-badge">${c.type}</span>
-                <a href="tel:${c.number}" class="contact-number">${c.number}</a>
-                <div class="contact-name">${c.name || 'No Name'}</div>
-            </div>
-            <div class="contact-actions">
-                <button type="button" class="btn-icon-sm copy-contact-btn" title="Copy Number">
-                    <i data-lucide="copy" width="14" height="14"></i>
-                </button>
-                ${isEditable ? `
-                <button type="button" class="btn-icon-sm delete delete-contact-btn" data-id="${c.id}" title="Remove">
-                    <i data-lucide="trash-2" width="14" height="14"></i>
-                </button>` : ''}
-            </div>
-        `;
-        
-        // Add copy event listener locally
-        const copyBtn = card.querySelector('.copy-contact-btn');
-        copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(c.number);
-            const originalHTML = copyBtn.innerHTML;
-            copyBtn.innerHTML = '<i data-lucide="check" width="14" height="14"></i>';
-            if(window.lucide) window.lucide.createIcons();
-            setTimeout(() => {
-                copyBtn.innerHTML = originalHTML;
-                if(window.lucide) window.lucide.createIcons();
-            }, 1500);
-        });
-
-        container.appendChild(card);
-    });
-    
-    if(window.lucide) window.lucide.createIcons();
-};
-
-
-// --- 3. DASHBOARD LOGIC ---
-
-const calculateDashboardStats = (customers) => {
-    const statusCounts = {
-        'New Order': 0, 'Site Survey Ready': 0, 'Torys List': 0, 'NID Ready': 0, 'Install Ready': 0, 'On Hold': 0, 'Completed': 0, 'Archived': 0 
-    };
-    
-    let totalInstallDays = 0;
-    let completedCount = 0;
-    const monthlyInstallTimes = {}; 
-    const speedCounts = {}; 
-    const ytdInstalls = {};
-    const currentYear = new Date().getFullYear();
-
-    customers.forEach(c => {
-        let status = c.status;
-        if (status === "Tory's List") status = "Torys List";
-        if (statusCounts.hasOwnProperty(status)) statusCounts[status]++;
-        
-        const speed = c.serviceSpeed || 'Unknown';
-        speedCounts[speed] = (speedCounts[speed] || 0) + 1;
-
-        if ((status === 'Completed' || status === 'Archived') && !c.exemptFromStats && c.installDetails?.installDate && c.createdAt?.seconds) {
-            const dateInstalled = new Date(c.installDetails.installDate.replace(/-/g, '/'));
-            const dateCreated = new Date(c.createdAt.seconds * 1000);
-            const diffDays = Math.ceil(Math.abs(dateInstalled - dateCreated) / (1000 * 60 * 60 * 24));
-            
-            totalInstallDays += diffDays;
-            completedCount++;
-
-            const monthKey = `${dateInstalled.getFullYear()}-${String(dateInstalled.getMonth() + 1).padStart(2, '0')}`;
-            if (!monthlyInstallTimes[monthKey]) monthlyInstallTimes[monthKey] = { totalDays: 0, count: 0 };
-            monthlyInstallTimes[monthKey].totalDays += diffDays;
-            monthlyInstallTimes[monthKey].count++;
-            
-            if (dateInstalled.getFullYear() === currentYear) {
-                ytdInstalls[monthKey] = (ytdInstalls[monthKey] || 0) + 1;
-            }
-        }
-    });
-
-    const totalActive = Object.keys(statusCounts).reduce((acc, key) => {
-        return (key !== 'Completed' && key !== 'Archived') ? acc + statusCounts[key] : acc;
-    }, 0);
-    const totalCompleted = statusCounts['Completed'] + statusCounts['Archived']; 
-    const overallAvgTime = completedCount > 0 ? (totalInstallDays / completedCount).toFixed(1) : 'N/A';
-    
-    // Render Compact Stats
-    renderCompactStats(totalActive, totalCompleted, overallAvgTime, statusCounts);
-
-    // Render Charts
-    const finalMonthlyAverages = {};
-    for (const m in monthlyInstallTimes) finalMonthlyAverages[m] = (monthlyInstallTimes[m].totalDays / monthlyInstallTimes[m].count).toFixed(1);
-
-    renderChart(ytdInstalls, currentYear);
-    renderMonthlyAverageChart(finalMonthlyAverages);
-    renderSpeedBreakdownChart(speedCounts); 
-    updateCompletedFilterOptions(customers);
-};
-
-const renderCompactStats = (active, completed, time, counts) => {
-    // Generate pill html for active breakdown
-    const activeHTML = Object.entries(counts)
-        .filter(([k, v]) => v > 0 && k !== 'Completed' && k !== 'Archived')
-        .map(([k, v]) => {
-            const slug = k.toLowerCase().replace(/'/g, '').replace(/ /g, '-');
-            return `<span class="status-pill status-${slug}" style="font-size:0.65rem;">${k}: ${v}</span>`;
-        }).join('');
-
-    el.statsSummaryActiveWrapper.innerHTML = `
-        <div class="stat-main-title">Active</div>
-        <div class="stat-main-value" style="color:var(--primary);">${active}</div>
-        <div class="active-breakdown-grid">${activeHTML}</div>
-    `;
-    
-    el.statsSummaryCompletedWrapper.innerHTML = `
-        <div class="stat-main-title">Total Installs</div>
-        <div class="stat-main-value" style="color:var(--success);">${completed + 2673}</div>
-    `;
-
-    el.overallInstallTimeWrapper.innerHTML = `
-        <div class="stat-main-title">Avg Time</div>
-        <div class="stat-main-value" style="color:var(--warning);">${time} <span style="font-size:0.8rem; font-weight:400; color:var(--text-muted);">days</span></div>
-    `;
-};
-
-// --- 4. LIST LOGIC ---
+// --- 3. DATA & LIST LOGIC ---
 
 const loadCustomers = () => {
     if (!customersCollectionRef) return;
     const q = query(customersCollectionRef);
-    customerUnsubscribe = onSnapshot(q, (snapshot) => {
+    onSnapshot(q, (snapshot) => {
+        el.tableLoading.classList.add('hidden');
         allCustomers = [];
         snapshot.forEach((doc) => {
             let data = doc.data();
             if (data.status === "Tory's List") data.status = "Torys List";
             allCustomers.push({ id: doc.id, ...data });
         });
-        calculateDashboardStats(allCustomers);
         displayCustomers();
+        if (!el.analyticsDashboard.classList.contains('hidden')) {
+            renderAnalytics();
+        }
         
         // Refresh selected if open
         if (selectedCustomerId) {
             const fresh = allCustomers.find(c => c.id === selectedCustomerId);
             if (fresh) populateDetailsForm(fresh);
-            else handleDeselectCustomer(false);
+            else closeDetailsModal();
         }
+    }, (error) => {
+        console.error(error);
+        el.tableLoading.innerHTML = `<p class="text-red-500">Error loading data.</p>`;
     });
-};
-
-const handleMainTabChange = (filter) => {
-    if (filter === 'Completed') {
-        el.activeControlsGroup.classList.add('hidden');
-        el.completedControlsGroup.classList.remove('hidden');
-        currentFilter = 'Completed';
-    } else if (filter === 'Archived') {
-        el.activeControlsGroup.classList.add('hidden');
-        el.completedControlsGroup.classList.remove('hidden');
-        currentFilter = 'Archived';
-    } else {
-        el.activeControlsGroup.classList.remove('hidden');
-        el.completedControlsGroup.classList.add('hidden');
-        const activePill = el.filterPillsContainer.querySelector('.pill.active');
-        currentFilter = activePill ? activePill.dataset.filter : 'All';
-    }
-    displayCustomers();
 };
 
 const displayCustomers = () => {
     const term = el.searchBar.value.toLowerCase();
     let filtered = [...allCustomers];
-    
-    // 1. Filter by Status/Tab
-    if (currentFilter === 'Completed') {
-        filtered = filtered.filter(c => c.status === 'Completed');
-        if (currentCompletedFilter !== 'All') filtered = filtered.filter(c => (c.installDetails?.installDate || '').startsWith(currentCompletedFilter));
-    } else if (currentFilter === 'Archived') {
+
+    // Main Tab Filter
+    if (currentMainTab === 'Archived') {
         filtered = filtered.filter(c => c.status === 'Archived');
-        if (currentCompletedFilter !== 'All') filtered = filtered.filter(c => (c.installDetails?.installDate || '').startsWith(currentCompletedFilter));
-    } else if (currentFilter !== 'All') {
-        filtered = filtered.filter(c => c.status === currentFilter);
+    } else if (currentMainTab === 'Billing') {
+        filtered = filtered.filter(c => 
+            c.status === 'Completed' && 
+            (!c.postInstallChecklist || !c.postInstallChecklist.emailSentToBilling)
+        );
     } else {
-        filtered = filtered.filter(c => c.status !== 'Completed' && c.status !== 'Archived');
+        // Active
+        filtered = filtered.filter(c => c.status !== 'Archived' && c.status !== 'Completed');
     }
 
-    // 2. Filter by Search
+    // Pill Filter
+    if (currentFilter !== 'All') {
+        filtered = filtered.filter(c => c.status === currentFilter);
+    }
+
+    // Search
     if (term) {
-        filtered = filtered.filter(c => (c.customerName||'').toLowerCase().includes(term) || (c.address||'').toLowerCase().includes(term));
+        filtered = filtered.filter(c => 
+            (c.customerName || '').toLowerCase().includes(term) || 
+            (c.address || '').toLowerCase().includes(term) ||
+            (c.serviceOrderNumber || '').toLowerCase().includes(term)
+        );
     }
 
-    // 3. Sort
-    if (currentSort === 'name') filtered.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
-    else if (currentSort === 'date') filtered.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-    else if (currentSort === 'date-oldest') filtered.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+    // Sort
+    filtered.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
     renderCustomerList(filtered);
 };
 
 const renderCustomerList = (list) => {
-    el.customerListContainer.innerHTML = '';
+    el.contractsTable.innerHTML = '';
+    
     if (list.length === 0) {
-        el.customerListContainer.innerHTML = `<div class="empty-state" style="padding:1rem; text-align:center; color:#9ca3af;">No customers found.</div>`;
+        el.tableEmptyState.classList.remove('hidden');
         return;
     }
-    
-    // Update Completed Results Text
-    if (currentFilter === 'Completed' || currentFilter === 'Archived') {
-        const txt = el.completedFilterSelect.options[el.completedFilterSelect.selectedIndex]?.text || 'All Time';
-        el.completedFilterResults.textContent = `${list.length} orders - ${txt}`;
-        el.completedFilterResults.classList.remove('hidden');
-    } else {
-        el.completedFilterResults.classList.add('hidden');
-    }
+    el.tableEmptyState.classList.add('hidden');
 
     list.forEach(c => {
-        const item = document.createElement('div');
-        item.className = `customer-item ${c.id === selectedCustomerId ? 'selected' : ''}`;
-        item.dataset.id = c.id;
-        
-        const slug = (c.status || '').toLowerCase().replace(/'/g, '').replace(/ /g, '-');
-        
-        // Format Date: month-date-year (MM-DD-YYYY)
-        let dateDisplay = '';
-        if (c.installDetails?.installDate) {
-            // handle YYYY-MM-DD string from input type="date"
-            const [y, m, d] = c.installDetails.installDate.split('-');
-            dateDisplay = `${m}-${d}-${y}`;
-        } else if (c.createdAt?.seconds) {
-            // handle firestore timestamp
-            const dateObj = new Date(c.createdAt.seconds * 1000);
-            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const d = String(dateObj.getDate()).padStart(2, '0');
-            const y = dateObj.getFullYear();
-            dateDisplay = `${m}-${d}-${y}`;
-        } else {
-            dateDisplay = 'N/A';
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50 dark:hover:bg-gray-700 transition cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0";
+        tr.onclick = () => handleSelectCustomer(c.id);
+
+        let dateDisplay = '-';
+        if (c.createdAt?.seconds) {
+            dateDisplay = new Date(c.createdAt.seconds * 1000).toLocaleDateString();
         }
 
-        item.innerHTML = `
-            <div class="customer-item-header">
-                <h3 class="customer-item-name">${c.customerName}</h3>
-                <span class="status-pill status-${slug}">${c.status}</span>
-            </div>
-            <div class="customer-item-footer">
-                <p class="customer-item-address">${c.address || 'No Address'}</p>
-                <p class="customer-item-date">${dateDisplay}</p>
-            </div>
+        const slug = (c.status || '').toLowerCase().replace(/'/g, '').replace(/ /g, '-');
+        let displayStatus = c.status;
+        if (displayStatus === "Torys List") displayStatus = "Construction";
+
+        // Calculate days in current stage
+        let daysInStage = 0;
+        let lastStatusChange = c.createdAt?.seconds * 1000;
+        
+        // Try to find more precise timestamp based on status history logic if you had it,
+        // but typically you'd check `torysListChecklist.addedAt` for Construction, etc.
+        // For simplicity or if you don't track status changes explicitly, we can compare to createdAt
+        // OR try to infer from specific stage timestamps present in data
+        
+        if (c.status === "Torys List" && c.torysListChecklist?.addedAt) {
+            lastStatusChange = c.torysListChecklist.addedAt.seconds * 1000;
+        } 
+        // Add more specific timestamp checks for other stages if available in your data model
+        // Otherwise default to createdAt which is "days open"
+
+        const diffTime = Math.abs(Date.now() - lastStatusChange);
+        daysInStage = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-semibold text-gray-900 dark:text-white">${c.customerName || 'Unknown'}</div>
+                <div class="text-xs text-gray-400 dark:text-gray-500">SO# ${c.serviceOrderNumber || 'N/A'}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                <div class="max-w-[200px] truncate" title="${c.address || ''}">${c.address || '-'}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                ${c.serviceSpeed || '-'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                ${dateDisplay}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge status-${slug}">
+                    ${displayStatus} - ${daysInStage} days
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </td>
         `;
-        el.customerListContainer.appendChild(item);
+        el.contractsTable.appendChild(tr);
+    });
+    
+    if(window.lucide) window.lucide.createIcons();
+};
+
+// --- ANALYTICS LOGIC ---
+
+const renderAnalytics = () => {
+    // 1. Stage Counts
+    const counts = {
+        'New Order': 0,
+        'Site Survey Ready': 0,
+        'Torys List': 0,
+        'NID Ready': 0,
+        'Install Ready': 0,
+        'On Hold': 0
+    };
+    
+    // Only count non-archived/non-completed for the pipeline view
+    allCustomers.forEach(c => {
+        if (c.status !== 'Archived' && c.status !== 'Completed') {
+            if (counts[c.status] !== undefined) counts[c.status]++;
+        }
+    });
+
+    el.analyticsStagesList.innerHTML = '';
+    Object.keys(counts).forEach(stage => {
+        let displayStage = stage;
+        if (stage === 'Torys List') displayStage = 'Construction';
+        if (stage === 'Site Survey Ready') displayStage = 'Survey';
+        
+        const count = counts[stage];
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center text-sm border-b border-gray-100 dark:border-gray-700 pb-1 last:border-0';
+        row.innerHTML = `
+            <span class="text-gray-600 dark:text-gray-300">${displayStage}</span>
+            <span class="font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full text-xs">${count}</span>
+        `;
+        el.analyticsStagesList.appendChild(row);
+    });
+
+    // 2. Monthly Installs (Completed customers with Install Date)
+    const monthlyData = {};
+    allCustomers.forEach(c => {
+        if (c.status === 'Completed' && c.installDetails?.installDate) {
+            // YYYY-MM-DD
+            const dateStr = c.installDetails.installDate;
+            const monthKey = dateStr.substring(0, 7); // YYYY-MM
+            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+        }
+    });
+    
+    // Sort months
+    const sortedMonths = Object.keys(monthlyData).sort();
+    // Take last 6 months for chart clarity
+    const recentMonths = sortedMonths.slice(-6);
+    
+    const monthlyLabels = recentMonths.map(m => {
+        const [y, mon] = m.split('-');
+        const date = new Date(y, mon - 1);
+        return date.toLocaleDateString('default', { month: 'short' });
+    });
+    const monthlyValues = recentMonths.map(m => monthlyData[m]);
+
+    if (monthlyChart) monthlyChart.destroy();
+    monthlyChart = new Chart(el.chartMonthlyInstalls, {
+        type: 'bar',
+        data: {
+            labels: monthlyLabels,
+            datasets: [{
+                label: 'Installs',
+                data: monthlyValues,
+                backgroundColor: '#3b82f6',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 3. Speed Tier Distribution
+    const speedCounts = {};
+    allCustomers.forEach(c => {
+        // Count all customers or just active? Let's count all non-archived to see demand
+        if (c.status !== 'Archived') {
+            const speed = c.serviceSpeed || 'Unknown';
+            speedCounts[speed] = (speedCounts[speed] || 0) + 1;
+        }
+    });
+
+    const speedLabels = Object.keys(speedCounts);
+    const speedValues = Object.values(speedCounts);
+
+    if (speedChart) speedChart.destroy();
+    speedChart = new Chart(el.chartSpeedTiers, {
+        type: 'doughnut',
+        data: {
+            labels: speedLabels,
+            datasets: [{
+                data: speedValues,
+                backgroundColor: [
+                    '#3b82f6', // blue
+                    '#10b981', // green
+                    '#f59e0b', // amber
+                    '#6366f1', // indigo
+                    '#ec4899'  // pink
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } }
+            },
+            cutout: '60%'
+        }
     });
 };
 
 // --- 5. DETAILS LOGIC ---
 
-const handleSelectCustomer = async (id, itemElement) => {
-    if (selectedCustomerId && selectedCustomerId !== id) await handleUpdateCustomer(null, true, 0); // Auto save old
-
+const handleSelectCustomer = async (id) => {
     selectedCustomerId = id;
-    
-    // UI Updates
-    document.querySelectorAll('.customer-item').forEach(i => i.classList.remove('selected'));
-    if(itemElement) itemElement.classList.add('selected');
-    
-    el.detailsPlaceholder.classList.add('hidden');
-    el.detailsContainer.classList.remove('hidden');
-    document.body.classList.add('mobile-details-active'); // Mobile view switch
+    el.detailsModal.classList.remove('hidden');
     el.detailsContainer.dataset.id = id;
 
-    // Fetch Data
     const c = allCustomers.find(cust => cust.id === id);
     if (c) populateDetailsForm(c);
 };
 
-const handleDeselectCustomer = async (autoSave = false) => {
-    if (autoSave && selectedCustomerId) await handleUpdateCustomer(null, true, 0);
+const closeDetailsModal = () => {
     selectedCustomerId = null;
-    document.querySelectorAll('.customer-item').forEach(i => i.classList.remove('selected'));
-    el.detailsContainer.classList.add('hidden');
-    el.detailsPlaceholder.classList.remove('hidden');
-    document.body.classList.remove('mobile-details-active');
+    el.detailsModal.classList.add('hidden');
 };
 
 const populateDetailsForm = (data) => {
@@ -723,7 +755,7 @@ const populateDetailsForm = (data) => {
     el.detailsForm.dataset.statusBeforeHold = data.statusBeforeHold || 'New Order';
     
     updateStepperUI(data.status);
-    setPageForStatus(data.status);
+    setPageForStatus(data.status); // <--- RESTORED: Shows only relevant page
 
     // 4. Checklist Inputs (Map data to checkboxes)
     setCheck('check-welcome-email', data.preInstallChecklist?.welcomeEmailSent);
@@ -814,10 +846,17 @@ const updateStepperUI = (status) => {
     }
 };
 
+// --- RESTORED: Logic to show only ONE page at a time in the modal ---
 const setPageForStatus = (status) => {
-    el.detailsPages.forEach(p => p.classList.remove('active'));
+    el.detailsPages.forEach(p => {
+        p.classList.remove('active');
+        p.classList.add('hidden'); // Ensure hidden by default
+    });
+    
     if(status === 'Archived' || status === 'Completed') {
-        document.getElementById('page-install').classList.add('active');
+        const p = document.getElementById('page-install');
+        p.classList.remove('hidden');
+        p.classList.add('active');
         return;
     }
     if(status === 'On Hold') {
@@ -825,6 +864,7 @@ const setPageForStatus = (status) => {
         setPageForStatus(prev); // Show previous page, but UI indicates hold
         return;
     }
+    
     const map = {
         'New Order': 'page-pre-install',
         'Site Survey Ready': 'page-site-survey',
@@ -834,12 +874,23 @@ const setPageForStatus = (status) => {
         'Completed': 'page-install'
     };
     const pageId = map[status] || 'page-pre-install';
-    document.getElementById(pageId).classList.add('active');
+    const activePage = document.getElementById(pageId);
+    if (activePage) {
+        activePage.classList.remove('hidden');
+        activePage.classList.add('active');
+    }
 };
 
 const showDetailsPage = (pageId) => {
-    el.detailsPages.forEach(p => p.classList.remove('active'));
-    document.getElementById(pageId).classList.add('active');
+    el.detailsPages.forEach(p => {
+        p.classList.remove('active');
+        p.classList.add('hidden');
+    });
+    const p = document.getElementById(pageId);
+    if(p) {
+        p.classList.remove('hidden');
+        p.classList.add('active');
+    }
 };
 
 // --- 6. ACTIONS (Save, Update, etc) ---
@@ -910,6 +961,10 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
         }
 
         if (!isAutoSave) showToast(stepDir === 0 ? 'Saved' : `Moved to ${status}`, 'success');
+        
+        // Refresh analytics if open
+        if(!el.analyticsDashboard.classList.contains('hidden')) renderAnalytics();
+
     } catch (err) {
         console.error(err);
         showToast('Error saving', 'error');
@@ -939,7 +994,7 @@ const handleDeleteCustomer = async (e) => {
             el.loadingOverlay.classList.remove('hidden');
             await deleteDoc(doc(customersCollectionRef, id));
             showToast('Customer deleted.', 'success');
-            handleDeselectCustomer(false); 
+            closeDetailsModal();
         } catch (error) {
             console.error("Error deleting customer: ", error);
             showToast('Error deleting customer.', 'error');
@@ -949,16 +1004,60 @@ const handleDeleteCustomer = async (e) => {
     }
 };
 
+// --- RESTORED: Welcome Email Logic ---
+const handleSendWelcomeEmail = async () => {
+    const email = el.detailsEmailInput.value;
+    const name = el.detailsCustomerNameInput.value;
+
+    if (!email) {
+        showToast('No email address found.', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to automatically send the welcome email to ${email}?`)) return;
+
+    try {
+        el.loadingOverlay.classList.remove('hidden');
+
+        // Trigger Cloud Function via Firestore trigger
+        await addDoc(mailCollectionRef, {
+            to: [email],
+            template: {
+                data: {
+                    customerName: name
+                }
+            },
+            sent: false,
+            createdAt: serverTimestamp()
+        });
+
+        // Optimistically update UI and DB
+        const welcomeCheckbox = document.getElementById('check-welcome-email');
+        if (welcomeCheckbox && !welcomeCheckbox.checked) {
+            welcomeCheckbox.checked = true;
+            await handleUpdateCustomer(null, true, 0); 
+        }
+        
+        showToast('Welcome email queued successfully.', 'success');
+
+    } catch (err) {
+        console.error("Error queueing welcome email:", err);
+        showToast('Failed to queue email.', 'error');
+    } finally {
+        el.loadingOverlay.classList.add('hidden');
+    }
+};
+
 // --- 7. UTILS & MODALS ---
 
 const openAddCustomerModal = () => {
-    el.addCustomerModal.classList.add('show');
+    el.addCustomerModal.classList.remove('hidden');
     el.addForm.reset();
     modalContacts = [];
     renderContacts(el.modalContactsList, modalContacts, true);
 };
 const closeAddCustomerModal = () => {
-    el.addCustomerModal.classList.remove('show');
+    el.addCustomerModal.classList.add('hidden');
 };
 
 const handleAddCustomer = async (e) => {
@@ -1243,51 +1342,6 @@ const handlePdfProcessing = async () => {
     }
 };
 
-const handleSendWelcomeEmail = async () => {
-    const email = el.detailsEmailInput.value;
-    const name = el.detailsCustomerNameInput.value;
-
-    if (!email) {
-        showToast('No email address found.', 'error');
-        return;
-    }
-
-    if (!confirm(`Are you sure you want to automatically send the welcome email to ${email}?`)) return;
-
-    try {
-        el.loadingOverlay.classList.remove('hidden');
-
-        // Create a document in the 'mail' collection to trigger the Cloud Function
-        // The Cloud Function listens for new documents here and handles the actual sending via email.js
-        await addDoc(mailCollectionRef, {
-            to: [email],
-            template: {
-                data: {
-                    customerName: name
-                }
-            },
-            sent: false, // Initial state, Cloud Function will update this to true upon success
-            createdAt: serverTimestamp()
-        });
-
-        // Update checkbox state to reflect that the process has started
-        const welcomeCheckbox = document.getElementById('check-welcome-email');
-        if (welcomeCheckbox && !welcomeCheckbox.checked) {
-            welcomeCheckbox.checked = true;
-            // Auto-save the update to the customer record
-            await handleUpdateCustomer(null, true, 0); 
-        }
-        
-        showToast('Welcome email queued successfully.', 'success');
-
-    } catch (err) {
-        console.error("Error queueing welcome email:", err);
-        showToast('Failed to queue email.', 'error');
-    } finally {
-        el.loadingOverlay.classList.add('hidden');
-    }
-};
-
 const handleReturnSplice = async () => {
     // Implement or leave as placeholder
     console.log("Return Splice clicked");
@@ -1383,287 +1437,4 @@ const handleUnarchiveCustomer = async () => {
             el.loadingOverlay.classList.add('hidden');
         }
     }
-};
-
-// --- HELPERS ---
-const isChecked = (id) => document.getElementById(id)?.checked || false;
-const setCheck = (id, val) => { if(document.getElementById(id)) document.getElementById(id).checked = !!val; };
-const getVal = (id) => document.getElementById(id)?.value || '';
-const setVal = (id, val) => { if(document.getElementById(id)) document.getElementById(id).value = val || ''; };
-
-const copyToClipboard = (btn) => {
-    const targetId = btn.dataset.target;
-    const el = document.getElementById(targetId);
-    if(el) {
-        navigator.clipboard.writeText(el.value || el.textContent);
-        btn.classList.add('copied');
-        setTimeout(() => btn.classList.remove('copied'), 1500);
-    }
-};
-
-const showToast = (msg, type) => {
-    el.toast.textContent = msg;
-    el.toast.className = type;
-    el.toast.classList.add('show');
-    setTimeout(() => el.toast.classList.remove('show'), 3000);
-};
-
-const toTitleCase = (str) => {
-    if (!str) return '';
-    return str.replace(
-        /\w\S*/g,
-        (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
-    );
-};
-
-// --- DATA SANITIZATION TOOL ---
-window.sanitizeDatabase = async () => {
-    if (!customersCollectionRef || allCustomers.length === 0) {
-        console.warn("Database not ready or no customers loaded. Wait for data to load.");
-        showToast('Wait for data to load', 'error');
-        return;
-    }
-
-    if (!confirm(`Are you sure you want to convert all ${allCustomers.length} records to Title Case? This affects Names and Addresses.`)) return;
-
-    el.loadingOverlay.classList.remove('hidden');
-    let updatedCount = 0;
-
-    try {
-        console.log("Starting sanitization...");
-        const updatePromises = [];
-        
-        for (const c of allCustomers) {
-            const currentName = c.customerName || '';
-            const currentAddress = c.address || '';
-            
-            const newName = toTitleCase(currentName);
-            const newAddress = toTitleCase(currentAddress);
-            
-            if (currentName !== newName || currentAddress !== newAddress) {
-                const p = updateDoc(doc(customersCollectionRef, c.id), {
-                    customerName: newName,
-                    address: newAddress
-                }).then(() => {
-                    updatedCount++;
-                    console.log(`Updated: ${newName}`);
-                });
-                updatePromises.push(p);
-            }
-        }
-
-        await Promise.all(updatePromises);
-        
-        const msg = `Sanitization complete. Updated ${updatedCount} records.`;
-        console.log(msg);
-        showToast(msg, 'success');
-        
-    } catch (err) {
-        console.error("Sanitization failed:", err);
-        showToast('Error during sanitization', 'error');
-    } finally {
-        el.loadingOverlay.classList.add('hidden');
-    }
-};
-
-// --- NOTES & CHARTS ---
-const loadDashboardNotes = async () => {
-    if (!dashboardDocRef) return;
-    const snap = await getDoc(dashboardDocRef);
-    if(snap.exists()) el.dashboardGeneralNotes.value = snap.data().text || '';
-};
-const saveDashboardNotes = async (silent) => {
-    await setDoc(dashboardDocRef, { text: el.dashboardGeneralNotes.value }, { merge: true });
-    if(!silent) showToast('Notes Saved', 'success');
-};
-
-const renderChart = (ytdInstalls, currentYear) => {
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const chartLabels = [];
-    const chartData = [];
-
-    for (let i = 1; i <= 12; i++) {
-        const monthKey = `${currentYear}-${String(i).padStart(2, '0')}`;
-        chartLabels.push(monthNames[i - 1]);
-        chartData.push(ytdInstalls[monthKey] || 0);
-    }
-    
-    if (myChart && myChart.canvas.id === 'installations-chart') {
-        myChart.destroy();
-    }
-
-    if (!el.installationsChart) return;
-
-    const Chart = window.Chart;
-
-    myChart = new Chart(el.installationsChart, {
-        type: 'bar',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Installs',
-                data: chartData,
-                backgroundColor: '#4f46e5',
-                borderColor: '#4f46e5',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { grid: { display: false } },
-                y: { beginAtZero: true, title: { display: false }, ticks: { precision: 0, maxTicksLimit: 5 } }
-            }
-        }
-    });
-};
-
-const renderMonthlyAverageChart = (monthlyAverages) => {
-    const Chart = window.Chart;
-    if (monthlyAvgChart) {
-        monthlyAvgChart.destroy();
-    }
-    
-    const sortedKeys = Object.keys(monthlyAverages).sort();
-    const chartLabels = sortedKeys.map(key => new Date(key.replace(/-/g, '/')).toLocaleString('en-US', { month: 'short', year: '2-digit' }));
-    const chartData = sortedKeys.map(key => monthlyAverages[key]);
-    
-    if (!el.monthlyInstallChart) return;
-
-    monthlyAvgChart = new Chart(el.monthlyInstallChart, {
-        type: 'line',
-        data: {
-            labels: chartLabels,
-            datasets: [{
-                label: 'Avg Days to Install',
-                data: chartData,
-                backgroundColor: 'rgba(217, 119, 6, 0.5)',
-                borderColor: '#d97706',
-                borderWidth: 2,
-                tension: 0.2,
-                pointRadius: 4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { grid: { display: false } },
-                y: { beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 5 }, title: { display: false } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (context) => `Avg: ${context.raw} days` } }
-            }
-        }
-    });
-};
-
-const renderSpeedBreakdownChart = (speedCounts) => {
-    const Chart = window.Chart;
-    if (speedChart) {
-        speedChart.destroy();
-    }
-    
-    const speedLabels = Object.keys(speedCounts);
-    const speedData = Object.values(speedCounts);
-    
-    const colors = ['#4f46e5', '#065f46', '#d97706', '#9ca3af'];
-
-    if (!el.speedBreakdownChart) return;
-
-    speedChart = new Chart(el.speedBreakdownChart, {
-        type: 'doughnut',
-        data: {
-            labels: speedLabels,
-            datasets: [{
-                data: speedData,
-                backgroundColor: speedLabels.map((_, i) => colors[i % colors.length]),
-                borderColor: 'white',
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '60%',
-            plugins: {
-                legend: { position: 'right', align: 'middle', labels: { boxWidth: 10, padding: 10 } },
-                tooltip: {
-                    callbacks: {
-                        label: (context) => {
-                            const label = context.label || '';
-                            const value = context.parsed;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                            return `${label}: ${value} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-};
-
-const updateCompletedFilterOptions = (allCustomers) => {
-    const completedCustomers = allCustomers.filter(c => 
-        (c.status === 'Completed' || c.status === 'Archived') && c.installDetails?.installDate
-    );
-
-    const yearMap = new Map();
-    const monthMap = new Map();
-
-    completedCustomers.forEach(c => {
-        const dateString = c.installDetails.installDate; 
-        const date = new Date(dateString.replace(/-/g, '/')); 
-        
-        const yearKey = date.getFullYear().toString();
-        const yearValue = yearKey;
-
-        const monthKey = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); 
-        const monthValue = dateString.substring(0, 7); 
-        
-        yearMap.set(yearValue, `All ${yearValue}`);
-        monthMap.set(monthValue, monthKey);
-    });
-    
-    const sortedYears = Array.from(yearMap).map(([value, text]) => ({ value, text }));
-    sortedYears.sort((a, b) => b.value.localeCompare(a.value)); 
-    
-    const sortedMonths = Array.from(monthMap).map(([value, text]) => ({ value, text }));
-    sortedMonths.sort((a, b) => b.value.localeCompare(a.value)); 
-    
-    el.completedFilterSelect.innerHTML = '';
-    
-    const allOption = document.createElement('option');
-    allOption.value = 'All';
-    allOption.textContent = 'All Time'; 
-    el.completedFilterSelect.appendChild(allOption);
-
-    const yearGroup = document.createElement('optgroup');
-    yearGroup.label = 'By Year';
-    sortedYears.forEach(year => {
-        const option = document.createElement('option');
-        option.value = year.value;
-        option.textContent = year.text;
-        yearGroup.appendChild(option);
-    });
-    el.completedFilterSelect.appendChild(yearGroup);
-
-    const monthGroup = document.createElement('optgroup');
-    monthGroup.label = 'By Month';
-    sortedMonths.forEach(month => {
-        const option = document.createElement('option');
-        option.value = month.value;
-        option.textContent = month.text;
-        monthGroup.appendChild(option);
-    });
-    el.completedFilterSelect.appendChild(monthGroup);
-    
-    if (!el.completedFilterSelect.querySelector(`option[value="${currentCompletedFilter}"]`)) {
-        currentCompletedFilter = 'All';
-    }
-    el.completedFilterSelect.value = currentCompletedFilter;
 };
