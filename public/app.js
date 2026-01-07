@@ -21,6 +21,7 @@ let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
 let mailCollectionRef = null;
+let settingsCollectionRef = null; // New for general notes
 let selectedCustomerId = null;
 let allCustomers = []; 
 let currentSort = 'date'; 
@@ -28,6 +29,7 @@ let currentFilter = 'All'; // Corresponds to Pills
 let currentMainTab = 'Active'; // Active, Billing, Archived
 const storage = getStorage();
 let tempUploadedPdfUrl = null;
+let notesDebounceTimer = null; // For autosave
 
 // Charts
 let monthlyChart = null;
@@ -66,10 +68,24 @@ function showToast(msg, type) {
 
 function copyToClipboard(btn) {
     const targetId = btn.dataset.target;
-    const element = document.getElementById(targetId);
-    if(element) {
-        navigator.clipboard.writeText(element.value || element.textContent);
+    // Handle both input elements and text content if target is a data attribute on the button itself or passed directly
+    let textToCopy = '';
+    
+    if (targetId) {
+        const element = document.getElementById(targetId);
+        if(element) {
+            textToCopy = element.value || element.textContent;
+        }
+    } else if (btn.dataset.text) {
+        // Fallback: Use data-text attribute directly
+        textToCopy = btn.dataset.text;
+    }
+
+    if(textToCopy) {
+        navigator.clipboard.writeText(textToCopy);
         btn.classList.add('text-green-500');
+        // If it's an icon button, maybe change the icon momentarily?
+        // For now just color change
         setTimeout(() => btn.classList.remove('text-green-500'), 1500);
         showToast('Copied to clipboard', 'success');
     }
@@ -89,20 +105,37 @@ function removeContact(list, id) {
 function handleDeleteContact(e, list, container) {
     const btn = e.target.closest('.delete-contact-btn');
     if (btn) {
+        e.stopPropagation(); // Prevent bubbling if container has click listeners
         removeContact(list, btn.dataset.id);
         renderContacts(container, list, true);
     }
 }
 
+// Handle copying contact info
+function handleCopyContact(e) {
+    const btn = e.target.closest('.copy-contact-btn');
+    if (btn) {
+        e.stopPropagation();
+        copyToClipboard(btn);
+    }
+}
+
 function renderContacts(container, list, isEditable) {
     container.innerHTML = '';
+    
+    // Remove previous event listeners to avoid duplication if any (though innerHTML clears children)
+    // We'll attach a single delegation listener to the container once in setupEventListeners instead of here
+    // But for simplicity in this specific render function, we rely on the onclick attributes or delegated listeners setup elsewhere.
+    // Since we are adding buttons dynamically, let's ensure the container handles the clicks.
+    
     if (list.length === 0) {
         container.innerHTML = '<div class="text-xs text-gray-400 italic">No contacts added.</div>';
         return;
     }
+    
     list.forEach(c => {
         const card = document.createElement('div');
-        card.className = 'contact-card';
+        card.className = 'contact-card group relative'; // Added group for hover effects if needed
         let icon = 'phone';
         if (c.type === 'Work') icon = 'briefcase';
         else if (c.type === 'Home') icon = 'home';
@@ -112,11 +145,16 @@ function renderContacts(container, list, isEditable) {
             <div class="contact-icon-wrapper"><i data-lucide="${icon}" width="16" height="16"></i></div>
             <div class="contact-info">
                 <span class="contact-type-badge">${c.type}</span>
-                <a href="tel:${c.number}" class="contact-number">${c.number}</a>
+                <div class="flex items-center gap-2">
+                    <a href="tel:${c.number}" class="contact-number hover:underline">${c.number}</a>
+                    <button type="button" class="copy-contact-btn text-gray-400 hover:text-blue-500 transition p-1 rounded" data-text="${c.number}" title="Copy Number">
+                        <i data-lucide="copy" width="12" height="12"></i>
+                    </button>
+                </div>
                 <div class="contact-name">${c.name || ''}</div>
             </div>
             <div class="contact-actions">
-                ${isEditable ? `<button type="button" class="btn-icon-sm delete-contact-btn" data-id="${c.id}"><i data-lucide="trash-2" width="14" height="14"></i></button>` : ''}
+                ${isEditable ? `<button type="button" class="btn-icon-sm delete-contact-btn text-gray-400 hover:text-red-500" data-id="${c.id}"><i data-lucide="trash-2" width="14" height="14"></i></button>` : ''}
             </div>
         `;
         container.appendChild(card);
@@ -139,8 +177,15 @@ const el = {
     // Analytics
     analyticsDashboard: document.getElementById('analytics-dashboard'), // New
     analyticsStagesList: document.getElementById('analytics-stages-list'), // New
+    analyticsTotalPipeline: document.getElementById('analytics-total-pipeline'), // New
     chartMonthlyInstalls: document.getElementById('chart-monthly-installs'), // New
     chartSpeedTiers: document.getElementById('chart-speed-tiers'), // New
+    analyticsAvgTime: document.getElementById('analytics-avg-time'), // New
+    analyticsTotalCustomers: document.getElementById('analytics-total-customers'), // New
+
+    // General Notes
+    appGeneralNotes: document.getElementById('app-general-notes'), // New
+    notesStatus: document.getElementById('notes-status'), // New
 
     // Add Form (Modal)
     addCustomerModal: document.getElementById('add-customer-modal'),
@@ -244,6 +289,7 @@ onAuthStateChanged(auth, (user) => {
         
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
         mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
+        settingsCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'settings'); // Use settings for general notes
 
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
@@ -271,6 +317,7 @@ const initializeApp = () => {
 
     setupEventListeners();
     loadCustomers();
+    loadGeneralNotes();
     if (window.lucide) window.lucide.createIcons();
 };
 
@@ -300,6 +347,20 @@ const setupEventListeners = () => {
         if (!el.analyticsDashboard.classList.contains('hidden')) {
             renderAnalytics();
         }
+    });
+
+    // General Notes Autosave and Auto-expand
+    el.appGeneralNotes.addEventListener('input', () => {
+        // Auto-expand
+        el.appGeneralNotes.style.height = 'auto';
+        el.appGeneralNotes.style.height = (el.appGeneralNotes.scrollHeight) + 'px';
+
+        // Autosave Logic
+        el.notesStatus.textContent = 'Saving...';
+        el.notesStatus.classList.remove('opacity-0');
+        
+        clearTimeout(notesDebounceTimer);
+        notesDebounceTimer = setTimeout(saveGeneralNotes, 1500);
     });
 
     // Add Modal logic
@@ -359,9 +420,17 @@ const setupEventListeners = () => {
             el.detailsShowAddContactBtn.classList.remove('hidden');
         }
     });
-    // Contact Deletion
-    el.modalContactsList.addEventListener('click', (e) => handleDeleteContact(e, modalContacts, el.modalContactsList));
-    el.detailsContactsList.addEventListener('click', (e) => handleDeleteContact(e, detailsContacts, el.detailsContactsList));
+    // Contact Deletion & Copy (using Delegation)
+    const handleContactListAction = (e, list, container) => {
+        if (e.target.closest('.delete-contact-btn')) {
+            handleDeleteContact(e, list, container);
+        } else if (e.target.closest('.copy-contact-btn')) {
+            handleCopyContact(e);
+        }
+    };
+
+    el.modalContactsList.addEventListener('click', (e) => handleContactListAction(e, modalContacts, el.modalContactsList));
+    el.detailsContactsList.addEventListener('click', (e) => handleContactListAction(e, detailsContacts, el.detailsContactsList));
 
     // PDF Processing
     el.processPdfBtn.addEventListener('click', handlePdfProcessing);
@@ -479,6 +548,39 @@ const loadCustomers = () => {
     });
 };
 
+const loadGeneralNotes = () => {
+    if (!settingsCollectionRef) return;
+    const notesDocRef = doc(settingsCollectionRef, 'general_notes');
+    onSnapshot(notesDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            // Only update value if not currently focused to avoid overwriting typing
+            if (document.activeElement !== el.appGeneralNotes) {
+                el.appGeneralNotes.value = docSnap.data().content || '';
+                // Adjust height after loading content
+                el.appGeneralNotes.style.height = 'auto';
+                el.appGeneralNotes.style.height = (el.appGeneralNotes.scrollHeight) + 'px';
+            }
+        }
+    });
+};
+
+const saveGeneralNotes = async () => {
+    if (!settingsCollectionRef) return;
+    const content = el.appGeneralNotes.value;
+    const notesDocRef = doc(settingsCollectionRef, 'general_notes');
+    
+    try {
+        await setDoc(notesDocRef, { content: content }, { merge: true });
+        el.notesStatus.textContent = 'Saved';
+        setTimeout(() => {
+            el.notesStatus.classList.add('opacity-0');
+        }, 2000);
+    } catch (err) {
+        console.error("Error saving notes:", err);
+        el.notesStatus.textContent = 'Error saving';
+    }
+};
+
 const displayCustomers = () => {
     const term = el.searchBar.value.toLowerCase();
     let filtered = [...allCustomers];
@@ -543,16 +645,9 @@ const renderCustomerList = (list) => {
         let daysInStage = 0;
         let lastStatusChange = c.createdAt?.seconds * 1000;
         
-        // Try to find more precise timestamp based on status history logic if you had it,
-        // but typically you'd check `torysListChecklist.addedAt` for Construction, etc.
-        // For simplicity or if you don't track status changes explicitly, we can compare to createdAt
-        // OR try to infer from specific stage timestamps present in data
-        
         if (c.status === "Torys List" && c.torysListChecklist?.addedAt) {
             lastStatusChange = c.torysListChecklist.addedAt.seconds * 1000;
         } 
-        // Add more specific timestamp checks for other stages if available in your data model
-        // Otherwise default to createdAt which is "days open"
 
         const diffTime = Math.abs(Date.now() - lastStatusChange);
         daysInStage = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
@@ -601,10 +696,15 @@ const renderAnalytics = () => {
         'On Hold': 0
     };
     
+    let totalPipelineCount = 0;
+    
     // Only count non-archived/non-completed for the pipeline view
     allCustomers.forEach(c => {
         if (c.status !== 'Archived' && c.status !== 'Completed') {
-            if (counts[c.status] !== undefined) counts[c.status]++;
+            if (counts[c.status] !== undefined) {
+                counts[c.status]++;
+                totalPipelineCount++;
+            }
         }
     });
 
@@ -623,17 +723,55 @@ const renderAnalytics = () => {
         `;
         el.analyticsStagesList.appendChild(row);
     });
+    
+    // Display total pipeline count
+    if (el.analyticsTotalPipeline) {
+        el.analyticsTotalPipeline.textContent = totalPipelineCount;
+    }
 
-    // 2. Monthly Installs (Completed customers with Install Date)
+    // 2. Monthly Installs (Archived customers with Install Date)
     const monthlyData = {};
+    let totalInstallTimeDays = 0;
+    let installTimeCount = 0;
+    let totalCustomersAllTime = 0; // NEW: Track total customers
+
     allCustomers.forEach(c => {
-        if (c.status === 'Completed' && c.installDetails?.installDate) {
-            // YYYY-MM-DD
-            const dateStr = c.installDetails.installDate;
-            const monthKey = dateStr.substring(0, 7); // YYYY-MM
-            monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+        // Count total customers (active, completed, AND archived)
+        totalCustomersAllTime++;
+        
+        // Consider Archived customers
+        if (c.status === 'Archived') {
+            
+            // Logic for Monthly Chart based on Install Date
+            if (c.installDetails?.installDate) {
+                // YYYY-MM-DD
+                const dateStr = c.installDetails.installDate;
+                const monthKey = dateStr.substring(0, 7); // YYYY-MM
+                monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+
+                // Logic for Average Install Time (Creation to Install Date)
+                if (c.createdAt?.seconds) {
+                    const createdDate = new Date(c.createdAt.seconds * 1000);
+                    // Install date string is YYYY-MM-DD, parse manually to avoid timezone issues or use simple new Date
+                    const [y, m, d] = dateStr.split('-');
+                    const installDate = new Date(y, m - 1, d);
+                    
+                    const timeDiff = installDate - createdDate;
+                    const dayDiff = timeDiff / (1000 * 3600 * 24);
+                    
+                    if (dayDiff >= 0) { // sanity check
+                        totalInstallTimeDays += dayDiff;
+                        installTimeCount++;
+                    }
+                }
+            }
         }
     });
+    
+    // Display total customers count
+    if (el.analyticsTotalCustomers) {
+        el.analyticsTotalCustomers.textContent = totalCustomersAllTime;
+    }
     
     // Sort months
     const sortedMonths = Object.keys(monthlyData).sort();
@@ -709,6 +847,14 @@ const renderAnalytics = () => {
             cutout: '60%'
         }
     });
+
+    // 4. Update Average Install Time UI
+    if (installTimeCount > 0) {
+        const avgDays = Math.round(totalInstallTimeDays / installTimeCount);
+        el.analyticsAvgTime.textContent = `${avgDays} Days`;
+    } else {
+        el.analyticsAvgTime.textContent = `-- Days`;
+    }
 };
 
 // --- 5. DETAILS LOGIC ---
