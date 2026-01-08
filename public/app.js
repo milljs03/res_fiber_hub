@@ -34,6 +34,7 @@ let notesDebounceTimer = null; // For autosave
 // Charts
 let monthlyChart = null;
 let speedChart = null;
+let townChart = null; // New
 
 // Temporary Contact State (for Modal and Details)
 let modalContacts = [];
@@ -180,6 +181,7 @@ const el = {
     analyticsTotalPipeline: document.getElementById('analytics-total-pipeline'), // New
     chartMonthlyInstalls: document.getElementById('chart-monthly-installs'), // New
     chartSpeedTiers: document.getElementById('chart-speed-tiers'), // New
+    chartTowns: document.getElementById('chart-towns'), // New
     analyticsAvgTime: document.getElementById('analytics-avg-time'), // New
     analyticsTotalCustomers: document.getElementById('analytics-total-customers'), // New
 
@@ -735,10 +737,37 @@ const renderAnalytics = () => {
     let installTimeCount = 0;
     let totalCustomersAllTime = 0; // NEW: Track total customers
 
+    // 4. Town Counts
+    const townCounts = {};
+    const validTowns = ['goshen', 'new paris', 'nappanee', 'syracuse', 'milford', 'bristol', 'middlebury', 'elkhart', 'wakarusa'];
+
     allCustomers.forEach(c => {
         // Count total customers (active, completed, AND archived)
         totalCustomersAllTime++;
         
+        // Town Extraction
+        if (c.address) {
+            const addrLower = c.address.toLowerCase();
+            let foundTown = null;
+            
+            for (const town of validTowns) {
+                // Simple inclusion check, might need regex for strict word boundaries if collisions occur (e.g. "new paris" vs "paris")
+                // Given the specific list, simple inclusion usually works, but check longest matches first if needed.
+                if (addrLower.includes(town)) {
+                    foundTown = town;
+                    break; 
+                }
+            }
+
+            if (foundTown) {
+                const displayTown = toTitleCase(foundTown);
+                townCounts[displayTown] = (townCounts[displayTown] || 0) + 1;
+            } else {
+                // Optional: categorize as 'Other' or ignore
+                // townCounts['Other'] = (townCounts['Other'] || 0) + 1;
+            }
+        }
+
         // Consider Archived customers
         if (c.status === 'Archived') {
             
@@ -845,6 +874,33 @@ const renderAnalytics = () => {
                 legend: { position: 'right', labels: { boxWidth: 12, font: { size: 10 } } }
             },
             cutout: '60%'
+        }
+    });
+
+    // Town Chart
+    const townLabels = Object.keys(townCounts);
+    const townValues = Object.values(townCounts);
+
+    if (townChart) townChart.destroy();
+    townChart = new Chart(el.chartTowns, {
+        type: 'bar',
+        data: {
+            labels: townLabels,
+            datasets: [{
+                label: 'Customers',
+                data: townValues,
+                backgroundColor: '#10b981', // Emerald green
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#e5e7eb' }, ticks: { stepSize: 1 } },
+                x: { grid: { display: false } }
+            }
         }
     });
 
@@ -1351,20 +1407,25 @@ const handlePdfProcessing = async () => {
                         let statePart = '';
                         let cityPart = '';
                         
-                        // Parse from joined tail: "NEW PARIS, IN 46553"
-                        const stateMatch = joinedTail.match(/\b(IN|INDIANA)\b/i);
+                        // Parse from joined tail: "NEW PARIS, IN 46553" or "GOSHEN IN 46526"
+                        // Updated regex to be more flexible with spacing and optional comma
+                        const stateMatch = joinedTail.match(/[\s,]+(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i);
                         if (stateMatch) {
-                            statePart = stateMatch[0]; // IN
-                            // City is usually before State
-                            const parts = joinedTail.split(statePart);
-                            if (parts[0]) {
-                                cityPart = parts[0].replace(/,/g, '').trim();
+                            statePart = stateMatch[1]; // IN
+                            // City is everything before the state match
+                            // Use the match index to split correctly
+                            const splitIndex = stateMatch.index;
+                            if (splitIndex > 0) {
+                                cityPart = joinedTail.substring(0, splitIndex).replace(/,/g, '').trim();
+                                
+                                // Clean up if cityPart accidentally includes street info from a bad join
+                                // Heuristic: City usually doesn't start with numbers unless it's an address line leaked in
+                                // If the city part looks like "123 Main St City", try to split it
+                                // But for now, let's rely on the improved relevance slice
                             }
                         }
                         
-                        if(cityPart && statePart) {
-                            // Reconstruct cleanly
-                            const zipPart = zipLine.match(zipRegex)[0];
+                        if(cityPart && statePart && zipPart) {
                             cityStateZip = `${cityPart}, ${statePart} ${zipPart}`;
                         } else {
                            cityStateZip = joinedTail; 
