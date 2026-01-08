@@ -1311,19 +1311,16 @@ const handlePdfProcessing = async () => {
     el.processPdfBtn.textContent = 'Processing...';
 
     try {
-        // Upload
         const storageRef = ref(storage, `artifacts/${currentAppId}/public/service_orders/${Date.now()}_${file.name}`);
         const snap = await uploadBytes(storageRef, file);
         tempUploadedPdfUrl = await getDownloadURL(snap.ref);
 
-        // Parse
         const reader = new FileReader();
         reader.onload = async () => {
             const pdf = await window.pdfjsLib.getDocument({ data: reader.result }).promise;
             const page = await pdf.getPage(1);
             const content = await page.getTextContent();
             
-            // Join items with a newline to preserve some structure
             const text = content.items.map(i => i.str).join('\n');
 
             console.log("--- START PDF EXTRACT ---");
@@ -1336,35 +1333,27 @@ const handlePdfProcessing = async () => {
 
             // --- 2. ADDRESS (Service Point Street + Bill To City/State/Zip) ---
             let street = '';
-            // Match "Service Point:" followed by anything until "City/Serv" or newline
-            const servicePointMatch = text.match(/Service\s+Point:\s*(?:NEW\s*)?([\s\S]+?)City\/Serv/i);
+            // Try Service Point first (often cleaner)
+            const servicePointMatch = text.match(/Service\s+Point:\s*(?:NEW\s*|GOSH\s*)?([\s\S]+?)City\/Serv/i);
             if (servicePointMatch) {
-                // "67671 COUNTY RD 23\n\n"
                 let rawStreet = servicePointMatch[1].replace(/\n/g, ' ').trim();
-                
-                // --- FIX: Remove prefixes like GOSH, NEW, etc. that sometimes appear ---
-                // Regex looks for "GOSH " or "NEW " at the start of the string
-                rawStreet = rawStreet.replace(/^(GOSH|NEW)\s+/i, '').trim();
-                
+                // FIX: Remove specific prefixes seen in examples
+                rawStreet = rawStreet.replace(/^(GOSH|NEW|NAPP|SYR|MILF|BRIS|MIDD|ELKH|WAKA)\s+/i, '').trim();
+                // Also remove any leading numbers that might be route prefixes if they exist (though less common in examples)
                 street = rawStreet;
             }
 
             let cityStateZip = '';
-            // Capture Bill To block
             const billToBlockMatch = text.match(/Bill\s+To:\s*([\s\S]*?)Res\/Bus/i);
             let nameLines = [];
             
             if (billToBlockMatch) {
                 const lines = billToBlockMatch[1].split('\n').map(l => l.trim()).filter(l => l);
                 
-                // SEPARATE NAMES FROM ADDRESS
-                // Address usually starts with a digit (House number). Names are above it.
-                // Exception: sometimes address is just "P.O. Box".
-                
                 let addressStartIndex = -1;
+                // Find where the address digits start or PO Box
                 for(let i=0; i<lines.length; i++) {
-                     // Check for digit at start (House Number) or PO BOX
-                    if (/^\d/.test(lines[i]) || /^P\.?O\.?\s*Box/i.test(lines[i])) {
+                     if (/^\d/.test(lines[i]) || /^P\.?O\.?\s*Box/i.test(lines[i])) {
                         addressStartIndex = i;
                         break;
                     }
@@ -1374,11 +1363,8 @@ const handlePdfProcessing = async () => {
                     nameLines = lines.slice(0, addressStartIndex);
                     const addressLines = lines.slice(addressStartIndex);
                     
-                    // Extract City/State/Zip from the address part
-                    // Look for Zip in the last few lines
+                    // Search for Zip line from bottom up
                     const zipRegex = /\b\d{5}(?:-\d{4})?\b/;
-                    
-                    // FIX: Search from the bottom up to avoid matching 5-digit house numbers
                     let zipLineIndex = -1;
                     for (let i = addressLines.length - 1; i >= 0; i--) {
                         if (zipRegex.test(addressLines[i])) {
@@ -1388,68 +1374,85 @@ const handlePdfProcessing = async () => {
                     }
                     
                     if (zipLineIndex !== -1) {
-                        const zipLine = addressLines[zipLineIndex];
-                        // Check line before zip for State Code to avoid grabbing street numbers like "31"
-                        const prevLine = zipLineIndex > 0 ? addressLines[zipLineIndex - 1] : '';
-                        const stateRegex = /\b(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i;
-
-                        let relevantLines = [];
-                        
-                        if (stateRegex.test(prevLine)) {
-                            // If line immediately before zip has state, assume it is the City/State line
-                            relevantLines = [prevLine, zipLine];
-                        } else {
-                            // Fallback: Grab up to 2 lines back if state isn't clearly on the preceding line
-                            relevantLines = addressLines.slice(Math.max(0, zipLineIndex - 2), zipLineIndex + 1);
-                        }
-
-                        const joinedTail = relevantLines.join(' ');
+                        let zipPart = addressLines[zipLineIndex].match(zipRegex)[0];
                         let statePart = '';
                         let cityPart = '';
                         
-                        // Parse from joined tail: "NEW PARIS, IN 46553" or "GOSHEN IN 46526"
-                        // Updated regex to be more flexible with spacing and optional comma
-                        const stateMatch = joinedTail.match(/[\s,]+(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i);
+                        // Combine lines around zip to form the tail
+                        // If zip line has text before it (e.g. "GOSHEN, IN 46528"), use that line
+                        // If zip line is isolated, look above it
+                        
+                        // Strategy: gather lines from zip line upwards until we hit the street line?
+                        // Better: Look for State Match in the same line or previous line
+                        
+                        let candidateText = addressLines[zipLineIndex];
+                        if (zipLineIndex > 0) {
+                            candidateText = addressLines[zipLineIndex - 1] + " " + candidateText;
+                        }
+                        
+                        // Parse from candidate text
+                        const stateMatch = candidateText.match(/[\s,]+(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i);
+                        
                         if (stateMatch) {
                             statePart = stateMatch[1]; // IN
-                            // City is everything before the state match
-                            // Use the match index to split correctly
                             const splitIndex = stateMatch.index;
                             if (splitIndex > 0) {
-                                cityPart = joinedTail.substring(0, splitIndex).replace(/,/g, '').trim();
+                                let rawCity = candidateText.substring(0, splitIndex).trim();
+                                rawCity = rawCity.replace(/,$/, '').trim();
                                 
-                                // Clean up if cityPart accidentally includes street info from a bad join
-                                // Heuristic: City usually doesn't start with numbers unless it's an address line leaked in
-                                // If the city part looks like "123 Main St City", try to split it
-                                // But for now, let's rely on the improved relevance slice
+                                // Heuristic: if rawCity contains digits, it likely includes the street part.
+                                // We want just the city. 
+                                // Address: "16144 CR 18 GOSHEN" -> City "GOSHEN"
+                                // Address: "57767 COUNTY ROAD 31 GOSHEN"
+                                
+                                // Check if rawCity has address-like numbers at the start.
+                                // If so, assume the last word(s) are the city.
+                                // BUT some streets are named "County Road 23".
+                                // This is hard without a city list or strict delimiters.
+                                
+                                // LUCKILY, the validTowns list helps!
+                                const validTowns = ['goshen', 'new paris', 'nappanee', 'syracuse', 'milford', 'bristol', 'middlebury', 'elkhart', 'wakarusa'];
+                                let foundTown = "";
+                                
+                                // Check from end of string backwards
+                                for (const town of validTowns) {
+                                    if (rawCity.toLowerCase().endsWith(town)) {
+                                        foundTown = town;
+                                        break;
+                                    }
+                                }
+                                
+                                if (foundTown) {
+                                    cityPart = toTitleCase(foundTown);
+                                    // If we found the city here, we might want to ensure street part didn't get mixed in previously
+                                } else {
+                                    // Fallback: take the whole thing if no known town match
+                                    cityPart = rawCity; 
+                                }
                             }
                         }
                         
                         if(cityPart && statePart && zipPart) {
                             cityStateZip = `${cityPart}, ${statePart} ${zipPart}`;
                         } else {
-                           cityStateZip = joinedTail; 
+                           // Fallback if parsing fails: just use the raw text found
+                           cityStateZip = candidateText;
                         }
+                    } else {
+                        // Zip not found? just join address lines
+                        cityStateZip = addressLines.join(' ');
                     }
                 } else {
-                    // No address found in Bill To? Maybe all names?
                     nameLines = lines;
                 }
             }
 
             const fullAddr = [street, cityStateZip].filter(Boolean).join(', ');
-            if (fullAddr) {
-                // Title case, then fix " In " to " IN " specifically for address
-                let finalAddr = toTitleCase(fullAddr);
-                finalAddr = finalAddr.replace(/\bIn\b/g, 'IN'); 
-                el.addressInput.value = finalAddr;
-            }
+            if (fullAddr) el.addressInput.value = toTitleCase(fullAddr);
 
             // --- 3. CUSTOMER NAME ---
-            // Process extracted nameLines
             if (nameLines.length > 0) {
                  const parsedNames = nameLines.map(n => {
-                    // "MERLE YODER" -> {first: "MERLE", last: "YODER"}
                     const parts = n.split(/\s+/);
                     if(parts.length > 1) {
                         const last = parts.pop();
@@ -1460,43 +1463,37 @@ const handlePdfProcessing = async () => {
                  });
                  
                  if (parsedNames.length === 2) {
-                     // Check if last names match
-                     if (parsedNames[0].last && parsedNames[1].last && 
-                         parsedNames[0].last.toUpperCase() === parsedNames[1].last.toUpperCase()) {
-                         // Yoder Merle & Nelaine
-                         el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first} & ${parsedNames[1].first}`);
-                     } else {
-                         // Different last names or cannot determine
-                         el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
-                     }
+                      if (parsedNames[0].last && parsedNames[1].last && 
+                          parsedNames[0].last.toUpperCase() === parsedNames[1].last.toUpperCase()) {
+                          el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first} & ${parsedNames[1].first}`);
+                      } else {
+                          el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
+                      }
                  } else if (parsedNames.length === 1) {
-                     if (parsedNames[0].last) {
-                         el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first}`);
-                     } else {
-                         el.customerNameInput.value = toTitleCase(parsedNames[0].first);
-                     }
+                      if (parsedNames[0].last) {
+                          el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first}`);
+                      } else {
+                          el.customerNameInput.value = toTitleCase(parsedNames[0].first);
+                      }
                  } else {
                       el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
                  }
             }
 
-            // --- 4. CONTACTS (Array Parsing) ---
-            // Pattern: WORK/CELL/other/HOME -> Number -> Name
-            
+            // --- 4. CONTACTS ---
             const contactTypes = ['WORK', 'CELL', 'other', 'HOME'];
-            modalContacts = []; // Reset current
+            modalContacts = []; 
             
             const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                // Check if line starts with a contact type (case insensitive check for 'other')
                 const matchedType = contactTypes.find(t => line.toUpperCase() === t.toUpperCase());
                 
                 if (matchedType) {
-                    let type = matchedType.charAt(0).toUpperCase() + matchedType.slice(1).toLowerCase(); // Normalize case (Work, Cell, Other)
-                    if(type === 'Other') type = 'Other'; // keep as is
-                    if(type === 'Cell') type = 'Mobile'; // Map Cell -> Mobile for dropdown consistency
+                    let type = matchedType.charAt(0).toUpperCase() + matchedType.slice(1).toLowerCase(); 
+                    if(type === 'Other') type = 'Other'; 
+                    if(type === 'Cell') type = 'Mobile'; 
 
                     let number = "";
                     let name = "";
@@ -1521,7 +1518,6 @@ const handlePdfProcessing = async () => {
                 }
             }
             renderContacts(el.modalContactsList, modalContacts, true);
-
 
             // --- 5. SPEED ---
             if (/1\s*(?:GIG|GBPS)/i.test(text)) {
