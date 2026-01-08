@@ -84,9 +84,10 @@
         <div id="analytics-dashboard" class="hidden bg-gray-50 dark:bg-gray-850 border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6">
             <div class="max-w-7xl mx-auto">
                 <h2 class="text-lg font-bold mb-4 dark:text-white">Dashboard Analytics</h2>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-6"> <!-- Changed to 5 columns for new cards -->
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-6"> <!-- Expanded columns -->
+                    
                     <!-- Stage Breakdown -->
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-2 lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-2">
                         <h3 class="text-sm font-semibold text-gray-500 mb-2">Active Pipeline Stages</h3>
                         <div id="analytics-stages-list" class="space-y-2">
                             <!-- Injected via JS -->
@@ -96,36 +97,51 @@
                             <span id="analytics-total-pipeline" class="text-sm font-bold text-blue-600 dark:text-blue-400">0</span>
                         </div>
                     </div>
+
                     <!-- Monthly Installs Chart -->
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-2 lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-2">
                         <h3 class="text-sm font-semibold text-gray-500 mb-2">Monthly Installs</h3>
                         <div class="h-40">
                             <canvas id="chart-monthly-installs"></canvas>
                         </div>
                     </div>
+
                     <!-- Speed Tier Chart -->
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-2">
                         <h3 class="text-sm font-semibold text-gray-500 mb-2">Speed Tier Distribution</h3>
                         <div class="h-40 flex justify-center">
                             <canvas id="chart-speed-tiers"></canvas>
                         </div>
                     </div>
-                    <!-- Average Install Time -->
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col justify-center items-center text-center col-span-1">
-                        <h3 class="text-sm font-semibold text-gray-500 mb-2">Avg. Install Time</h3>
-                        <div class="text-3xl font-bold text-blue-600 dark:text-blue-400" id="analytics-avg-time">
-                            -- Days
+
+                    <!-- Customer Count by Town -->
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow col-span-1 md:col-span-3">
+                        <h3 class="text-sm font-semibold text-gray-500 mb-2">Customers by Town</h3>
+                        <div class="h-40">
+                            <canvas id="chart-towns"></canvas>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2">From Creation to Install Date</p>
                     </div>
-                    <!-- Total Customers Count -->
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col justify-center items-center text-center col-span-1">
-                        <h3 class="text-sm font-semibold text-gray-500 mb-2">Total Customers</h3>
-                        <div class="text-3xl font-bold text-green-600 dark:text-green-400" id="analytics-total-customers">
-                            0
+
+                    <!-- Metrics Group -->
+                    <div class="col-span-1 md:col-span-3 grid grid-cols-2 gap-6">
+                        <!-- Average Install Time -->
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col justify-center items-center text-center">
+                            <h3 class="text-sm font-semibold text-gray-500 mb-2">Avg. Install Time</h3>
+                            <div class="text-3xl font-bold text-blue-600 dark:text-blue-400" id="analytics-avg-time">
+                                -- Days
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">From Creation to Install Date</p>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2">All Time</p>
+                        <!-- Total Customers Count -->
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex flex-col justify-center items-center text-center">
+                            <h3 class="text-sm font-semibold text-gray-500 mb-2">Total Customers</h3>
+                            <div class="text-3xl font-bold text-green-600 dark:text-green-400" id="analytics-total-customers">
+                                0
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">All Time (Non-Archived)</p>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -327,7 +343,7 @@
             <form id="details-form" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
                 
                 <!-- Stepper -->
-                <div class="bg-gray-50 dark:bg-gray-750 p-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto scrollbar-hide">
+                <div class="bg-gray-50 dark:bg-gray-700 p-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto scrollbar-hide">
                     <div id="status-stepper" class="flex items-center min-w-max">
                         <!-- Step nodes injected by CSS/JS structure -->
                         <button type="button" class="step-node" data-status="New Order" data-page="page-pre-install">New</button>
