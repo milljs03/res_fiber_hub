@@ -236,85 +236,100 @@
 
     <!-- ================= MODALS ================= -->
 
-    <!-- 1. ADD CUSTOMER MODAL (Maintained original logic inputs) -->
+    <!-- 1. ADD CUSTOMER MODAL -->
     <div id="add-customer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
-        <div class="bg-white dark:bg-gray-800 w-full max-w-lg rounded-xl shadow-2xl p-6 relative my-auto">
-            <button id="modal-close-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"><i data-lucide="x"></i></button>
+        <!-- Enlarged width to max-w-[95vw] and height for side-by-side view -->
+        <div class="bg-white dark:bg-gray-800 w-full max-w-[95vw] h-[90vh] flex flex-col rounded-xl shadow-2xl relative my-auto transition-all duration-300 overflow-hidden">
             
-            <h2 class="text-xl font-bold mb-6 dark:text-white flex items-center gap-2">
-                <i data-lucide="file-plus" class="text-blue-500"></i> New Service Order
-            </h2>
+            <div class="p-6 pb-2 shrink-0 flex justify-between items-center">
+                <h2 class="text-xl font-bold dark:text-white flex items-center gap-2">
+                    <i data-lucide="file-plus" class="text-blue-500"></i> New Service Order
+                </h2>
+                <button id="modal-close-btn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition"><i data-lucide="x"></i></button>
+            </div>
             
-            <form id="add-customer-form" class="space-y-4">
-                <!-- PDF DROP ZONE -->
-                <div id="pdf-drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition group">
-                    <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-full w-fit mx-auto mb-3 group-hover:scale-110 transition">
-                        <i data-lucide="upload-cloud" class="h-6 w-6 text-blue-500"></i>
+            <div class="flex flex-col lg:flex-row gap-6 p-6 pt-2 flex-1 overflow-hidden">
+                <!-- PDF VIEWER COLUMN (Hidden initially) -->
+                <div id="pdf-viewer-col" class="hidden lg:w-3/5 h-full bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex-col">
+                    <div class="bg-gray-50 dark:bg-gray-700 px-3 py-2 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center shrink-0">
+                        <span class="text-xs font-bold text-gray-500 dark:text-gray-300">PDF Preview</span>
+                        <a id="pdf-viewer-link" href="#" target="_blank" class="text-xs text-blue-600 hover:underline flex items-center gap-1">Open <i data-lucide="external-link" class="w-3 h-3"></i></a>
                     </div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300" id="selected-file-name">Click or Drop PDF to Auto-fill</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supports Service Order PDFs</p>
-                    <input type="file" id="pdf-upload" accept=".pdf" class="hidden">
-                </div>
-                
-                <div class="flex items-center justify-between">
-                    <button type="button" id="process-pdf-btn" class="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1 rounded text-gray-700 dark:text-gray-300 transition" disabled>Process PDF</button>
-                    <p id="pdf-status-msg" class="text-xs text-blue-500 font-medium"></p>
+                    <iframe id="pdf-viewer-frame" class="w-full flex-1" src=""></iframe>
                 </div>
 
-                <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
-
-                <!-- MANUAL INPUTS -->
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">SO Number</label>
-                        <input type="text" id="so-number" required class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Customer Name</label>
-                        <input type="text" id="customer-name" required class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Address</label>
-                    <textarea id="address" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Email</label>
-                        <input type="email" id="customer-email" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Speed</label>
-                        <select id="service-speed" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option>200 Mbps</option>
-                            <option>500 Mbps</option>
-                            <option>1 Gbps</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <!-- CONTACTS SECTION (Simplified for Modal) -->
-                <div>
-                     <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Contacts</label>
-                     <div id="modal-contacts-list" class="contacts-list mb-2"></div>
-                     <div id="modal-add-contact-form" class="hidden bg-gray-50 dark:bg-gray-700 p-2 rounded mb-2">
-                        <div class="flex gap-2 mb-2">
-                             <select id="modal-new-contact-type" class="text-sm border rounded p-1 dark:bg-gray-600 dark:text-white"><option value="Mobile">Mobile</option><option value="Work">Work</option><option value="Home">Home</option><option value="Other">Other</option></select>
-                             <input type="text" id="modal-new-contact-number" placeholder="Number" class="text-sm border rounded p-1 w-full dark:bg-gray-600 dark:text-white">
+                <!-- FORM COLUMN -->
+                <form id="add-customer-form" class="flex-1 lg:w-2/5 h-full overflow-y-auto space-y-4 pr-2">
+                    <!-- PDF DROP ZONE -->
+                    <div id="pdf-drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition group">
+                        <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-full w-fit mx-auto mb-3 group-hover:scale-110 transition">
+                            <i data-lucide="upload-cloud" class="h-6 w-6 text-blue-500"></i>
                         </div>
-                        <input type="text" id="modal-new-contact-name" placeholder="Name (e.g. Spouse)" class="text-sm border rounded p-1 w-full mb-2 dark:bg-gray-600 dark:text-white">
-                        <div class="flex justify-end gap-2">
-                            <button type="button" id="modal-cancel-add-contact" class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 rounded">Cancel</button>
-                            <button type="button" id="modal-confirm-add-contact" class="text-xs px-2 py-1 bg-blue-600 text-white rounded">Add</button>
-                        </div>
-                     </div>
-                     <button type="button" id="modal-show-add-contact-btn" class="text-xs flex items-center gap-1 text-blue-600 hover:underline"><i data-lucide="plus" class="w-3 h-3"></i> Add Contact</button>
-                </div>
+                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300" id="selected-file-name">Click or Drop PDF to Auto-fill</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supports Service Order PDFs</p>
+                        <input type="file" id="pdf-upload" accept=".pdf" class="hidden">
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <button type="button" id="process-pdf-btn" class="text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1 rounded text-gray-700 dark:text-gray-300 transition" disabled>Process PDF</button>
+                        <p id="pdf-status-msg" class="text-xs text-blue-500 font-medium"></p>
+                    </div>
 
-                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium transition shadow-lg shadow-blue-500/30 mt-2">Create Order</button>
-            </form>
+                    <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
+
+                    <!-- MANUAL INPUTS -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">SO Number</label>
+                            <input type="text" id="so-number" required class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Customer Name</label>
+                            <input type="text" id="customer-name" required class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Address</label>
+                        <textarea id="address" rows="2" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Email</label>
+                            <input type="email" id="customer-email" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Speed</label>
+                            <select id="service-speed" class="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option>200 Mbps</option>
+                                <option>500 Mbps</option>
+                                <option>1 Gbps</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- CONTACTS SECTION (Simplified for Modal) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Contacts</label>
+                        <div id="modal-contacts-list" class="contacts-list mb-2"></div>
+                        <div id="modal-add-contact-form" class="hidden bg-gray-50 dark:bg-gray-700 p-2 rounded mb-2">
+                            <div class="flex gap-2 mb-2">
+                                <select id="modal-new-contact-type" class="text-sm border rounded p-1 dark:bg-gray-600 dark:text-white"><option value="Mobile">Mobile</option><option value="Work">Work</option><option value="Home">Home</option><option value="Other">Other</option></select>
+                                <input type="text" id="modal-new-contact-number" placeholder="Number" class="text-sm border rounded p-1 w-full dark:bg-gray-600 dark:text-white">
+                            </div>
+                            <input type="text" id="modal-new-contact-name" placeholder="Name (e.g. Spouse)" class="text-sm border rounded p-1 w-full mb-2 dark:bg-gray-600 dark:text-white">
+                            <div class="flex justify-end gap-2">
+                                <button type="button" id="modal-cancel-add-contact" class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 rounded">Cancel</button>
+                                <button type="button" id="modal-confirm-add-contact" class="text-xs px-2 py-1 bg-blue-600 text-white rounded">Add</button>
+                            </div>
+                        </div>
+                        <button type="button" id="modal-show-add-contact-btn" class="text-xs flex items-center gap-1 text-blue-600 hover:underline"><i data-lucide="plus" class="w-3 h-3"></i> Add Contact</button>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium transition shadow-lg shadow-blue-500/30 mt-2">Create Order</button>
+                </form>
+            </div>
         </div>
     </div>
 

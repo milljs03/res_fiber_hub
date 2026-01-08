@@ -16,25 +16,32 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstati
 const PDFJS_WORKER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs"; 
 const STEPS_WORKFLOW = ['New Order', 'Site Survey Ready', 'Torys List', 'NID Ready', 'Install Ready', 'Completed'];
 
+// Whitelist for robust city detection
+const VALID_CITIES = [
+    'GOSHEN', 'NEW PARIS', 'NAPPANEE', 'SYRACUSE', 'MILFORD', 
+    'BRISTOL', 'MIDDLEBURY', 'ELKHART', 'WAKARUSA', 'LIGONIER', 
+    'CROMWELL', 'NORTH WEBSTER', 'MILLERSBURG', 'BENTON', 'TOPEKA'
+];
+
 // --- Global State ---
 let currentUserId = null;
 let currentAppId = 'default-app-id';
 let customersCollectionRef = null;
 let mailCollectionRef = null;
-let settingsCollectionRef = null; // New for general notes
+let settingsCollectionRef = null; 
 let selectedCustomerId = null;
 let allCustomers = []; 
 let currentSort = 'date'; 
-let currentFilter = 'All'; // Corresponds to Pills
-let currentMainTab = 'Active'; // Active, Billing, Archived
+let currentFilter = 'All'; 
+let currentMainTab = 'Active'; 
 const storage = getStorage();
 let tempUploadedPdfUrl = null;
-let notesDebounceTimer = null; // For autosave
+let notesDebounceTimer = null; 
 
 // Charts
 let monthlyChart = null;
 let speedChart = null;
-let townChart = null; // New
+let townChart = null; 
 
 // Temporary Contact State (for Modal and Details)
 let modalContacts = [];
@@ -59,17 +66,14 @@ function showToast(msg, type) {
     el.toast.textContent = msg;
     el.toast.className = type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white';
     el.toast.classList.add('show');
-    // Re-trigger styles for the toast content if needed
     el.toast.style.padding = '12px 24px';
     el.toast.style.borderRadius = '8px';
     el.toast.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-    
     setTimeout(() => el.toast.classList.remove('show'), 3000);
 }
 
 function copyToClipboard(btn) {
     const targetId = btn.dataset.target;
-    // Handle both input elements and text content if target is a data attribute on the button itself or passed directly
     let textToCopy = '';
     
     if (targetId) {
@@ -78,15 +82,12 @@ function copyToClipboard(btn) {
             textToCopy = element.value || element.textContent;
         }
     } else if (btn.dataset.text) {
-        // Fallback: Use data-text attribute directly
         textToCopy = btn.dataset.text;
     }
 
     if(textToCopy) {
         navigator.clipboard.writeText(textToCopy);
         btn.classList.add('text-green-500');
-        // If it's an icon button, maybe change the icon momentarily?
-        // For now just color change
         setTimeout(() => btn.classList.remove('text-green-500'), 1500);
         showToast('Copied to clipboard', 'success');
     }
@@ -94,8 +95,15 @@ function copyToClipboard(btn) {
 
 // --- CONTACTS HELPERS ---
 function addContact(list, contact) {
-    if (!contact.id) contact.id = Date.now().toString();
-    list.push(contact);
+    // Avoid duplicates
+    // Normalize number for comparison (remove non-digits)
+    const newNumClean = contact.number.replace(/\D/g, '');
+    const exists = list.some(c => c.number.replace(/\D/g, '') === newNumClean);
+    
+    if (!exists && newNumClean.length >= 7) {
+        if (!contact.id) contact.id = Date.now().toString();
+        list.push(contact);
+    }
 }
 
 function removeContact(list, id) {
@@ -106,13 +114,12 @@ function removeContact(list, id) {
 function handleDeleteContact(e, list, container) {
     const btn = e.target.closest('.delete-contact-btn');
     if (btn) {
-        e.stopPropagation(); // Prevent bubbling if container has click listeners
+        e.stopPropagation(); 
         removeContact(list, btn.dataset.id);
         renderContacts(container, list, true);
     }
 }
 
-// Handle copying contact info
 function handleCopyContact(e) {
     const btn = e.target.closest('.copy-contact-btn');
     if (btn) {
@@ -124,11 +131,6 @@ function handleCopyContact(e) {
 function renderContacts(container, list, isEditable) {
     container.innerHTML = '';
     
-    // Remove previous event listeners to avoid duplication if any (though innerHTML clears children)
-    // We'll attach a single delegation listener to the container once in setupEventListeners instead of here
-    // But for simplicity in this specific render function, we rely on the onclick attributes or delegated listeners setup elsewhere.
-    // Since we are adding buttons dynamically, let's ensure the container handles the clicks.
-    
     if (list.length === 0) {
         container.innerHTML = '<div class="text-xs text-gray-400 italic">No contacts added.</div>';
         return;
@@ -136,7 +138,7 @@ function renderContacts(container, list, isEditable) {
     
     list.forEach(c => {
         const card = document.createElement('div');
-        card.className = 'contact-card group relative'; // Added group for hover effects if needed
+        card.className = 'contact-card group relative'; 
         let icon = 'phone';
         if (c.type === 'Work') icon = 'briefcase';
         else if (c.type === 'Home') icon = 'home';
@@ -173,21 +175,21 @@ const el = {
     authError: document.getElementById('auth-error'),
     userEmailDisplay: document.getElementById('user-email'),
     themeToggleBtn: document.getElementById('theme-toggle-btn'),
-    toggleAnalyticsBtn: document.getElementById('toggle-analytics-btn'), // New
+    toggleAnalyticsBtn: document.getElementById('toggle-analytics-btn'), 
 
     // Analytics
-    analyticsDashboard: document.getElementById('analytics-dashboard'), // New
-    analyticsStagesList: document.getElementById('analytics-stages-list'), // New
-    analyticsTotalPipeline: document.getElementById('analytics-total-pipeline'), // New
-    chartMonthlyInstalls: document.getElementById('chart-monthly-installs'), // New
-    chartSpeedTiers: document.getElementById('chart-speed-tiers'), // New
-    chartTowns: document.getElementById('chart-towns'), // New
-    analyticsAvgTime: document.getElementById('analytics-avg-time'), // New
-    analyticsTotalCustomers: document.getElementById('analytics-total-customers'), // New
+    analyticsDashboard: document.getElementById('analytics-dashboard'), 
+    analyticsStagesList: document.getElementById('analytics-stages-list'), 
+    analyticsTotalPipeline: document.getElementById('analytics-total-pipeline'), 
+    chartMonthlyInstalls: document.getElementById('chart-monthly-installs'), 
+    chartSpeedTiers: document.getElementById('chart-speed-tiers'), 
+    chartTowns: document.getElementById('chart-towns'), 
+    analyticsAvgTime: document.getElementById('analytics-avg-time'), 
+    analyticsTotalCustomers: document.getElementById('analytics-total-customers'), 
 
     // General Notes
-    appGeneralNotes: document.getElementById('app-general-notes'), // New
-    notesStatus: document.getElementById('notes-status'), // New
+    appGeneralNotes: document.getElementById('app-general-notes'), 
+    notesStatus: document.getElementById('notes-status'), 
 
     // Add Form (Modal)
     addCustomerModal: document.getElementById('add-customer-modal'),
@@ -201,6 +203,11 @@ const el = {
     customerEmailInput: document.getElementById('customer-email'),
     serviceSpeedInput: document.getElementById('service-speed'),
     
+    // PDF Viewer Elements in Add Modal
+    pdfViewerCol: document.getElementById('pdf-viewer-col'),
+    pdfViewerFrame: document.getElementById('pdf-viewer-frame'),
+    pdfViewerLink: document.getElementById('pdf-viewer-link'),
+
     // Modal Contacts UI
     modalContactsList: document.getElementById('modal-contacts-list'),
     modalShowAddContactBtn: document.getElementById('modal-show-add-contact-btn'),
@@ -219,7 +226,7 @@ const el = {
     pdfStatusMsg: document.getElementById('pdf-status-msg'),
 
     // Dashboard Controls
-    contractsTable: document.getElementById('contractsTable'), // The Tbody
+    contractsTable: document.getElementById('contractsTable'), 
     tableEmptyState: document.getElementById('table-empty-state'),
     tableLoading: document.getElementById('table-loading'),
     loadingOverlay: document.getElementById('loading-overlay'),
@@ -291,7 +298,7 @@ onAuthStateChanged(auth, (user) => {
         
         customersCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'customers');
         mailCollectionRef = collection(db, 'artifacts', currentAppId, 'users', currentUserId, 'mail');
-        settingsCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'settings'); // Use settings for general notes
+        settingsCollectionRef = collection(db, 'artifacts', currentAppId, 'public', 'data', 'settings'); 
 
         el.appScreen.classList.remove('hidden');
         el.authScreen.classList.add('hidden');
@@ -351,16 +358,12 @@ const setupEventListeners = () => {
         }
     });
 
-    // General Notes Autosave and Auto-expand
+    // General Notes Autosave
     el.appGeneralNotes.addEventListener('input', () => {
-        // Auto-expand
         el.appGeneralNotes.style.height = 'auto';
         el.appGeneralNotes.style.height = (el.appGeneralNotes.scrollHeight) + 'px';
-
-        // Autosave Logic
         el.notesStatus.textContent = 'Saving...';
         el.notesStatus.classList.remove('opacity-0');
-        
         clearTimeout(notesDebounceTimer);
         notesDebounceTimer = setTimeout(saveGeneralNotes, 1500);
     });
@@ -422,7 +425,8 @@ const setupEventListeners = () => {
             el.detailsShowAddContactBtn.classList.remove('hidden');
         }
     });
-    // Contact Deletion & Copy (using Delegation)
+    
+    // Contact Deletion & Copy
     const handleContactListAction = (e, list, container) => {
         if (e.target.closest('.delete-contact-btn')) {
             handleDeleteContact(e, list, container);
@@ -538,7 +542,6 @@ const loadCustomers = () => {
             renderAnalytics();
         }
         
-        // Refresh selected if open
         if (selectedCustomerId) {
             const fresh = allCustomers.find(c => c.id === selectedCustomerId);
             if (fresh) populateDetailsForm(fresh);
@@ -555,10 +558,8 @@ const loadGeneralNotes = () => {
     const notesDocRef = doc(settingsCollectionRef, 'general_notes');
     onSnapshot(notesDocRef, (docSnap) => {
         if (docSnap.exists()) {
-            // Only update value if not currently focused to avoid overwriting typing
             if (document.activeElement !== el.appGeneralNotes) {
                 el.appGeneralNotes.value = docSnap.data().content || '';
-                // Adjust height after loading content
                 el.appGeneralNotes.style.height = 'auto';
                 el.appGeneralNotes.style.height = (el.appGeneralNotes.scrollHeight) + 'px';
             }
@@ -570,7 +571,6 @@ const saveGeneralNotes = async () => {
     if (!settingsCollectionRef) return;
     const content = el.appGeneralNotes.value;
     const notesDocRef = doc(settingsCollectionRef, 'general_notes');
-    
     try {
         await setDoc(notesDocRef, { content: content }, { merge: true });
         el.notesStatus.textContent = 'Saved';
@@ -587,7 +587,6 @@ const displayCustomers = () => {
     const term = el.searchBar.value.toLowerCase();
     let filtered = [...allCustomers];
 
-    // Main Tab Filter
     if (currentMainTab === 'Archived') {
         filtered = filtered.filter(c => c.status === 'Archived');
     } else if (currentMainTab === 'Billing') {
@@ -596,16 +595,13 @@ const displayCustomers = () => {
             (!c.postInstallChecklist || !c.postInstallChecklist.emailSentToBilling)
         );
     } else {
-        // Active
         filtered = filtered.filter(c => c.status !== 'Archived' && c.status !== 'Completed');
     }
 
-    // Pill Filter
     if (currentFilter !== 'All') {
         filtered = filtered.filter(c => c.status === currentFilter);
     }
 
-    // Search
     if (term) {
         filtered = filtered.filter(c => 
             (c.customerName || '').toLowerCase().includes(term) || 
@@ -614,7 +610,6 @@ const displayCustomers = () => {
         );
     }
 
-    // Sort
     filtered.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
     renderCustomerList(filtered);
@@ -643,14 +638,11 @@ const renderCustomerList = (list) => {
         let displayStatus = c.status;
         if (displayStatus === "Torys List") displayStatus = "Construction";
 
-        // Calculate days in current stage
         let daysInStage = 0;
         let lastStatusChange = c.createdAt?.seconds * 1000;
-        
         if (c.status === "Torys List" && c.torysListChecklist?.addedAt) {
             lastStatusChange = c.torysListChecklist.addedAt.seconds * 1000;
         } 
-
         const diffTime = Math.abs(Date.now() - lastStatusChange);
         daysInStage = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
@@ -684,8 +676,6 @@ const renderCustomerList = (list) => {
     
     if(window.lucide) window.lucide.createIcons();
 };
-
-// --- ANALYTICS LOGIC ---
 
 const renderAnalytics = () => {
     // 1. Stage Counts
@@ -735,7 +725,7 @@ const renderAnalytics = () => {
     const monthlyData = {};
     let totalInstallTimeDays = 0;
     let installTimeCount = 0;
-    let totalCustomersAllTime = 0; // NEW: Track total customers
+    let totalCustomersAllTime = 2696; // NEW: Track total customers
 
     // 4. Town Counts
     const townCounts = {};
@@ -919,7 +909,6 @@ const handleSelectCustomer = async (id) => {
     selectedCustomerId = id;
     el.detailsModal.classList.remove('hidden');
     el.detailsContainer.dataset.id = id;
-
     const c = allCustomers.find(cust => cust.id === id);
     if (c) populateDetailsForm(c);
 };
@@ -930,51 +919,39 @@ const closeDetailsModal = () => {
 };
 
 const populateDetailsForm = (data) => {
-    // 1. Header
     el.headerCustomerName.textContent = data.customerName || 'Unknown';
     el.headerSoNumber.textContent = data.serviceOrderNumber ? `SO# ${data.serviceOrderNumber}` : 'No SO#';
-    
-    // 2. Main Inputs
     el.detailsCustomerNameInput.value = data.customerName || '';
     el.detailsSoNumberInput.value = data.serviceOrderNumber || '';
     el.detailsAddressInput.value = data.address || '';
     el.detailsSpeedInput.value = data.serviceSpeed || '';
     el.detailsEmailInput.value = data.primaryContact?.email || '';
     
-    // Populate Contacts
     detailsContacts = data.contacts || []; 
-    // Fallback if no contacts array but old string exists
     if(detailsContacts.length === 0 && data.primaryContact?.phone) {
         detailsContacts.push({ type: 'Mobile', number: data.primaryContact.phone, name: 'Primary' });
     }
     renderContacts(el.detailsContactsList, detailsContacts, true);
     
     el.detailsGeneralNotes.value = data.generalNotes || '';
-
-    // 3. Stage Content & Stepper
     el.currentStageTitle.textContent = data.status || 'Stage Details';
     el.detailsForm.dataset.currentStatus = data.status;
     el.detailsForm.dataset.statusBeforeHold = data.statusBeforeHold || 'New Order';
     
     updateStepperUI(data.status);
-    setPageForStatus(data.status); // <--- RESTORED: Shows only relevant page
+    setPageForStatus(data.status);
 
-    // 4. Checklist Inputs (Map data to checkboxes)
     setCheck('check-welcome-email', data.preInstallChecklist?.welcomeEmailSent);
     setCheck('check-site-survey', data.preInstallChecklist?.addedToSiteSurvey);
     setCheck('check-fiber-list', data.preInstallChecklist?.addedToFiberList);
     setCheck('check-repair-shoppr', data.preInstallChecklist?.addedToRepairShoppr);
     setVal('site-survey-notes', data.installDetails?.siteSurveyNotes);
-    
     setCheck('check-torys-list', data.torysListChecklist?.added);
     setVal('drop-notes', data.installDetails?.dropNotes);
-    
     setVal('nid-light', data.installDetails?.nidLightReading);
     const spliceDate = data.splicingDetails?.completedAt?.seconds ? new Date(data.splicingDetails.completedAt.seconds*1000).toLocaleDateString() : 'N/A';
     document.getElementById('splice-complete-date').textContent = spliceDate;
-    
     setCheck('check-install-ready', data.installReadyChecklist?.ready);
-    
     setVal('install-date', data.installDetails?.installDate);
     setVal('extra-equip', data.installDetails?.additionalEquipment);
     setVal('install-notes', data.installDetails?.installNotes);
@@ -986,7 +963,6 @@ const populateDetailsForm = (data) => {
     setCheck('post-check-billing', data.postInstallChecklist?.emailSentToBilling);
     setCheck('bill-info', data.postInstallChecklist?.emailSentToBilling);
 
-    // 5. Conditional UI
     if (data.status === 'Completed') {
         el.completedActionsDiv.classList.remove('hidden');
         el.archiveCustomerBtn.classList.remove('hidden');
@@ -1002,7 +978,6 @@ const populateDetailsForm = (data) => {
     if (data.status === 'NID Ready') el.returnSpliceBtn.classList.remove('hidden');
     else el.returnSpliceBtn.classList.add('hidden');
 
-    // 6. View SO Button
     if (data.serviceOrderPdfUrl) {
         el.viewSoBtn.onclick = () => window.open(data.serviceOrderPdfUrl, '_blank');
         el.viewSoBtn.disabled = false;
@@ -1020,15 +995,11 @@ const updateStepperUI = (status) => {
     el.statusStepper.classList.remove('on-hold-mode');
     el.headerMoveBackBtn.classList.add('hidden');
     el.onHoldButton.classList.remove('active');
-
-    // Reset
     nodes.forEach(n => { n.className = 'step-node'; n.disabled = false; });
-
     if (status === 'Archived') {
         nodes.forEach(n => { n.classList.add('completed'); n.disabled = true; });
         return;
     }
-
     if (status === 'On Hold') {
         el.statusStepper.classList.add('on-hold-mode');
         el.onHoldButton.classList.add('active');
@@ -1037,7 +1008,6 @@ const updateStepperUI = (status) => {
         if(prevIdx !== -1) nodes[prevIdx].classList.add('active');
         return;
     }
-
     const idx = STEPS_WORKFLOW.indexOf(status);
     if (idx !== -1) {
         if(idx > 0) el.headerMoveBackBtn.classList.remove('hidden');
@@ -1048,54 +1018,29 @@ const updateStepperUI = (status) => {
     }
 };
 
-// --- RESTORED: Logic to show only ONE page at a time in the modal ---
 const setPageForStatus = (status) => {
-    el.detailsPages.forEach(p => {
-        p.classList.remove('active');
-        p.classList.add('hidden'); // Ensure hidden by default
-    });
-    
+    el.detailsPages.forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     if(status === 'Archived' || status === 'Completed') {
         const p = document.getElementById('page-install');
-        p.classList.remove('hidden');
-        p.classList.add('active');
+        p.classList.remove('hidden'); p.classList.add('active');
         return;
     }
     if(status === 'On Hold') {
         const prev = el.detailsForm.dataset.statusBeforeHold;
-        setPageForStatus(prev); // Show previous page, but UI indicates hold
+        setPageForStatus(prev);
         return;
     }
-    
-    const map = {
-        'New Order': 'page-pre-install',
-        'Site Survey Ready': 'page-site-survey',
-        'Torys List': 'page-torys-list',
-        'NID Ready': 'page-nid',
-        'Install Ready': 'page-install-ready',
-        'Completed': 'page-install'
-    };
+    const map = { 'New Order': 'page-pre-install', 'Site Survey Ready': 'page-site-survey', 'Torys List': 'page-torys-list', 'NID Ready': 'page-nid', 'Install Ready': 'page-install-ready', 'Completed': 'page-install' };
     const pageId = map[status] || 'page-pre-install';
     const activePage = document.getElementById(pageId);
-    if (activePage) {
-        activePage.classList.remove('hidden');
-        activePage.classList.add('active');
-    }
+    if (activePage) { activePage.classList.remove('hidden'); activePage.classList.add('active'); }
 };
 
 const showDetailsPage = (pageId) => {
-    el.detailsPages.forEach(p => {
-        p.classList.remove('active');
-        p.classList.add('hidden');
-    });
+    el.detailsPages.forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const p = document.getElementById(pageId);
-    if(p) {
-        p.classList.remove('hidden');
-        p.classList.add('active');
-    }
+    if(p) { p.classList.remove('hidden'); p.classList.add('active'); }
 };
-
-// --- 6. ACTIONS (Save, Update, etc) ---
 
 const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
     if(e) e.preventDefault();
@@ -1105,7 +1050,6 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
     let status = el.detailsForm.dataset.currentStatus;
     let prevStatus = el.detailsForm.dataset.statusBeforeHold;
 
-    // Progress Logic
     if (stepDir !== 0) {
         if (status === 'On Hold') status = prevStatus;
         const idx = STEPS_WORKFLOW.indexOf(status);
@@ -1113,8 +1057,6 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
         if (stepDir === -1 && idx > 0) status = STEPS_WORKFLOW[idx - 1];
     }
     
-    // Construct Data Object
-    // For backward compatibility, save first contact phone to primaryContact.phone
     const primaryPhone = detailsContacts.length > 0 ? detailsContacts[0].number : '';
 
     const data = {
@@ -1124,12 +1066,10 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
         serviceSpeed: el.detailsSpeedInput.value,
         'primaryContact.email': el.detailsEmailInput.value,
         'primaryContact.phone': primaryPhone,
-        contacts: detailsContacts, // Save array
+        contacts: detailsContacts, 
         status: status,
         statusBeforeHold: prevStatus,
         generalNotes: el.detailsGeneralNotes.value,
-        
-        // Checklists
         'preInstallChecklist.welcomeEmailSent': isChecked('check-welcome-email'),
         'preInstallChecklist.addedToSiteSurvey': isChecked('check-site-survey'),
         'preInstallChecklist.addedToFiberList': isChecked('check-fiber-list'),
@@ -1157,16 +1097,9 @@ const handleUpdateCustomer = async (e, isAutoSave, stepDir) => {
     try {
         if (!isAutoSave) el.loadingOverlay.classList.remove('hidden');
         await updateDoc(doc(customersCollectionRef, id), data);
-        
-        if (stepDir !== 0) {
-            populateDetailsForm({ ...data, id }); // optimistic update
-        }
-
+        if (stepDir !== 0) populateDetailsForm({ ...data, id }); 
         if (!isAutoSave) showToast(stepDir === 0 ? 'Saved' : `Moved to ${status}`, 'success');
-        
-        // Refresh analytics if open
         if(!el.analyticsDashboard.classList.contains('hidden')) renderAnalytics();
-
     } catch (err) {
         console.error(err);
         showToast('Error saving', 'error');
@@ -1190,7 +1123,6 @@ const handleDeleteCustomer = async (e) => {
     e.preventDefault();
     const id = el.detailsContainer.dataset.id;
     if (!id || !customersCollectionRef) return;
-    
     if (confirm("Are you sure you want to delete this customer? This cannot be undone.")) {
         try {
             el.loadingOverlay.classList.remove('hidden');
@@ -1206,42 +1138,20 @@ const handleDeleteCustomer = async (e) => {
     }
 };
 
-// --- RESTORED: Welcome Email Logic ---
 const handleSendWelcomeEmail = async () => {
     const email = el.detailsEmailInput.value;
     const name = el.detailsCustomerNameInput.value;
-
-    if (!email) {
-        showToast('No email address found.', 'error');
-        return;
-    }
-
+    if (!email) { showToast('No email address found.', 'error'); return; }
     if (!confirm(`Are you sure you want to automatically send the welcome email to ${email}?`)) return;
-
     try {
         el.loadingOverlay.classList.remove('hidden');
-
-        // Trigger Cloud Function via Firestore trigger
-        await addDoc(mailCollectionRef, {
-            to: [email],
-            template: {
-                data: {
-                    customerName: name
-                }
-            },
-            sent: false,
-            createdAt: serverTimestamp()
-        });
-
-        // Optimistically update UI and DB
+        await addDoc(mailCollectionRef, { to: [email], template: { data: { customerName: name } }, sent: false, createdAt: serverTimestamp() });
         const welcomeCheckbox = document.getElementById('check-welcome-email');
         if (welcomeCheckbox && !welcomeCheckbox.checked) {
             welcomeCheckbox.checked = true;
             await handleUpdateCustomer(null, true, 0); 
         }
-        
         showToast('Welcome email queued successfully.', 'success');
-
     } catch (err) {
         console.error("Error queueing welcome email:", err);
         showToast('Failed to queue email.', 'error');
@@ -1255,21 +1165,27 @@ const handleSendWelcomeEmail = async () => {
 const openAddCustomerModal = () => {
     el.addCustomerModal.classList.remove('hidden');
     el.addForm.reset();
+    
+    // Reset contacts
     modalContacts = [];
     renderContacts(el.modalContactsList, modalContacts, true);
+    
+    // Hide PDF Viewer initially and reset src
+    if (el.pdfViewerCol) el.pdfViewerCol.classList.add('hidden');
+    if (el.pdfViewerFrame) el.pdfViewerFrame.src = '';
+    
+    // Remove any existing Raw Data view if present
+    const existingRaw = document.getElementById('pdf-raw-data-container');
+    if(existingRaw) existingRaw.remove();
+    el.pdfStatusMsg.textContent = '';
 };
-const closeAddCustomerModal = () => {
-    el.addCustomerModal.classList.add('hidden');
-};
+
+const closeAddCustomerModal = () => { el.addCustomerModal.classList.add('hidden'); };
 
 const handleAddCustomer = async (e) => {
     e.preventDefault();
-    
-    // Apply Title Case to Name and Address
     const formattedName = toTitleCase(el.customerNameInput.value);
     const formattedAddress = toTitleCase(el.addressInput.value);
-    
-    // Fallback phone if no contacts added
     const primaryPhone = modalContacts.length > 0 ? modalContacts[0].number : '';
 
     const newDoc = {
@@ -1277,7 +1193,7 @@ const handleAddCustomer = async (e) => {
         customerName: formattedName,
         address: formattedAddress,
         primaryContact: { email: el.customerEmailInput.value, phone: primaryPhone },
-        contacts: modalContacts, // Save array
+        contacts: modalContacts, 
         serviceSpeed: el.serviceSpeedInput.value,
         status: "New Order",
         createdAt: serverTimestamp(),
@@ -1302,6 +1218,8 @@ const updateSelectedFileDisplay = () => {
     }
 };
 
+// --- 8. ROBUST PDF PARSING ---
+
 const handlePdfProcessing = async () => {
     if (!window.pdfjsLib) return;
     const file = el.pdfUploadInput.files[0];
@@ -1311,9 +1229,19 @@ const handlePdfProcessing = async () => {
     el.processPdfBtn.textContent = 'Processing...';
 
     try {
+        // Upload file logic
         const storageRef = ref(storage, `artifacts/${currentAppId}/public/service_orders/${Date.now()}_${file.name}`);
         const snap = await uploadBytes(storageRef, file);
         tempUploadedPdfUrl = await getDownloadURL(snap.ref);
+
+        // --- NEW: Display PDF Side-by-Side ---
+        if (el.pdfViewerCol && el.pdfViewerFrame) {
+            el.pdfViewerFrame.src = tempUploadedPdfUrl;
+            el.pdfViewerLink.href = tempUploadedPdfUrl;
+            el.pdfViewerCol.classList.remove('hidden');
+            // Ensure flex layout works
+            el.pdfViewerCol.classList.add('flex');
+        }
 
         const reader = new FileReader();
         reader.onload = async () => {
@@ -1321,219 +1249,175 @@ const handlePdfProcessing = async () => {
             const page = await pdf.getPage(1);
             const content = await page.getTextContent();
             
+            // Raw text extraction
             const text = content.items.map(i => i.str).join('\n');
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
 
             console.log("--- START PDF EXTRACT ---");
             console.log(text);
-            console.log("--- END PDF EXTRACT ---");
 
-            // --- 1. SERVICE ORDER ---
+            // --- 1. Service Order Number ---
             const soMatch = text.match(/Service Order:\s*(\d+)/i);
             if (soMatch) el.soNumberInput.value = soMatch[1];
 
-            // --- 2. ADDRESS (Service Point Street + Bill To City/State/Zip) ---
-            let street = '';
-            // Try Service Point first (often cleaner)
-            const servicePointMatch = text.match(/Service\s+Point:\s*(?:NEW\s*|GOSH\s*)?([\s\S]+?)City\/Serv/i);
-            if (servicePointMatch) {
-                let rawStreet = servicePointMatch[1].replace(/\n/g, ' ').trim();
-                // FIX: Remove specific prefixes seen in examples
-                rawStreet = rawStreet.replace(/^(GOSH|NEW|NAPP|SYR|MILF|BRIS|MIDD|ELKH|WAKA)\s+/i, '').trim();
-                // Also remove any leading numbers that might be route prefixes if they exist (though less common in examples)
-                street = rawStreet;
-            }
-
-            let cityStateZip = '';
-            const billToBlockMatch = text.match(/Bill\s+To:\s*([\s\S]*?)Res\/Bus/i);
-            let nameLines = [];
+            // --- 2. Robust Address Parser (The "Digit-Anchor" Strategy) ---
             
-            if (billToBlockMatch) {
-                const lines = billToBlockMatch[1].split('\n').map(l => l.trim()).filter(l => l);
+            // Isolate the "Bill To" block
+            const billToIdx = lines.findIndex(l => /Bill\s+To:/i.test(l));
+            const endBlockIdx = lines.findIndex((l, idx) => idx > billToIdx && (/Res\/Bus:/i.test(l) || /SO\s+Status:/i.test(l) || /Source:/i.test(l) || /Agreement:/i.test(l)));
+
+            let foundAddress = '';
+            let customerNames = [];
+
+            if (billToIdx !== -1 && endBlockIdx !== -1) {
+                const block = lines.slice(billToIdx + 1, endBlockIdx);
                 
-                let addressStartIndex = -1;
-                // Find where the address digits start or PO Box
-                for(let i=0; i<lines.length; i++) {
-                     if (/^\d/.test(lines[i]) || /^P\.?O\.?\s*Box/i.test(lines[i])) {
-                        addressStartIndex = i;
+                // Identify where the street address starts.
+                // Heuristic: The first line in the block that starts with a NUMBER is likely the street.
+                // e.g. "57767 COUNTY ROAD 31" or "16144 CR 18"
+                // Everything ABOVE that line is Name(s).
+                
+                let streetStartIndex = -1;
+                for (let i = 0; i < block.length; i++) {
+                    // Check if line starts with a digit
+                    if (/^\d/.test(block[i])) {
+                        streetStartIndex = i;
                         break;
                     }
                 }
-                
-                if (addressStartIndex > -1) {
-                    nameLines = lines.slice(0, addressStartIndex);
-                    const addressLines = lines.slice(addressStartIndex);
+
+                if (streetStartIndex > 0) {
+                    // Names are lines before street
+                    customerNames = block.slice(0, streetStartIndex);
                     
-                    // Search for Zip line from bottom up
-                    const zipRegex = /\b\d{5}(?:-\d{4})?\b/;
-                    let zipLineIndex = -1;
-                    for (let i = addressLines.length - 1; i >= 0; i--) {
-                        if (zipRegex.test(addressLines[i])) {
-                            zipLineIndex = i;
+                    // Street is the specific line at index
+                    let streetLine = block[streetStartIndex];
+                    
+                    // City/State/Zip are lines after street
+                    let cityStateZipParts = block.slice(streetStartIndex + 1);
+                    
+                    // Sometimes City is on same line as street? Unlikely in these PDFs, but possible.
+                    // Usually City/State/Zip is the last line of the address block.
+                    
+                    // Refine City Parsing:
+                    let city = '';
+                    let state = 'IN';
+                    let zip = '';
+                    
+                    // Join remaining parts to find zip/state
+                    const remainingText = cityStateZipParts.join(' ');
+                    
+                    const zipMatch = remainingText.match(/\b(\d{5})\b/);
+                    if (zipMatch) zip = zipMatch[1];
+                    
+                    if (/\b(IN|MI|OH|IL)\b/i.test(remainingText)) {
+                        state = remainingText.match(/\b(IN|MI|OH|IL)\b/i)[0].toUpperCase();
+                    }
+
+                    // Find City in Whitelist
+                    const combinedBlockUpper = remainingText.toUpperCase();
+                    for (const validCity of VALID_CITIES) {
+                        if (combinedBlockUpper.includes(validCity)) {
+                            city = toTitleCase(validCity);
                             break;
                         }
                     }
                     
-                    if (zipLineIndex !== -1) {
-                        let zipPart = addressLines[zipLineIndex].match(zipRegex)[0];
-                        let statePart = '';
-                        let cityPart = '';
-                        
-                        // Combine lines around zip to form the tail
-                        // If zip line has text before it (e.g. "GOSHEN, IN 46528"), use that line
-                        // If zip line is isolated, look above it
-                        
-                        // Strategy: gather lines from zip line upwards until we hit the street line?
-                        // Better: Look for State Match in the same line or previous line
-                        
-                        let candidateText = addressLines[zipLineIndex];
-                        if (zipLineIndex > 0) {
-                            candidateText = addressLines[zipLineIndex - 1] + " " + candidateText;
-                        }
-                        
-                        // Parse from candidate text
-                        const stateMatch = candidateText.match(/[\s,]+(IN|INDIANA|MI|MICHIGAN|OH|OHIO|IL|ILLINOIS)\b/i);
-                        
-                        if (stateMatch) {
-                            statePart = stateMatch[1]; // IN
-                            const splitIndex = stateMatch.index;
-                            if (splitIndex > 0) {
-                                let rawCity = candidateText.substring(0, splitIndex).trim();
-                                rawCity = rawCity.replace(/,$/, '').trim();
-                                
-                                // Heuristic: if rawCity contains digits, it likely includes the street part.
-                                // We want just the city. 
-                                // Address: "16144 CR 18 GOSHEN" -> City "GOSHEN"
-                                // Address: "57767 COUNTY ROAD 31 GOSHEN"
-                                
-                                // Check if rawCity has address-like numbers at the start.
-                                // If so, assume the last word(s) are the city.
-                                // BUT some streets are named "County Road 23".
-                                // This is hard without a city list or strict delimiters.
-                                
-                                // LUCKILY, the validTowns list helps!
-                                const validTowns = ['goshen', 'new paris', 'nappanee', 'syracuse', 'milford', 'bristol', 'middlebury', 'elkhart', 'wakarusa'];
-                                let foundTown = "";
-                                
-                                // Check from end of string backwards
-                                for (const town of validTowns) {
-                                    if (rawCity.toLowerCase().endsWith(town)) {
-                                        foundTown = town;
-                                        break;
-                                    }
-                                }
-                                
-                                if (foundTown) {
-                                    cityPart = toTitleCase(foundTown);
-                                    // If we found the city here, we might want to ensure street part didn't get mixed in previously
-                                } else {
-                                    // Fallback: take the whole thing if no known town match
-                                    cityPart = rawCity; 
-                                }
-                            }
-                        }
-                        
-                        if(cityPart && statePart && zipPart) {
-                            cityStateZip = `${cityPart}, ${statePart} ${zipPart}`;
-                        } else {
-                           // Fallback if parsing fails: just use the raw text found
-                           cityStateZip = candidateText;
-                        }
-                    } else {
-                        // Zip not found? just join address lines
-                        cityStateZip = addressLines.join(' ');
-                    }
-                } else {
-                    nameLines = lines;
-                }
-            }
-
-            const fullAddr = [street, cityStateZip].filter(Boolean).join(', ');
-            if (fullAddr) el.addressInput.value = toTitleCase(fullAddr);
-
-            // --- 3. CUSTOMER NAME ---
-            if (nameLines.length > 0) {
-                 const parsedNames = nameLines.map(n => {
-                    const parts = n.split(/\s+/);
-                    if(parts.length > 1) {
-                        const last = parts.pop();
-                        const first = parts.join(' ');
-                        return { first, last };
-                    }
-                    return { first: n, last: '' };
-                 });
-                 
-                 if (parsedNames.length === 2) {
-                      if (parsedNames[0].last && parsedNames[1].last && 
-                          parsedNames[0].last.toUpperCase() === parsedNames[1].last.toUpperCase()) {
-                          el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first} & ${parsedNames[1].first}`);
-                      } else {
-                          el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
-                      }
-                 } else if (parsedNames.length === 1) {
-                      if (parsedNames[0].last) {
-                          el.customerNameInput.value = toTitleCase(`${parsedNames[0].last} ${parsedNames[0].first}`);
-                      } else {
-                          el.customerNameInput.value = toTitleCase(parsedNames[0].first);
-                      }
-                 } else {
-                      el.customerNameInput.value = toTitleCase(nameLines.join(' & '));
-                 }
-            }
-
-            // --- 4. CONTACTS ---
-            const contactTypes = ['WORK', 'CELL', 'other', 'HOME'];
-            modalContacts = []; 
-            
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const matchedType = contactTypes.find(t => line.toUpperCase() === t.toUpperCase());
-                
-                if (matchedType) {
-                    let type = matchedType.charAt(0).toUpperCase() + matchedType.slice(1).toLowerCase(); 
-                    if(type === 'Other') type = 'Other'; 
-                    if(type === 'Cell') type = 'Mobile'; 
-
-                    let number = "";
-                    let name = "";
-                    
-                    if (i + 1 < lines.length) {
-                        const nextLine = lines[i+1];
-                        if (/[0-9]/.test(nextLine)) {
-                            number = nextLine.replace(/\/$/, '').trim(); 
-                        }
-                    }
-                    
-                    if (i + 2 < lines.length) {
-                         const nameLine = lines[i+2];
-                         if (!contactTypes.some(t => nameLine.toUpperCase() === t.toUpperCase()) && nameLine !== 'Customer') {
-                             name = toTitleCase(nameLine);
+                    // Fallback city if whitelist fails
+                    if (!city) {
+                         // Check for comma in the line immediately following street
+                         if(cityStateZipParts.length > 0 && cityStateZipParts[0].includes(',')) {
+                             city = toTitleCase(cityStateZipParts[0].split(',')[0].trim());
                          }
                     }
 
-                    if (number) {
-                        addContact(modalContacts, { type, number, name });
+                    foundAddress = `${toTitleCase(streetLine)}, ${city}, ${state} ${zip}`;
+
+                } else {
+                    // Fallback: If no number found at start of line (weird address?), treat line 0 as Name, rest as address
+                    if (block.length > 0) {
+                        customerNames = [block[0]];
+                        foundAddress = block.slice(1).join(' ');
                     }
+                }
+            }
+
+            if (foundAddress) el.addressInput.value = foundAddress;
+            if (customerNames.length > 0) el.customerNameInput.value = toTitleCase(customerNames.join(' & '));
+
+
+            // --- 3. Contacts (Improved Regex Scan) ---
+            modalContacts = [];
+            
+            // Regex for numbers (allowing (555) or 555-)
+            const phoneRegex = /(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/;
+            
+            // We scan the whole text for specific keywords and associate nearby numbers
+            const linesWithContext = text.split('\n');
+            
+            for (let i = 0; i < linesWithContext.length; i++) {
+                const line = linesWithContext[i].toUpperCase();
+                
+                // Identify Label
+                let type = null;
+                if (line.includes('CELL') || line.includes('MOBILE')) type = 'Mobile';
+                else if (line.includes('WORK')) type = 'Work';
+                else if (line.includes('HOME')) type = 'Home';
+                
+                if (type) {
+                    // Look at current line + next 2 lines for a number
+                    const scanRange = linesWithContext.slice(i, i+3).join(' ');
+                    const match = scanRange.match(phoneRegex);
+                    if (match) {
+                        addContact(modalContacts, { type, number: match[0], name: 'Primary' });
+                    }
+                }
+            }
+            
+            // Also check "Call [Name] [Number]" pattern in description
+            const callMatch = text.match(/CALL\s+(?:[A-Z]+\s+)?#?(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/i);
+            if (callMatch) {
+                 addContact(modalContacts, { type: 'Mobile', number: callMatch[1], name: 'From Notes' });
+            }
+
+            // Fallback: Just grab any phone pattern if list empty
+            if (modalContacts.length === 0) {
+                const genericMatch = text.match(phoneRegex);
+                if (genericMatch) {
+                    addContact(modalContacts, { type: 'Mobile', number: genericMatch[0], name: 'Primary' });
                 }
             }
             renderContacts(el.modalContactsList, modalContacts, true);
 
-            // --- 5. SPEED ---
-            if (/1\s*(?:GIG|GBPS)/i.test(text)) {
-                el.serviceSpeedInput.value = '1 Gbps';
-            } else if (/500\s*(?:MG|MBPS)/i.test(text)) {
-                el.serviceSpeedInput.value = '500 Mbps';
-            } else if (/200\s*(?:MG|MBPS)/i.test(text)) {
-                el.serviceSpeedInput.value = '200 Mbps';
-            }
+            // --- 4. Speed & Email ---
+            // Speed Detection (Expanded)
+            const speedText = text.toUpperCase();
+            if (speedText.includes('1 GIG') || speedText.includes('1GIG') || speedText.includes('1000')) el.serviceSpeedInput.value = '1 Gbps';
+            else if (speedText.includes('500') || speedText.includes('500MB') || speedText.includes('500 MG')) el.serviceSpeedInput.value = '500 Mbps';
+            else if (speedText.includes('200') || speedText.includes('200MB') || speedText.includes('200 MG')) el.serviceSpeedInput.value = '200 Mbps';
             
-            // EMAIL
             const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/);
             if(emailMatch) el.customerEmailInput.value = emailMatch[1];
             
-            el.pdfStatusMsg.textContent = 'Autofilled from PDF!';
+            // --- UI FEEDBACK & RAW VIEW ---
+            el.pdfStatusMsg.textContent = 'Autofilled! Verify details below.';
             el.processPdfBtn.textContent = 'Processed';
+            
+            // Inject Raw View Toggle (Modified to fit new layout)
+            const dropZone = document.getElementById('pdf-drop-zone');
+            if(!document.getElementById('pdf-raw-data-container')) {
+                const rawDiv = document.createElement('div');
+                rawDiv.id = 'pdf-raw-data-container';
+                rawDiv.className = 'mt-2 text-xs';
+                rawDiv.innerHTML = `
+                    <button type="button" class="text-blue-500 hover:underline" onclick="document.getElementById('raw-text-area').classList.toggle('hidden')">View Raw PDF Text</button>
+                    <textarea id="raw-text-area" class="hidden w-full h-24 border rounded p-1 mt-1 text-gray-500 font-mono text-[10px]" readonly>${text}</textarea>
+                `;
+                dropZone.appendChild(rawDiv);
+            } else {
+                document.getElementById('raw-text-area').value = text;
+            }
+
         };
         reader.readAsArrayBuffer(file);
 
@@ -1546,7 +1430,6 @@ const handlePdfProcessing = async () => {
 };
 
 const handleReturnSplice = async () => {
-    // Implement or leave as placeholder
     console.log("Return Splice clicked");
 };
 
@@ -1558,9 +1441,7 @@ const handleCopyBilling = async () => {
             const [year, month, day] = rawDate.split('-');
             formattedDate = `${month}/${day}/${year}`;
         }
-
         const extraEquip = document.getElementById('extra-equip').value || '';
-
         const rawName = el.detailsCustomerNameInput.value || '';
         let billingName = rawName;
         const nameParts = rawName.trim().split(/\s+/);
@@ -1568,76 +1449,38 @@ const handleCopyBilling = async () => {
             const firstWord = nameParts.shift();
             billingName = `${nameParts.join(' ')} ${firstWord}`;
         }
-
-        const billingInfo = [
-            `Customer Name: ${billingName}`,
-            `Address: ${el.detailsAddressInput.value}`,
-            `Service Order: ${el.detailsSoNumberInput.value}`,
-            `Speed: ${el.detailsSpeedInput.value}`,
-            `Date Installed: ${formattedDate}`,
-            `Additional Equipment: ${extraEquip}`,
-            ``,
-            `Thanks,`,
-            `Lincoln`
-        ].join('\n');
-
+        const billingInfo = [`Customer Name: ${billingName}`, `Address: ${el.detailsAddressInput.value}`, `Service Order: ${el.detailsSoNumberInput.value}`, `Speed: ${el.detailsSpeedInput.value}`, `Date Installed: ${formattedDate}`, `Additional Equipment: ${extraEquip}`, ``, `Thanks,`, `Lincoln`].join('\n');
         await navigator.clipboard.writeText(billingInfo);
-        
         const originalBtnContent = el.copyBillingBtn.innerHTML;
         el.copyBillingBtn.innerHTML = `<i data-lucide="check"></i> Copied!`;
-        
         if (window.lucide) window.lucide.createIcons();
-
-        setTimeout(() => {
-            el.copyBillingBtn.innerHTML = originalBtnContent;
-            if (window.lucide) window.lucide.createIcons();
-        }, 2000);
-
+        setTimeout(() => { el.copyBillingBtn.innerHTML = originalBtnContent; if (window.lucide) window.lucide.createIcons(); }, 2000);
         showToast('Billing info copied to clipboard', 'success');
-
-    } catch (err) {
-        console.error("Failed to copy billing info: ", err);
-        showToast('Failed to copy info', 'error');
-    }
+    } catch (err) { console.error("Failed to copy billing info: ", err); showToast('Failed to copy info', 'error'); }
 };
 
 const handleArchiveCustomer = async () => {
     const id = el.detailsContainer.dataset.id;
     if (!id || !customersCollectionRef) return;
-
     if (confirm("Are you sure you want to archive this customer?")) {
         try {
             el.loadingOverlay.classList.remove('hidden');
-            await updateDoc(doc(customersCollectionRef, id), {
-                status: 'Archived'
-            });
+            await updateDoc(doc(customersCollectionRef, id), { status: 'Archived' });
             showToast('Customer Archived', 'success');
-            handleDeselectCustomer(false); 
-        } catch (error) {
-            console.error("Error archiving customer: ", error);
-            showToast('Error archiving customer', 'error');
-        } finally {
-            el.loadingOverlay.classList.add('hidden');
-        }
+            handleSelectCustomer(false); 
+            closeDetailsModal();
+        } catch (error) { console.error("Error archiving customer: ", error); showToast('Error archiving customer', 'error'); } finally { el.loadingOverlay.classList.add('hidden'); }
     }
 };
 
 const handleUnarchiveCustomer = async () => {
     const id = el.detailsContainer.dataset.id;
     if (!id || !customersCollectionRef) return;
-
     if (confirm("Are you sure you want to unarchive this customer? They will be moved to Completed.")) {
         try {
             el.loadingOverlay.classList.remove('hidden');
-            await updateDoc(doc(customersCollectionRef, id), {
-                status: 'Completed'
-            });
+            await updateDoc(doc(customersCollectionRef, id), { status: 'Completed' });
             showToast('Customer Unarchived', 'success');
-        } catch (error) {
-            console.error("Error unarchiving customer: ", error);
-            showToast('Error unarchiving customer', 'error');
-        } finally {
-            el.loadingOverlay.classList.add('hidden');
-        }
+        } catch (error) { console.error("Error unarchiving customer: ", error); showToast('Error unarchiving customer', 'error'); } finally { el.loadingOverlay.classList.add('hidden'); }
     }
 };
